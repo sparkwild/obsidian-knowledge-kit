@@ -25,6 +25,18 @@ EXPECTED_SCRIPTS = (
     "render_session_skeleton.py",
     "sync_plugin_package.py",
 )
+EXPECTED_SKILL_SCRIPT_PATHS = (
+    "obsidian-knowledge-init/scripts/check_kepano_skills.py",
+    "obsidian-knowledge-init/scripts/check_obsidian_env.py",
+    "obsidian-knowledge-init/scripts/install_or_update_kepano_skills.py",
+    "obsidian-knowledge-init/scripts/render_core_notes.py",
+    "obsidian-knowledge-ingest/scripts/check_kepano_skills.py",
+    "obsidian-knowledge-ingest/scripts/check_obsidian_env.py",
+    "obsidian-knowledge-ingest/scripts/install_or_update_kepano_skills.py",
+    "obsidian-knowledge-refine/scripts/check_kepano_skills.py",
+    "obsidian-knowledge-refine/scripts/check_obsidian_env.py",
+    "obsidian-knowledge-refine/scripts/install_or_update_kepano_skills.py",
+)
 
 
 def repo_or_plugin_root() -> tuple[Path, Path]:
@@ -53,7 +65,7 @@ def command_referenced_scripts(commands_path: Path) -> set[str]:
     return discovered
 
 
-def build_report() -> dict:
+def build_report(require_installed: bool) -> dict:
     root, plugin_root = repo_or_plugin_root()
     manifest_path = plugin_root / ".codex-plugin" / "plugin.json"
     marketplace_path = root / ".agents" / "plugins" / "marketplace.json"
@@ -77,7 +89,8 @@ def build_report() -> dict:
         issues.append(f"Repo-local marketplace should be removed after home-local installation: {marketplace_path}")
 
     if not home_marketplace_path.exists():
-        issues.append(f"Missing home-local marketplace manifest: {home_marketplace_path}")
+        if require_installed:
+            issues.append(f"Missing home-local marketplace manifest: {home_marketplace_path}")
         home_marketplace = {}
     else:
         home_marketplace = load_json(home_marketplace_path)
@@ -88,7 +101,7 @@ def build_report() -> dict:
             plugin_entry = entry
             break
 
-    if plugin_entry is None:
+    if require_installed and plugin_entry is None:
         issues.append(f"Home-local marketplace entry for {PLUGIN_NAME!r} not found.")
 
     manifest_name = manifest.get("name")
@@ -160,6 +173,10 @@ def build_report() -> dict:
     missing_skills = [name for name in EXPECTED_SKILLS if name not in skill_targets]
     if missing_skills:
         issues.append(f"Missing plugin skills: {', '.join(missing_skills)}")
+    else:
+        for relative_path in EXPECTED_SKILL_SCRIPT_PATHS:
+            if not (skills_link / relative_path).exists():
+                issues.append(f"Missing plugin skill script: {skills_link / relative_path}")
 
     return {
         "ok": not issues,
@@ -186,10 +203,15 @@ def build_report() -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Validate the repo-local Codex plugin package.")
+    parser.add_argument(
+        "--require-installed",
+        action="store_true",
+        help="Also require a matching home-local marketplace installation.",
+    )
     parser.add_argument("--json", action="store_true", help="Emit the validation report as JSON.")
     args = parser.parse_args()
 
-    report = build_report()
+    report = build_report(require_installed=args.require_installed)
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
     else:

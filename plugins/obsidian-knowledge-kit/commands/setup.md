@@ -17,7 +17,7 @@ obsidian vault info=path
 2. Check the installed plugin package and home-local marketplace:
 
 ```bash
-python3 ~/plugins/obsidian-knowledge-kit/scripts/check_codex_plugin.py --json
+python3 ~/plugins/obsidian-knowledge-kit/scripts/check_codex_plugin.py --require-installed --json
 ```
 
 3. Check whether the global AGENTS hint is already present:

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 
@@ -20,7 +21,8 @@ KNOWLEDGE_HINT = """# Global Working Rules
 def target_path(raw_path: str | None) -> Path:
     if raw_path:
         return Path(raw_path).expanduser()
-    return Path.home() / ".codex" / "AGENTS.md"
+    codex_home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")).expanduser()
+    return codex_home / "AGENTS.md"
 
 
 def has_knowledge_hint(content: str) -> bool:
