@@ -27,6 +27,8 @@
       "Write"
     ],
     "websiteURL": "https://github.com/sparkwild/obsidian-knowledge-kit",
+    "privacyPolicyURL": "https://github.com/sparkwild/obsidian-knowledge-kit/blob/main/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/sparkwild/obsidian-knowledge-kit/blob/main/TERMS.md",
     "defaultPrompt": [
       "Initialize my active Obsidian vault for codex-native knowledge workflows",
       "Ingest a local folder or URL into my Obsidian knowledge base",

@@ -12,12 +12,15 @@ DEFAULT_MARKETPLACE_NAME = "local-plugins"
 DEFAULT_MARKETPLACE_DISPLAY_NAME = "Local Plugins"
 
 
-def repo_root() -> Path:
+def script_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
 def plugin_source_root() -> Path:
-    return repo_root() / "plugins" / PLUGIN_NAME
+    root = script_root()
+    if (root / ".codex-plugin" / "plugin.json").exists():
+        return root
+    return root / "plugins" / PLUGIN_NAME
 
 
 def home_root() -> Path:
@@ -33,6 +36,8 @@ def target_marketplace_path(home: Path) -> Path:
 
 
 def copy_plugin_tree(src: Path, dst: Path, force: bool) -> None:
+    if src.resolve() == dst.resolve():
+        return
     if dst.exists():
         if not force:
             raise FileExistsError(f"Target plugin path already exists: {dst}")
@@ -113,6 +118,9 @@ def main() -> int:
         "dry_run": args.dry_run,
         "force": args.force,
     }
+
+    same_installation = source_root.resolve() == plugin_target.resolve()
+    payload["source_equals_target"] = same_installation
 
     if not args.dry_run:
         copy_plugin_tree(source_root, plugin_target, force=args.force)

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 
@@ -18,6 +19,7 @@ EXPECTED_SCRIPTS = (
     "apply_distill_updates.py",
     "install_global_knowledge_hint.py",
     "install_home_local_plugin.py",
+    "install_local_runtime.py",
     "load_knowledge_context.py",
     "prepare_ingest_source.py",
     "render_session_skeleton.py",
@@ -27,10 +29,9 @@ EXPECTED_SCRIPTS = (
 
 def repo_or_plugin_root() -> tuple[Path, Path]:
     script_root = Path(__file__).resolve().parents[1]
-    plugin_candidate = script_root.parent
-    direct_manifest = plugin_candidate / ".codex-plugin" / "plugin.json"
+    direct_manifest = script_root / ".codex-plugin" / "plugin.json"
     if direct_manifest.exists():
-        return plugin_candidate, plugin_candidate
+        return script_root, script_root
 
     repo_root = script_root
     plugin_root = repo_root / "plugins" / PLUGIN_NAME
@@ -39,6 +40,17 @@ def repo_or_plugin_root() -> tuple[Path, Path]:
 
 def load_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def command_referenced_scripts(commands_path: Path) -> set[str]:
+    pattern = re.compile(r"(?:^|[\s`])(?:~\/plugins\/obsidian-knowledge-kit\/)?scripts\/([A-Za-z0-9_]+\.py)")
+    discovered: set[str] = set()
+    if not commands_path.exists():
+        return discovered
+    for command_path in commands_path.glob("*.md"):
+        text = command_path.read_text(encoding="utf-8")
+        discovered.update(pattern.findall(text))
+    return discovered
 
 
 def build_report() -> dict:
@@ -86,7 +98,18 @@ def build_report() -> dict:
         if manifest.get("skills") != "./skills/":
             issues.append("Plugin manifest should point `skills` to `./skills/`.")
         interface = manifest.get("interface", {})
-        for field_name in ("displayName", "shortDescription", "longDescription", "developerName", "category", "websiteURL", "composerIcon", "logo"):
+        for field_name in (
+            "displayName",
+            "shortDescription",
+            "longDescription",
+            "developerName",
+            "category",
+            "websiteURL",
+            "privacyPolicyURL",
+            "termsOfServiceURL",
+            "composerIcon",
+            "logo",
+        ):
             if not interface.get(field_name):
                 issues.append(f"Plugin interface is missing `{field_name}`.")
         default_prompt = interface.get("defaultPrompt", [])
@@ -129,7 +152,8 @@ def build_report() -> dict:
     if not scripts_path.exists():
         issues.append(f"Missing plugin scripts directory: {scripts_path}")
     else:
-        for script_name in EXPECTED_SCRIPTS:
+        required_scripts = set(EXPECTED_SCRIPTS) | command_referenced_scripts(commands_path)
+        for script_name in sorted(required_scripts):
             if not (scripts_path / script_name).exists():
                 issues.append(f"Missing plugin script: {scripts_path / script_name}")
 

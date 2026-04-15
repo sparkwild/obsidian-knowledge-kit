@@ -19,7 +19,7 @@ obsidian vault info=path
 1. Create a new session note skeleton:
 
 ```bash
-python3 scripts/render_session_skeleton.py --apply --json
+python3 ~/plugins/obsidian-knowledge-kit/scripts/render_session_skeleton.py --apply --json
 ```
 
 2. Fill the session note with:
@@ -39,7 +39,7 @@ python3 scripts/render_session_skeleton.py --apply --json
 3. Apply the distill updates:
 
 ```bash
-python3 scripts/apply_distill_updates.py "02_timeline/sessions/<session>.md" \
+python3 ~/plugins/obsidian-knowledge-kit/scripts/apply_distill_updates.py "02_timeline/sessions/<session>.md" \
   --summary "<one-line summary>" \
   --project-progress "<optional project latest progress>" \
   --apply --json
