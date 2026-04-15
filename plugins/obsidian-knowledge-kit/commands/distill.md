@@ -16,23 +16,42 @@ obsidian vault info=path
 
 ## Distill Workflow
 
-Create a new session note under `02_timeline/sessions/` with:
+1. Create a new session note skeleton:
 
-1. frontmatter:
+```bash
+python3 scripts/render_session_skeleton.py --apply --json
+```
+
+2. Fill the session note with:
+
+   - frontmatter:
    - `title`
    - `created`
    - `updated`
    - `type: session`
-2. sections:
+   - sections:
    - objective
    - context_loaded
    - work_log
    - outcomes
    - next_actions
-2. Update `01_ai_core/active_context.md` if priorities or constraints changed.
-3. Update the active `04_projects/*/project_overview.md` note if project status changed.
-4. Append a concise entry to `00_system/log.md`.
-5. Only promote stable conclusions into `05_knowledge/` or `06_experience/`.
+
+3. Apply the distill updates:
+
+```bash
+python3 scripts/apply_distill_updates.py "02_timeline/sessions/<session>.md" \
+  --summary "<one-line summary>" \
+  --project-progress "<optional project latest progress>" \
+  --apply --json
+```
+
+This updates:
+
+- `00_system/log.md`
+- `01_ai_core/active_context.md`
+- the active `04_projects/*/project_overview.md` when `--project-progress` is provided
+
+4. Only promote stable conclusions into `05_knowledge/` or `06_experience/`.
 
 ## Guardrails
 
