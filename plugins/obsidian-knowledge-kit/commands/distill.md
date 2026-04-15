@@ -58,4 +58,3 @@ This updates:
 - Do not bulk-copy temporary reasoning into stable knowledge notes.
 - Do not update the top-level structure or metadata model without confirmation.
 - If the session was minor, keep the distillation lightweight but still leave a durable trail in the session note and log.
-- Respond to the user in Chinese by default unless they explicitly request another language.

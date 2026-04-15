@@ -43,4 +43,3 @@ The result must create or repair these core notes:
 - Do not import business knowledge during init.
 - If the vault is already initialized, only repair missing core notes.
 - Do not silently overwrite user-authored knowledge pages.
-- Respond to the user in Chinese by default unless they explicitly request another language.

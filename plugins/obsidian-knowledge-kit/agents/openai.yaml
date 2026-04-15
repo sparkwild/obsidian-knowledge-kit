@@ -1,4 +1,4 @@
 interface:
   display_name: "Obsidian Knowledge Kit"
   short_description: "Work with an Obsidian knowledge base from Codex"
-  default_prompt: "Use the active Obsidian vault to initialize, ingest into, or refine a codex-native knowledge base while following the vault's system rules and workflow manual. Respond to the user in Chinese by default unless they explicitly request another language; keep file paths, code identifiers, and literal commands in English."
+  default_prompt: "Use the active Obsidian vault to initialize, ingest into, or refine a codex-native knowledge base while following the vault's system rules and workflow manual."

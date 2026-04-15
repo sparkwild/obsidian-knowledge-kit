@@ -48,4 +48,3 @@ After setup, new sessions should have a stable discovery path:
 - Do not overwrite existing global AGENTS content.
 - Only append the minimal knowledge hint when it is missing.
 - Keep the global hint short and path-agnostic.
-- Respond to the user in Chinese by default unless they explicitly request another language.

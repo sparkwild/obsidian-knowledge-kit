@@ -53,4 +53,3 @@ Summarize:
 
 - Do not make changes in doctor mode.
 - If multiple problems exist, report them in a stable order: vault, core notes, official skills, local plugin package.
-- Respond to the user in Chinese by default unless they explicitly request another language.

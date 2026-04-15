@@ -2,13 +2,6 @@
 
 [简体中文说明](./README.zh-CN.md)
 
-- Release: [v0.1.0 pre-release](https://github.com/sparkwild/obsidian-knowledge-kit/releases/tag/v0.1.0)
-- Install (home-local plugin): `python3 scripts/install_home_local_plugin.py --json`
-- Quick start:
-  1. `python3 scripts/install_home_local_plugin.py --json`
-  2. `python3 scripts/install_global_knowledge_hint.py --apply --json`
-  3. Open Codex and use `setup`, `doctor`, `start`, `ingest`, `distill`
-
 An Obsidian knowledge workflow toolkit for Codex-style agents. It helps initialize a vault, ingest external materials, refine existing knowledge, and keep the knowledge base structured, traceable, and maintainable.
 
 ## Repository Layout
@@ -104,13 +97,6 @@ Install the plugin into the home-local Codex marketplace:
 python3 scripts/install_home_local_plugin.py --json
 ```
 
-Update an existing home-local install after changes:
-
-```bash
-python3 scripts/sync_plugin_package.py
-python3 scripts/install_home_local_plugin.py --json --force
-```
-
 Check or install the minimal global knowledge hint in `~/.codex/AGENTS.md`:
 
 ```bash
@@ -128,18 +114,6 @@ Create a distill session skeleton:
 
 ```bash
 python3 scripts/render_session_skeleton.py --apply --json
-```
-
-Create a source register draft before ingest:
-
-```bash
-python3 scripts/prepare_ingest_source.py "<source>" --json
-```
-
-Apply distill writeback updates:
-
-```bash
-python3 scripts/apply_distill_updates.py "02_timeline/sessions/<session>.md" --summary "<summary>" --apply --json
 ```
 
 Expected workflow:
