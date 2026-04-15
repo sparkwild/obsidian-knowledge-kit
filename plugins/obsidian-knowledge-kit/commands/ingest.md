@@ -31,6 +31,18 @@ obsidian vault info=path
 - local directory
 - URL
 
+5. Create the raw source register first:
+
+```bash
+python3 scripts/prepare_ingest_source.py "<source>" --json
+```
+
+If you are ready to write the source register and log entry:
+
+```bash
+python3 scripts/prepare_ingest_source.py "<source>" --apply --json
+```
+
 ## Workflow
 
 Follow the bundled `obsidian-knowledge-ingest` skill.
