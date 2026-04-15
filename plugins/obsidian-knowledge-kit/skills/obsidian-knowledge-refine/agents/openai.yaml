@@ -1,0 +1,4 @@
+interface:
+  display_name: "Obsidian Knowledge Refine"
+  short_description: "Refine and optimize an Obsidian knowledge base"
+  default_prompt: "Refine the active Obsidian knowledge vault by improving note structure, topic boundaries, links, and status synchronization after verifying the environment and required official obsidian-skills."

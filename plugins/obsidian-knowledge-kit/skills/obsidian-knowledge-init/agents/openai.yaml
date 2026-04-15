@@ -1,0 +1,4 @@
+interface:
+  display_name: "Obsidian Knowledge Init"
+  short_description: "Bootstrap a codex-native Obsidian knowledge base"
+  default_prompt: "Initialize the active Obsidian vault into the codex-native knowledge system, but first verify the Obsidian environment and official obsidian-skills dependencies."

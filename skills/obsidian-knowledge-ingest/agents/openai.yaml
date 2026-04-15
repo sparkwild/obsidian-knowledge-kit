@@ -1,0 +1,4 @@
+interface:
+  display_name: "Obsidian Knowledge Ingest"
+  short_description: "Import external materials into an Obsidian knowledge base"
+  default_prompt: "Ingest this local directory, file, or URL into the active Obsidian knowledge vault after verifying the environment and required official obsidian-skills."

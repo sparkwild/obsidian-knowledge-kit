@@ -1,0 +1,40 @@
+{
+  "name": "obsidian-knowledge-kit",
+  "version": "0.1.0",
+  "description": "Bootstrap, ingest, and refine an Obsidian knowledge base from Codex.",
+  "author": {
+    "name": "sparkwild",
+    "url": "https://github.com/sparkwild"
+  },
+  "homepage": "https://github.com/sparkwild/obsidian-knowledge-kit",
+  "repository": "https://github.com/sparkwild/obsidian-knowledge-kit",
+  "license": "MIT",
+  "keywords": [
+    "obsidian",
+    "knowledge-base",
+    "codex",
+    "notes"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Obsidian Knowledge Kit",
+    "shortDescription": "Initialize, ingest, and refine an Obsidian knowledge base",
+    "longDescription": "Use Obsidian Knowledge Kit to bootstrap a codex-native vault, ingest external materials into stable notes, and refine a healthy Obsidian knowledge base with shared preflight and dependency checks.",
+    "developerName": "sparkwild",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/sparkwild/obsidian-knowledge-kit",
+    "defaultPrompt": [
+      "Initialize my active Obsidian vault for codex-native knowledge workflows",
+      "Ingest a local folder or URL into my Obsidian knowledge base",
+      "Refine my knowledge vault structure and fix stale status notes"
+    ],
+    "brandColor": "#2563EB",
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/logo.svg",
+    "screenshots": []
+  }
+}

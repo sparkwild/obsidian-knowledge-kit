@@ -1,0 +1,6 @@
+.DS_Store
+__pycache__/
+*.pyc
+# Ignore the earlier Obsidian-community-plugin experiment path if it reappears.
+plugin/
+/.idea/
