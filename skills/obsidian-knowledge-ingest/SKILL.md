@@ -8,6 +8,10 @@ description: Import external materials into a codex-native Obsidian knowledge va
 ## Purpose
 - Convert external material into raw source notes and stable knowledge notes inside the active Obsidian vault.
 
+## Language Rule
+- Respond to the user in Chinese by default unless they explicitly request another language.
+- Keep file paths, code identifiers, frontmatter keys, enum values, and literal commands in English.
+
 ## Required preflight
 1. Run `scripts/check_obsidian_env.py --task ingest --check-core-notes --json`.
 2. Run `scripts/check_kepano_skills.py obsidian-cli obsidian-markdown`.

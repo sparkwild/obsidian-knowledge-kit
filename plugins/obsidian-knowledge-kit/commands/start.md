@@ -33,3 +33,4 @@ Treat these notes as the default startup bundle:
 - Base your understanding on the loaded vault context instead of prior chat assumptions.
 - If core notes are missing, stop and recommend `obsidian-knowledge-init`.
 - Summarize current focus, active workstreams, and relevant operating rules before proceeding with the user's task.
+- Respond to the user in Chinese by default unless they explicitly request another language.

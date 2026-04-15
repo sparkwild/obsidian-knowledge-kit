@@ -9,6 +9,10 @@ description: Initialize an Obsidian knowledge vault into the codex-native knowle
 - Turn the active Obsidian vault into a runnable codex-native knowledge system.
 - Create the minimum system skeleton only after preflight checks pass.
 
+## Language Rule
+- Respond to the user in Chinese by default unless they explicitly request another language.
+- Keep file paths, code identifiers, frontmatter keys, enum values, and literal commands in English.
+
 ## Required preflight
 1. Run `scripts/check_obsidian_env.py --task init --json`.
 2. Run `scripts/check_kepano_skills.py obsidian-cli obsidian-markdown`.

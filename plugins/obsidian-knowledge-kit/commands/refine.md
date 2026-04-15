@@ -51,3 +51,4 @@ Then update:
 - Do not change top-level directory structure without confirmation.
 - Do not bulk-migrate paths silently.
 - Do not delete core system notes without confirmation.
+- Respond to the user in Chinese by default unless they explicitly request another language.

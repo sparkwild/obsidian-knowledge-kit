@@ -71,3 +71,4 @@ Required flow:
 - Do not ingest everything blindly.
 - Treat large middleware artifact directories as inventories first, not reading lists.
 - If the ingest would create a new long-term knowledge partition, stop and ask before changing structure.
+- Respond to the user in Chinese by default unless they explicitly request another language.
