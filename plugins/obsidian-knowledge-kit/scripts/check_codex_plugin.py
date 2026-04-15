@@ -15,16 +15,26 @@ EXPECTED_SKILLS = (
 EXPECTED_COMMANDS = ("setup.md", "start.md", "doctor.md", "init.md", "ingest.md", "refine.md", "distill.md")
 EXPECTED_SCRIPTS = (
     "check_codex_plugin.py",
+    "apply_distill_updates.py",
     "install_global_knowledge_hint.py",
     "install_home_local_plugin.py",
     "load_knowledge_context.py",
     "prepare_ingest_source.py",
     "render_session_skeleton.py",
+    "sync_plugin_package.py",
 )
 
 
-def repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
+def repo_or_plugin_root() -> tuple[Path, Path]:
+    script_root = Path(__file__).resolve().parents[1]
+    plugin_candidate = script_root.parent
+    direct_manifest = plugin_candidate / ".codex-plugin" / "plugin.json"
+    if direct_manifest.exists():
+        return plugin_candidate, plugin_candidate
+
+    repo_root = script_root
+    plugin_root = repo_root / "plugins" / PLUGIN_NAME
+    return repo_root, plugin_root
 
 
 def load_json(path: Path) -> dict:
@@ -32,8 +42,7 @@ def load_json(path: Path) -> dict:
 
 
 def build_report() -> dict:
-    root = repo_root()
-    plugin_root = root / "plugins" / PLUGIN_NAME
+    root, plugin_root = repo_or_plugin_root()
     manifest_path = plugin_root / ".codex-plugin" / "plugin.json"
     marketplace_path = root / ".agents" / "plugins" / "marketplace.json"
     home_marketplace_path = Path.home() / ".agents" / "plugins" / "marketplace.json"
@@ -52,11 +61,8 @@ def build_report() -> dict:
     else:
         manifest = load_json(manifest_path)
 
-    if marketplace_path.exists():
+    if root != plugin_root and marketplace_path.exists():
         issues.append(f"Repo-local marketplace should be removed after home-local installation: {marketplace_path}")
-        marketplace = load_json(marketplace_path)
-    else:
-        marketplace = {}
 
     if not home_marketplace_path.exists():
         issues.append(f"Missing home-local marketplace manifest: {home_marketplace_path}")

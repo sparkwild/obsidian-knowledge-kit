@@ -23,13 +23,13 @@ python3 ~/plugins/obsidian-knowledge-kit/scripts/check_codex_plugin.py --json
 3. Check required official skills:
 
 ```bash
-python3 skills/obsidian-knowledge-init/scripts/check_kepano_skills.py obsidian-cli obsidian-markdown
+python3 ~/plugins/obsidian-knowledge-kit/skills/obsidian-knowledge-init/scripts/check_kepano_skills.py obsidian-cli obsidian-markdown
 ```
 
 4. Check the current vault environment:
 
 ```bash
-python3 skills/obsidian-knowledge-init/scripts/check_obsidian_env.py --task init --json
+python3 ~/plugins/obsidian-knowledge-kit/skills/obsidian-knowledge-init/scripts/check_obsidian_env.py --task init --json
 ```
 
 5. Check the global AGENTS knowledge hint:
