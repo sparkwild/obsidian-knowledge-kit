@@ -8,6 +8,15 @@ This directory is the repo-local Codex plugin package for `obsidian-knowledge-ki
 - Commands: `./commands/`
 - Bundled runtime library: `./lib/obsidian_knowledge_shared/`
 
+Lifecycle commands included:
+
+- `start`
+- `doctor`
+- `init`
+- `ingest`
+- `refine`
+- `distill`
+
 This package is intended to be installed into the home-local Codex plugin marketplace.
 
 Keep the plugin package self-contained by syncing root `skills/` and `lib/` into this directory:

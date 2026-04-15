@@ -12,7 +12,7 @@ EXPECTED_SKILLS = (
     "obsidian-knowledge-ingest",
     "obsidian-knowledge-refine",
 )
-EXPECTED_COMMANDS = ("start.md", "distill.md", "doctor.md")
+EXPECTED_COMMANDS = ("start.md", "doctor.md", "init.md", "ingest.md", "refine.md", "distill.md")
 
 
 def repo_root() -> Path:
