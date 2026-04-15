@@ -73,6 +73,7 @@ plugins/obsidian-knowledge-kit/.codex-plugin/plugin.json
 Current plugin scope:
 
 - expose the three main knowledge skills to Codex as a local plugin
+- expose a setup command for installing the global AGENTS knowledge hint
 - expose command entrypoints for startup and distill loops
 - expose a doctor command for environment checks
 - ship a self-contained plugin package so Codex cache installs do not depend on external symlinks
@@ -94,6 +95,13 @@ Install the plugin into the home-local Codex marketplace:
 
 ```bash
 python3 scripts/install_home_local_plugin.py --json
+```
+
+Check or install the minimal global knowledge hint in `~/.codex/AGENTS.md`:
+
+```bash
+python3 scripts/install_global_knowledge_hint.py --json
+python3 scripts/install_global_knowledge_hint.py --apply --json
 ```
 
 Load the current knowledge context:

@@ -17,7 +17,7 @@ obsidian vault info=path
 2. Check the repo-local knowledge toolkit package:
 
 ```bash
-python3 scripts/check_codex_plugin.py --json
+python3 ~/plugins/obsidian-knowledge-kit/scripts/check_codex_plugin.py --json
 ```
 
 3. Check required official skills:
@@ -32,6 +32,12 @@ python3 skills/obsidian-knowledge-init/scripts/check_kepano_skills.py obsidian-c
 python3 skills/obsidian-knowledge-init/scripts/check_obsidian_env.py --task init --json
 ```
 
+5. Check the global AGENTS knowledge hint:
+
+```bash
+python3 ~/plugins/obsidian-knowledge-kit/scripts/install_global_knowledge_hint.py --json
+```
+
 ## Output
 
 Summarize:
@@ -40,6 +46,7 @@ Summarize:
 - whether core notes exist
 - whether `obsidian-cli` and `obsidian-markdown` are installed
 - whether the local plugin package is structurally valid
+- whether the global AGENTS knowledge hint is installed
 - the next recommended action: `start`, `init`, `ingest`, or `refine`
 
 ## Rules

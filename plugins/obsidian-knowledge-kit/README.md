@@ -10,6 +10,7 @@ This directory is the repo-local Codex plugin package for `obsidian-knowledge-ki
 
 Lifecycle commands included:
 
+- `setup`
 - `start`
 - `doctor`
 - `init`
