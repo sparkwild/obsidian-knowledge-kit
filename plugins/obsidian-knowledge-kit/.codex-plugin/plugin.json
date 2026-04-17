@@ -1,6 +1,6 @@
 {
   "name": "obsidian-knowledge-kit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Bootstrap, ingest, and refine an Obsidian knowledge base from Codex.",
   "author": {
     "name": "sparkwild",

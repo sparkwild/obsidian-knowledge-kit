@@ -20,6 +20,8 @@ Lifecycle commands included:
 
 This package is intended to be installed into the home-local Codex plugin marketplace.
 
+For web ingest, prefer lightweight URL extraction first. Use `Computer Use` only as a manual fallback when websites block automated fetching, and never auto-install or auto-enable it on the user's machine.
+
 Keep the plugin package self-contained by syncing root `skills/` and `lib/` into this directory:
 
 ```bash

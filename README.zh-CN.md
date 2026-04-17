@@ -32,6 +32,12 @@ obsidian-knowledge-kit/
 - `plugins/obsidian-knowledge-kit`：符合 Codex 本地插件标准的自包含插件包。
 - `lib/obsidian_knowledge_shared`：共享的 preflight、官方 skill 检查与基础渲染逻辑。
 
+网页导入策略：
+
+- 先走轻量的 URL 正文提取链路。
+- 如果网站有反爬、登录墙或强动态渲染，再使用 `Computer Use` 作为人工浏览器 fallback。
+- 如果用户机器上 `Computer Use` 未启用、未安装或没有权限，不自动安装，也不静默尝试，只明确提示用户自行开启。
+
 ## 开发工作流
 
 同步 plugin 包中的 `skills/` 和 `lib/`：

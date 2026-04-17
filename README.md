@@ -32,6 +32,12 @@ obsidian-knowledge-kit/
 - `plugins/obsidian-knowledge-kit`: repo-local Codex plugin package with `.codex-plugin/plugin.json`.
 - `lib/obsidian_knowledge_shared`: shared preflight, official skill update checks, and bootstrap note rendering.
 
+Web ingest policy:
+
+- Prefer lightweight URL extraction first.
+- When websites block automated fetching, use `Computer Use` as a manual browser fallback.
+- If `Computer Use` is unavailable or missing permission on the user's machine, do not install or enable it automatically; ask the user to do that explicitly.
+
 ## Current Status
 
 - Repository migration completed from the earlier workspace prototype.

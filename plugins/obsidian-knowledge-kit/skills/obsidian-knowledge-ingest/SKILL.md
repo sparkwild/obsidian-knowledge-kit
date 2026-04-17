@@ -1,6 +1,6 @@
 ---
 name: obsidian-knowledge-ingest
-description: Import external materials into a codex-native Obsidian knowledge vault. Use when the user provides a local directory, file, or URL and wants it captured into raw source notes and distilled into knowledge notes. Before ingestion, verify the Obsidian environment and required official obsidian-skills. Always require obsidian-cli and obsidian-markdown. Require defuddle for URL/web tasks, json-canvas for canvas tasks, and obsidian-bases for base-view tasks. If required official skills are missing or outdated, stop and ask the user whether to install or update them from the official repo before continuing.
+description: Import external materials into a codex-native Obsidian knowledge vault. Use when the user provides a local directory, file, or URL and wants it captured into raw source notes and distilled into knowledge notes. Before ingestion, verify the Obsidian environment and required official obsidian-skills. Always require obsidian-cli and obsidian-markdown. Prefer defuddle for URL/web tasks, use Computer Use as the fallback when websites block automated fetching, and require json-canvas for canvas tasks plus obsidian-bases for base-view tasks. If required official skills are missing or outdated, stop and ask the user whether to install or update them from the official repo before continuing.
 ---
 
 # Obsidian Knowledge Ingest
@@ -13,6 +13,7 @@ description: Import external materials into a codex-native Obsidian knowledge va
 2. Run `scripts/check_kepano_skills.py obsidian-cli obsidian-markdown`.
 3. Add conditional checks depending on task type:
    - URL/web: `defuddle`
+   - URL/web fallback for anti-bot, login, or dynamic-rendered pages: `Computer Use`
    - canvas output: `json-canvas`
    - base output: `obsidian-bases`
 4. If missing or outdated official skills are required, stop and ask for approval before using `scripts/install_or_update_kepano_skills.py --apply`.
@@ -25,6 +26,9 @@ description: Import external materials into a codex-native Obsidian knowledge va
    - `local_copy`
 3. Create or update a raw source note.
 4. Extract only the high-value content.
+   - Prefer `defuddle` for direct web extraction.
+   - If the site blocks automated fetching, open the page with `Computer Use`, capture the readable content manually, and save the result as an `extracted_snapshot` before distilling.
+   - If `Computer Use` is unavailable or lacks permission on the user's machine, stop and ask the user to enable it. Do not attempt installation automatically.
 5. Distill into the right knowledge partition.
 6. Update:
    - `00_system/index.md`
@@ -36,6 +40,8 @@ description: Import external materials into a codex-native Obsidian knowledge va
 
 ## Guardrails
 - Do not import everything blindly.
+- Do not start with `Computer Use` for every URL. Use it only when lightweight fetch paths fail or the page clearly requires interactive browsing.
+- If `Computer Use` is not available, do not install or enable it automatically. Tell the user what is missing and wait for confirmation.
 - Treat middleware artifact folders as artifact inventories, not as normal reading material.
 - Treat repeated books or translated duplicates as one knowledge source cluster when appropriate.
 - If a new knowledge partition would materially change structure, stop and ask the user first.

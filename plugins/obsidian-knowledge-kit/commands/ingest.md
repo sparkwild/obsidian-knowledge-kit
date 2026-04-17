@@ -22,6 +22,7 @@ obsidian vault info=path
 3. Add conditional checks when needed:
 
 - URL/web source: `defuddle`
+- URL/web fallback when anti-bot, login, or dynamic rendering blocks direct fetching: `Computer Use`
 - canvas output: `json-canvas`
 - base output: `obsidian-bases`
 
@@ -59,6 +60,8 @@ Required flow:
    - `extracted_snapshot`
    - `local_copy`
 3. Create or update a raw source note or register first.
+   - Prefer `defuddle` for normal web article extraction.
+   - If the site blocks automated fetching, use `Computer Use` to open the page, capture the readable content, and treat that result as an `extracted_snapshot`.
 4. Distill the useful content into the right project or knowledge partition.
 5. Update:
    - `00_system/index.md`
@@ -69,5 +72,7 @@ Required flow:
 ## Rules
 
 - Do not ingest everything blindly.
+- Do not invoke `Computer Use` by default for every URL.
+- If `Computer Use` is unavailable, uninstalled, or lacks permission on the user's machine, do not attempt to install or enable it automatically. Stop and clearly ask the user to enable it.
 - Treat large middleware artifact directories as inventories first, not reading lists.
 - If the ingest would create a new long-term knowledge partition, stop and ask before changing structure.
