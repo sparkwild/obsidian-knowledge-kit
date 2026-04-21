@@ -55,7 +55,9 @@ def load_json(path: Path) -> dict:
 
 
 def command_referenced_scripts(commands_path: Path) -> set[str]:
-    pattern = re.compile(r"(?:^|[\s`])(?:~\/plugins\/obsidian-knowledge-kit\/)?scripts\/([A-Za-z0-9_]+\.py)")
+    pattern = re.compile(
+        r"(?:^|[\s`])(?:~\/(?:\.codex\/)?plugins\/obsidian-knowledge-kit\/)?scripts\/([A-Za-z0-9_]+\.py)"
+    )
     discovered: set[str] = set()
     if not commands_path.exists():
         return discovered
@@ -70,6 +72,8 @@ def build_report(require_installed: bool) -> dict:
     manifest_path = plugin_root / ".codex-plugin" / "plugin.json"
     marketplace_path = root / ".agents" / "plugins" / "marketplace.json"
     home_marketplace_path = Path.home() / ".agents" / "plugins" / "marketplace.json"
+    home_plugin_path = Path.home() / ".codex" / "plugins" / PLUGIN_NAME
+    legacy_home_plugin_path = Path.home() / "plugins" / PLUGIN_NAME
     skills_link = plugin_root / "skills"
     lib_path = plugin_root / "lib" / "obsidian_knowledge_shared"
     agents_path = plugin_root / "agents" / "openai.yaml"
@@ -132,10 +136,16 @@ def build_report(require_installed: bool) -> dict:
             issues.append("Plugin interface `defaultPrompt` should include at most 3 entries.")
 
     source_path = plugin_entry.get("source", {}).get("path") if plugin_entry else None
-    expected_source_path = f"./plugins/{PLUGIN_NAME}"
-    if source_path and source_path != expected_source_path:
+    expected_source_path = f"./.codex/plugins/{PLUGIN_NAME}"
+    if require_installed and source_path and source_path != expected_source_path:
         issues.append(
             f"Marketplace source path mismatch: expected {expected_source_path!r}, got {source_path!r}"
+        )
+    if require_installed and not home_plugin_path.exists():
+        issues.append(f"Missing home-local plugin installation: {home_plugin_path}")
+    if require_installed and legacy_home_plugin_path.exists():
+        issues.append(
+            f"Legacy non-standard plugin installation still exists and should be removed: {legacy_home_plugin_path}"
         )
 
     if not skills_link.exists():
@@ -185,6 +195,8 @@ def build_report(require_installed: bool) -> dict:
         "plugin_manifest": str(manifest_path),
         "repo_marketplace_manifest": str(marketplace_path),
         "home_marketplace_manifest": str(home_marketplace_path),
+        "home_plugin_path": str(home_plugin_path),
+        "legacy_home_plugin_path": str(legacy_home_plugin_path),
         "skills_path": str(skills_link),
         "bundled_lib_path": str(lib_path),
         "plugin_agents_path": str(agents_path),

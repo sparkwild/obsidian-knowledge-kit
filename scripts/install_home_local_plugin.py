@@ -27,7 +27,15 @@ def home_root() -> Path:
     return Path.home()
 
 
+def codex_plugin_root(home: Path) -> Path:
+    return home / ".codex" / "plugins"
+
+
 def target_plugin_root(home: Path) -> Path:
+    return codex_plugin_root(home) / PLUGIN_NAME
+
+
+def legacy_plugin_root(home: Path) -> Path:
     return home / "plugins" / PLUGIN_NAME
 
 
@@ -76,7 +84,7 @@ def upsert_marketplace_entry(path: Path, force: bool) -> tuple[dict, str]:
         "name": PLUGIN_NAME,
         "source": {
             "source": "local",
-            "path": f"./plugins/{PLUGIN_NAME}",
+            "path": f"./.codex/plugins/{PLUGIN_NAME}",
         },
         "policy": {
             "installation": "AVAILABLE",
@@ -102,6 +110,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Install the repo-local Codex plugin into the user's home-local plugin marketplace.")
     parser.add_argument("--home", help="Alternate home directory root. Defaults to the current user's home directory.")
     parser.add_argument("--force", action="store_true", help="Overwrite an existing plugin copy and marketplace entry.")
+    parser.add_argument(
+        "--cleanup-legacy",
+        action="store_true",
+        help="Remove the old non-standard ~/plugins/<plugin-name> copy after installing into ~/.codex/plugins/.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Do not write anything; emit the installation plan only.")
     parser.add_argument("--json", action="store_true", help="Emit the installation report as JSON.")
     args = parser.parse_args()
@@ -109,14 +122,17 @@ def main() -> int:
     home = Path(args.home).expanduser() if args.home else home_root()
     source_root = plugin_source_root()
     plugin_target = target_plugin_root(home)
+    legacy_target = legacy_plugin_root(home)
     marketplace_target = target_marketplace_path(home)
 
     payload = {
         "source_plugin_root": str(source_root),
         "target_plugin_root": str(plugin_target),
+        "legacy_plugin_root": str(legacy_target),
         "target_marketplace_path": str(marketplace_target),
         "dry_run": args.dry_run,
         "force": args.force,
+        "cleanup_legacy": args.cleanup_legacy,
     }
 
     same_installation = source_root.resolve() == plugin_target.resolve()
@@ -127,6 +143,13 @@ def main() -> int:
         marketplace_payload, marketplace_status = upsert_marketplace_entry(marketplace_target, force=args.force)
         payload["marketplace_status"] = marketplace_status
         payload["marketplace_name"] = marketplace_payload.get("name")
+        legacy_exists = legacy_target.exists() and legacy_target.resolve() != plugin_target.resolve()
+        payload["legacy_plugin_exists"] = legacy_exists
+        if legacy_exists and args.cleanup_legacy:
+            shutil.rmtree(legacy_target)
+            payload["legacy_plugin_removed"] = True
+        else:
+            payload["legacy_plugin_removed"] = False
 
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))

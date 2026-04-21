@@ -103,6 +103,11 @@ Install the plugin into the home-local Codex marketplace:
 python3 scripts/install_home_local_plugin.py --json
 ```
 
+This installs the plugin under the standard hidden personal path:
+
+- `~/.codex/plugins/obsidian-knowledge-kit`
+- `~/.agents/plugins/marketplace.json`
+
 Check or install the minimal global knowledge hint in `~/.codex/AGENTS.md`:
 
 ```bash
@@ -125,7 +130,7 @@ python3 scripts/render_session_skeleton.py --apply --json
 Expected workflow:
 
 1. Open this repository in Codex.
-2. Install the plugin into `~/plugins/obsidian-knowledge-kit` and `~/.agents/plugins/marketplace.json`.
+2. Install the plugin into `~/.codex/plugins/obsidian-knowledge-kit` and `~/.agents/plugins/marketplace.json`.
 3. If the plugin does not appear immediately, reopen the repository or restart Codex.
 
 The reopen/restart step is an operational fallback inferred from the local plugin packaging model and local plugin examples.

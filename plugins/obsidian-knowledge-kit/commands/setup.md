@@ -17,13 +17,13 @@ obsidian vault info=path
 2. Check the installed plugin package and home-local marketplace:
 
 ```bash
-python3 ~/plugins/obsidian-knowledge-kit/scripts/check_codex_plugin.py --require-installed --json
+python3 ~/.codex/plugins/obsidian-knowledge-kit/scripts/check_codex_plugin.py --require-installed --json
 ```
 
 3. Check whether the global AGENTS hint is already present:
 
 ```bash
-python3 ~/plugins/obsidian-knowledge-kit/scripts/install_global_knowledge_hint.py --json
+python3 ~/.codex/plugins/obsidian-knowledge-kit/scripts/install_global_knowledge_hint.py --json
 ```
 
 ## If The Global Hint Is Missing
@@ -31,7 +31,7 @@ python3 ~/plugins/obsidian-knowledge-kit/scripts/install_global_knowledge_hint.p
 Install the minimal global knowledge-base hint:
 
 ```bash
-python3 ~/plugins/obsidian-knowledge-kit/scripts/install_global_knowledge_hint.py --apply --json
+python3 ~/.codex/plugins/obsidian-knowledge-kit/scripts/install_global_knowledge_hint.py --apply --json
 ```
 
 ## Result
