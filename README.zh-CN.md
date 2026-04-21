@@ -58,6 +58,11 @@ python3 scripts/check_codex_plugin.py --json
 python3 scripts/install_home_local_plugin.py --json
 ```
 
+安装完成后，插件会进入官方个人本地路径：
+
+- `~/.codex/plugins/obsidian-knowledge-kit`
+- `~/.agents/plugins/marketplace.json`
+
 ## 知识库工作流
 
 读取当前活动知识库上下文：
@@ -81,7 +86,7 @@ python3 scripts/render_session_skeleton.py --apply --json
 ## 状态
 
 - 插件已验证可在 Codex UI 中被发现和安装。
-- 已提供 home-local 安装路径：`~/plugins/obsidian-knowledge-kit`
+- 已提供 home-local 安装路径：`~/.codex/plugins/obsidian-knowledge-kit`
 - 已提供 home-local marketplace：`~/.agents/plugins/marketplace.json`
 
 ## 项目文档

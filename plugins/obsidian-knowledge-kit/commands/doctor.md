@@ -14,28 +14,28 @@ Run a read-only health check for the current Obsidian knowledge workflow.
 obsidian vault info=path
 ```
 
-2. Check the repo-local knowledge toolkit package:
+2. Check the installed knowledge toolkit package:
 
 ```bash
-python3 ~/plugins/obsidian-knowledge-kit/scripts/check_codex_plugin.py --require-installed --json
+python3 ~/.codex/plugins/obsidian-knowledge-kit/scripts/check_codex_plugin.py --require-installed --json
 ```
 
 3. Check required official skills:
 
 ```bash
-python3 ~/plugins/obsidian-knowledge-kit/skills/obsidian-knowledge-init/scripts/check_kepano_skills.py obsidian-cli obsidian-markdown
+python3 ~/.codex/plugins/obsidian-knowledge-kit/skills/obsidian-knowledge-init/scripts/check_kepano_skills.py obsidian-cli obsidian-markdown
 ```
 
 4. Check the current vault environment:
 
 ```bash
-python3 ~/plugins/obsidian-knowledge-kit/skills/obsidian-knowledge-init/scripts/check_obsidian_env.py --task init --json
+python3 ~/.codex/plugins/obsidian-knowledge-kit/skills/obsidian-knowledge-init/scripts/check_obsidian_env.py --task init --json
 ```
 
 5. Check the global AGENTS knowledge hint:
 
 ```bash
-python3 ~/plugins/obsidian-knowledge-kit/scripts/install_global_knowledge_hint.py --json
+python3 ~/.codex/plugins/obsidian-knowledge-kit/scripts/install_global_knowledge_hint.py --json
 ```
 
 ## Output
