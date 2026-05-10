@@ -10,6 +10,8 @@ from pathlib import Path
 SKILL_NAMES = (
     "vaultwright-init",
     "vaultwright-ingest",
+    "vaultwright-query",
+    "vaultwright-lint",
     "vaultwright-refine",
 )
 

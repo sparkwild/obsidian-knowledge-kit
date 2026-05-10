@@ -289,6 +289,27 @@ context pack 应该是普通 Obsidian note，而不是只存在于终端 JSON。
 
 ---
 
+## Phase 2.5：MCP / CLI 架构与 runtime 性能评估
+
+Phase 2 完成后，Vaultwright 的下一阶段原则是：
+
+- MCP-first for AI conversation。
+- CLI-first for execution。
+- active Obsidian vault 仍是唯一知识载体。
+- MCP adapter 是可选增强层，不是核心 runtime 的硬依赖。
+- 当前不全量替换 Python runtime，先补 benchmark、缓存与增量索引评估。
+
+后续执行前请先读取：
+
+- `docs/Vaultwright_Phase2_MCP_CLI_Performance_Plan.md`
+- `docs/Vaultwright_MCP_Adapter_Design.md`
+- `docs/Vaultwright_Runtime_Performance_Evaluation.md`
+- `docs/Vaultwright_Phase2_Execution_Checklist.md`
+
+本阶段不授权直接实现完整 MCP server，也不授权重写 Python runtime。
+
+---
+
 ## Phase 3：Knowledge Lint 工作流
 
 ### 目标

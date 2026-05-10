@@ -8,9 +8,16 @@ All notable changes to this project will be documented in this file.
 
 - Rebranded the project fully to `Vaultwright` / `vaultwright` across product, plugin, skills, and install paths.
 - Strengthened the Obsidian-native contract across plugin metadata, skill text, command docs, the AGENTS hint installer, and the core note template.
+- Documented the MCP-first AI conversation and CLI-first execution architecture in English and Chinese README files.
+- Updated the Phase 2 plan to match the current `vaultwright` package, skill, and install paths.
+- Clarified that MCP is an optional adapter layer and does not authorize a full MCP server or Python runtime rewrite in this phase.
 
 ### Added
 
+- Added `docs/Vaultwright_MCP_Adapter_Design.md` for MCP tools, resources, prompts, permissions, and CLI/runtime boundaries.
+- Added `docs/Vaultwright_Runtime_Performance_Evaluation.md` for the Python runtime, uv, benchmark, index, and Rust/Go decision path.
+- Added `docs/Vaultwright_Phase2_Execution_Checklist.md` as the next-pass execution and validation checklist.
+- Added `scripts/benchmark_runtime.py` and `benchmarks/README.md` as the first read-only runtime benchmark scaffold.
 - Added the `vaultwright-query` skill.
 - Added the `query` command for building Vaultwright context pack notes.
 - Added `scripts/build_context_pack.py` and `lib/obsidian_knowledge_shared/context_pack.py`.
@@ -27,6 +34,8 @@ All notable changes to this project will be documented in this file.
 ### Validation
 
 - `scripts/check_codex_plugin.py` now validates the new query skill, command, and script.
+- `scripts/install_local_runtime.py` now installs `vaultwright-query` and `vaultwright-lint` during local development installs.
+- `scripts/check_codex_plugin.py` now validates that the benchmark runtime script is bundled into the plugin package.
 
 ## [0.1.1] - 2026-04-18
 

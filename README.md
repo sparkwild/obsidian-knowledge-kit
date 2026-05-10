@@ -13,6 +13,25 @@ Project note:
 - This repository is a Codex local plugin package and runtime, not an Obsidian community plugin.
 - The active Obsidian vault is the only knowledge carrier; Vaultwright does not create a second raw/wiki system outside the vault.
 
+## MCP-first for AI conversation, CLI-first for execution
+
+Vaultwright separates AI-facing conversation entrypoints from deterministic local execution:
+
+```text
+AI conversation tools
+-> Vaultwright MCP adapter
+-> Vaultwright CLI / shared runtime
+-> Active Obsidian vault
+
+Local Codex execution
+-> Vaultwright CLI / scripts
+-> Active Obsidian vault
+```
+
+MCP is the preferred interface for AI conversation tools because it can expose Vaultwright tools, resources, and prompts in a structured way. The MCP adapter should stay thin: it must call the Vaultwright CLI/scripts or shared runtime instead of bypassing the runtime or inventing a second knowledge-processing layer.
+
+The CLI remains the deterministic execution layer. It continues to own active vault detection, context packs, lint, ingest, distill, dashboards, reports, and other stable local tasks. MCP is an optional enhancement layer for AI clients, not a hard dependency for the core runtime. The current priority is to stabilize the Python CLI/runtime, then design the MCP adapter on top of it.
+
 ## Repository Layout
 
 ```text
@@ -21,6 +40,7 @@ vaultwright/
 │  ├─ vaultwright-init/
 │  ├─ vaultwright-ingest/
 │  ├─ vaultwright-query/
+│  ├─ vaultwright-lint/
 │  └─ vaultwright-refine/
 ├─ plugins/
 │  └─ vaultwright/
@@ -56,11 +76,17 @@ Web ingest policy:
 - Shared runtime is no longer exposed as a fourth skill.
 - Plugin direction has been corrected to a Codex plugin package, not an Obsidian community plugin.
 - The current evolution target is Vaultwright Phase 1 and Phase 2: branding plus query/context-pack workflows.
-- The next evolution layer is Phase 3: knowledge lint and report-driven governance.
+- The current architecture target is MCP-first for AI conversation and CLI-first for deterministic execution.
+- The next implementation layer is an optional MCP adapter, after the CLI/runtime contract is stable.
 
 ## Project Docs
 
 - [Chinese README](./README.zh-CN.md)
+- [Codex Task Brief](./docs/Vaultwright_Codex_Task_Brief.md)
+- [Phase 2 MCP/CLI Performance Plan](./docs/Vaultwright_Phase2_MCP_CLI_Performance_Plan.md)
+- [MCP Adapter Design](./docs/Vaultwright_MCP_Adapter_Design.md)
+- [Runtime Performance Evaluation](./docs/Vaultwright_Runtime_Performance_Evaluation.md)
+- [Phase 2 Execution Checklist](./docs/Vaultwright_Phase2_Execution_Checklist.md)
 - [Contributing Guide](./CONTRIBUTING.md)
 - [Security Policy](./SECURITY.md)
 - [Code of Conduct](./CODE_OF_CONDUCT.md)
@@ -77,6 +103,8 @@ By default it symlinks:
 
 - `skills/vaultwright-init`
 - `skills/vaultwright-ingest`
+- `skills/vaultwright-query`
+- `skills/vaultwright-lint`
 - `skills/vaultwright-refine`
 - `lib/obsidian_knowledge_shared`
 
@@ -152,6 +180,12 @@ Run a knowledge lint pass:
 
 ```bash
 python3 scripts/lint_knowledge_vault.py --json
+```
+
+Run a synthetic runtime benchmark without touching a real vault:
+
+```bash
+python3 scripts/benchmark_runtime.py --fixture-notes 100 --runs 1 --json
 ```
 
 Render Obsidian Bases dashboards:

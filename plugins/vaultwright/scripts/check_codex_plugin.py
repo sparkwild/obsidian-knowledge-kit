@@ -17,6 +17,7 @@ EXPECTED_SKILLS = (
 )
 EXPECTED_COMMANDS = ("setup.md", "start.md", "query.md", "lint.md", "doctor.md", "init.md", "ingest.md", "refine.md", "distill.md")
 EXPECTED_SCRIPTS = (
+    "benchmark_runtime.py",
     "build_context_pack.py",
     "check_codex_plugin.py",
     "apply_distill_updates.py",
