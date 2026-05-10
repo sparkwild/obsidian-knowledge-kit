@@ -1,12 +1,13 @@
 ---
 name: obsidian-knowledge-refine
-description: Refine and optimize a codex-native Obsidian knowledge vault. Use when the user wants to improve structure, split entry notes into thematic notes, fix links, update status notes, or continue a second-pass refinement of the knowledge base. Before refinement, verify the Obsidian environment and the required official obsidian-skills. Always require obsidian-cli and obsidian-markdown. If required official skills are missing or outdated, stop and ask the user whether to install or update them from the official repo before continuing.
+description: Refine and optimize a Vaultwright-managed Obsidian knowledge vault. Use when the user wants to improve structure, split entry notes into thematic notes, fix links, update status notes, or continue a second-pass refinement of the knowledge base. Before refinement, verify the Obsidian environment and the required official obsidian-skills. Always require obsidian-cli and obsidian-markdown. The active Obsidian vault remains the only knowledge carrier; do not move the system toward an external raw/wiki layout.
 ---
 
-# Obsidian Knowledge Refine
+# Vaultwright Refine
 
 ## Purpose
 - Improve an already initialized knowledge vault without changing the top-level structure silently.
+- Keep the refinement inside the active Obsidian vault instead of creating parallel filesystem-based knowledge layers.
 
 ## Required preflight
 1. Run `scripts/check_obsidian_env.py --task refine --check-core-notes --json`.

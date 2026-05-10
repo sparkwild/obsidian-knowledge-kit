@@ -1,10 +1,10 @@
 ---
-description: Load the knowledge-base overview, manuals, and recent sessions before starting work.
+description: Load the Vaultwright startup bundle from the active Obsidian vault before doing work.
 ---
 
-# Obsidian Knowledge Start
+# Vaultwright Start
 
-Use the knowledge base as the starting context for the current task.
+Use Vaultwright's startup bundle as the starting context for the current task.
 
 ## Preflight
 
@@ -31,5 +31,8 @@ Treat these notes as the default startup bundle:
 
 - Use the active vault reported by `obsidian vault info=path`.
 - Base your understanding on the loaded vault context instead of prior chat assumptions.
+- Treat the active Obsidian vault as the only knowledge carrier.
+- Do not create an external raw/wiki directory system outside the vault.
 - If core notes are missing, stop and recommend `obsidian-knowledge-init`.
 - Summarize current focus, active workstreams, and relevant operating rules before proceeding with the user's task.
+- If the user asks a knowledge question, recommend `query` instead of blind full-vault reading.

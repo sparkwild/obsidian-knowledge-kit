@@ -22,12 +22,15 @@ type: manual
 # 系统规则（system）
 
 > [!important]
-> 本仓库运行在当前打开的 Obsidian 应用中。核心目标是让 Codex 在 Obsidian 原生环境里长期稳定工作，同时保留可审计、可维护、可扩展的知识闭环。
+> 本知识库运行在当前打开的 Obsidian vault 中。核心目标是让 Codex 在 Obsidian 原生环境里长期稳定工作，同时保留可审计、可维护、可扩展的知识闭环。
 
 ## top_level_structure 顶层结构
 
 - `00_system/`：治理规则与导航骨架
+- `00_system/dashboards/`：Obsidian Bases 仪表盘
+- `00_system/reports/`：lint、review 等只读报告
 - `01_ai_core/`：当前上下文与长期上下文
+- `01_ai_core/context_packs/`：按问题生成的聚焦上下文包
 - `02_timeline/`：daily notes、sessions、weekly reviews
 - `03_raw/`：不可直接改写的原始资料
 - `04_projects/`：项目执行与阶段追踪
@@ -35,11 +38,25 @@ type: manual
 - `06_experience/`：错误、成功、检查清单、决策模式
 - `07_archive/`：归档内容
 
+## obsidian_native_contract Obsidian 原生契约
+
+- 本知识库运行在当前打开的 Obsidian vault 中。
+- 文件夹只是 Obsidian 导航辅助，不是外部知识库模型。
+- 稳定知识必须保持可审计、可链接、可回溯。
+- Codex 不应在 vault 外另建 raw/wiki 知识层。
+- 结构、元数据策略、自动化边界的重大变化需要用户确认。
+
+## metadata_policy 元数据规范
+
+- 允许的内容类型至少包括：`ai-context | codex-context-pack | journal | session | project | raw | concept | manual | note | decision`
+- 正式内容页至少包含：`title`、`created`、`updated`、`type`
+
 ## runtime_boundaries 运行边界
 
 - 依赖 Obsidian 原生 Markdown、frontmatter、wikilinks、search、backlinks 以及活动仓库能力
 - 依赖 Obsidian CLI 执行仓库感知的创建、读取、搜索、追加和校验
 - 核心闭环不依赖社区插件、外部 Web 服务或非必要脚本
+- 不在 Obsidian vault 外建立独立 raw/wiki 目录系统
 - 如果变更涉及结构、元数据策略、归档策略或自动化边界，先和用户确认
 """,
         "00_system/index.md": f"""# 索引（index）

@@ -1,12 +1,13 @@
 ---
 name: obsidian-knowledge-ingest
-description: Import external materials into a codex-native Obsidian knowledge vault. Use when the user provides a local directory, file, or URL and wants it captured into raw source notes and distilled into knowledge notes. Before ingestion, verify the Obsidian environment and required official obsidian-skills. Always require obsidian-cli and obsidian-markdown. Prefer defuddle for URL/web tasks, use Computer Use as the fallback when websites block automated fetching, and require json-canvas for canvas tasks plus obsidian-bases for base-view tasks. If required official skills are missing or outdated, stop and ask the user whether to install or update them from the official repo before continuing.
+description: Import external materials into a Vaultwright-managed Obsidian knowledge vault. Use when the user provides a local directory, file, or URL and wants it captured into raw source notes and distilled into knowledge notes. Before ingestion, verify the Obsidian environment and required official obsidian-skills. Always require obsidian-cli and obsidian-markdown. Prefer defuddle for URL/web tasks, use Computer Use as the fallback when websites block automated fetching, and require json-canvas for canvas tasks plus obsidian-bases for base-view tasks. The active Obsidian vault remains the only knowledge carrier; do not create an external raw/wiki directory system.
 ---
 
-# Obsidian Knowledge Ingest
+# Vaultwright Ingest
 
 ## Purpose
 - Convert external material into raw source notes and stable knowledge notes inside the active Obsidian vault.
+- Keep source capture, snapshots, and stable knowledge inside the vault workflow instead of building a second filesystem knowledge layer.
 
 ## Required preflight
 1. Run `scripts/check_obsidian_env.py --task ingest --check-core-notes --json`.
@@ -29,6 +30,9 @@ description: Import external materials into a codex-native Obsidian knowledge va
    - Prefer `defuddle` for direct web extraction.
    - If the site blocks automated fetching, open the page with `Computer Use`, capture the readable content manually, and save the result as an `extracted_snapshot` before distilling.
    - If `Computer Use` is unavailable or lacks permission on the user's machine, stop and ask the user to enable it. Do not attempt installation automatically.
+   - Ensure raw/source registers keep claim-level traceability fields such as `source_id`, `source_hash`, `snapshot_path`, `verification_status`, `claim_count`, and `synthesis_targets`.
+   - Seed at least one evidence block and one claim candidate scaffold so later query/lint flows can link to block-level evidence.
+   - After knowledge notes begin citing the register, reconcile the register state with `scripts/reconcile_source_register.py` so `claim_count`, `synthesis_targets`, `distill_status`, and `verification_status` reflect reality.
 5. Distill into the right knowledge partition.
 6. Update:
    - `00_system/index.md`

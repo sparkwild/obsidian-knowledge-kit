@@ -43,9 +43,12 @@ def main() -> int:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         print(f"vault_path: {payload['vault_path']}")
+        print(f"source_id: {payload['source_id']}")
+        print(f"source_hash: {payload['source_hash']}")
         print(f"source_kind: {payload['source_kind']}")
         print(f"source_mode: {payload['source_mode']}")
         print(f"register_path: {payload['register_path']}")
+        print(f"snapshot_path: {payload['snapshot_path']}")
         print(f"applied: {payload['applied']}")
     return 0
 

@@ -1,10 +1,10 @@
 ---
-description: Ingest a local file, directory, or URL into the active Obsidian knowledge base.
+description: Ingest a local file, directory, or URL into the active Vaultwright knowledge vault.
 ---
 
-# Obsidian Knowledge Ingest
+# Vaultwright Ingest
 
-Bring new material into the active Obsidian knowledge base through the standard raw-to-knowledge workflow.
+Bring new material into the active Obsidian vault through the Vaultwright raw-to-knowledge workflow.
 
 ## Preflight
 
@@ -62,6 +62,19 @@ Required flow:
 3. Create or update a raw source note or register first.
    - Prefer `defuddle` for normal web article extraction.
    - If the site blocks automated fetching, use `Computer Use` to open the page, capture the readable content, and treat that result as an `extracted_snapshot`.
+   - Raw/source registers should preserve evidence-ready fields such as `source_id`, `source_hash`, `snapshot_path`, `verification_status`, `claim_count`, and `synthesis_targets`.
+   - Seed evidence blocks and claim scaffolds so later query/lint workflows can link to block-level traceability.
+   - After stable notes cite the source, reconcile the register:
+
+```bash
+python3 ~/.codex/plugins/obsidian-knowledge-kit/scripts/reconcile_source_register.py "<register-path>" --json
+```
+
+   - If you are ready to update the register state in place:
+
+```bash
+python3 ~/.codex/plugins/obsidian-knowledge-kit/scripts/reconcile_source_register.py "<register-path>" --apply --json
+```
 4. Distill the useful content into the right project or knowledge partition.
 5. Update:
    - `00_system/index.md`
@@ -72,6 +85,7 @@ Required flow:
 ## Rules
 
 - Do not ingest everything blindly.
+- Do not create an external raw/wiki directory system outside the vault.
 - Do not invoke `Computer Use` by default for every URL.
 - If `Computer Use` is unavailable, uninstalled, or lacks permission on the user's machine, do not attempt to install or enable it automatically. Stop and clearly ask the user to enable it.
 - Treat large middleware artifact directories as inventories first, not reading lists.

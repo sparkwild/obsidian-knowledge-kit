@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+from .obsidian_runtime import list_markdown_notes, read_note_content, write_note_content
 
 @dataclass
 class DistillUpdateDraft:
@@ -20,9 +21,7 @@ class DistillUpdateDraft:
 
 def detect_project_overview_path(vault_path: Path) -> str | None:
     project_overviews = sorted(
-        path.relative_to(vault_path).as_posix()
-        for path in (vault_path / "04_projects").glob("*/project_overview.md")
-        if path.is_file()
+        path for path in list_markdown_notes(vault_path, folder="04_projects") if path.endswith("/project_overview.md")
     )
     return project_overviews[0] if project_overviews else None
 
@@ -58,10 +57,9 @@ def build_distill_update_draft(
     project_progress: str | None = None,
 ) -> DistillUpdateDraft:
     absolute_session = vault_path / session_path
-    if not absolute_session.exists():
+    session_content = read_note_content(vault_path, session_path)
+    if session_content is None:
         raise FileNotFoundError(f"Session note does not exist: {absolute_session}")
-
-    session_content = absolute_session.read_text(encoding="utf-8")
     derived_label = session_label or derive_session_label(session_content, default_label=Path(session_path).stem)
     created_date = datetime.now().date().isoformat()
     project_overview_path = detect_project_overview_path(vault_path)
@@ -118,22 +116,19 @@ def update_project_progress(project_content: str, progress: str) -> str:
 def apply_distill_update_draft(vault_path: Path, draft: DistillUpdateDraft) -> None:
     today = datetime.now().date().isoformat()
 
-    log_path = vault_path / "00_system/log.md"
-    if log_path.exists():
-        log_content = log_path.read_text(encoding="utf-8")
-        log_path.write_text(append_log_entry(log_content, draft.log_entry), encoding="utf-8")
+    log_content = read_note_content(vault_path, "00_system/log.md")
+    if log_content is not None:
+        write_note_content(vault_path, "00_system/log.md", append_log_entry(log_content, draft.log_entry))
 
-    active_context_path = vault_path / "01_ai_core/active_context.md"
-    if active_context_path.exists():
-        active_context_content = active_context_path.read_text(encoding="utf-8")
+    active_context_content = read_note_content(vault_path, "01_ai_core/active_context.md")
+    if active_context_content is not None:
         active_context_content = prepend_recent_session(active_context_content, draft.active_context_entry)
         active_context_content = update_frontmatter_updated(active_context_content, today)
-        active_context_path.write_text(active_context_content, encoding="utf-8")
+        write_note_content(vault_path, "01_ai_core/active_context.md", active_context_content)
 
     if draft.project_overview_path and draft.project_progress:
-        project_path = vault_path / draft.project_overview_path
-        if project_path.exists():
-            project_content = project_path.read_text(encoding="utf-8")
+        project_content = read_note_content(vault_path, draft.project_overview_path)
+        if project_content is not None:
             project_content = update_project_progress(project_content, draft.project_progress)
             project_content = update_frontmatter_updated(project_content, today)
-            project_path.write_text(project_content, encoding="utf-8")
+            write_note_content(vault_path, draft.project_overview_path, project_content)

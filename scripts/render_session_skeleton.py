@@ -12,6 +12,7 @@ LIB = Path(__file__).resolve().parents[1] / "lib"
 sys.path.insert(0, str(LIB))
 
 from obsidian_knowledge_shared.context_loader import detect_active_vault
+from obsidian_knowledge_shared.obsidian_runtime import list_markdown_notes, write_note_content
 
 
 @dataclass
@@ -33,9 +34,7 @@ def resolve_vault_path(raw_path: str | None) -> Path:
 
 def detect_project_overview_path(vault_path: Path) -> str:
     project_overviews = sorted(
-        path.relative_to(vault_path).as_posix()
-        for path in (vault_path / "04_projects").glob("*/project_overview.md")
-        if path.is_file()
+        path for path in list_markdown_notes(vault_path, folder="04_projects") if path.endswith("/project_overview.md")
     )
     if project_overviews:
         return project_overviews[0].removesuffix(".md")
@@ -90,9 +89,7 @@ def render_skeleton(vault_path: Path) -> SessionSkeleton:
 
 
 def apply_skeleton(vault_path: Path, skeleton: SessionSkeleton) -> None:
-    absolute_path = vault_path / skeleton.session_path
-    absolute_path.parent.mkdir(parents=True, exist_ok=True)
-    absolute_path.write_text(skeleton.content, encoding="utf-8")
+    write_note_content(vault_path, skeleton.session_path, skeleton.content)
 
 
 def main() -> int:

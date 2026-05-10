@@ -1,4 +1,4 @@
 interface:
-  display_name: "Obsidian Knowledge Init"
-  short_description: "Bootstrap a codex-native Obsidian knowledge base"
-  default_prompt: "Initialize the active Obsidian vault into the codex-native knowledge system, but first verify the Obsidian environment and official obsidian-skills dependencies."
+  display_name: "Vaultwright Init"
+  short_description: "Bootstrap an Obsidian vault into a Vaultwright system"
+  default_prompt: "Initialize the active Obsidian vault into a Vaultwright knowledge system after verifying the Obsidian environment and official obsidian-skills dependencies, without creating any external raw/wiki directory structure."

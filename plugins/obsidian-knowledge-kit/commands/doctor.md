@@ -1,10 +1,10 @@
 ---
-description: Check the active Obsidian knowledge-vault environment, required skills, and plugin/runtime health before doing work.
+description: Check Vaultwright installation, the active Obsidian vault environment, and required skills before doing work.
 ---
 
-# Obsidian Knowledge Doctor
+# Vaultwright Doctor
 
-Run a read-only health check for the current Obsidian knowledge workflow.
+Run a read-only health check for the current Vaultwright workflow.
 
 ## Preflight
 
@@ -47,9 +47,10 @@ Summarize:
 - whether `obsidian-cli` and `obsidian-markdown` are installed
 - whether the local plugin package is structurally valid
 - whether the global AGENTS knowledge hint is installed
-- the next recommended action: `start`, `init`, `ingest`, or `refine`
+- the next recommended action: `start`, `init`, `query`, `ingest`, or `refine`
 
 ## Rules
 
 - Do not make changes in doctor mode.
+- Do not recommend building a second raw/wiki directory system outside the vault.
 - If multiple problems exist, report them in a stable order: vault, core notes, official skills, local plugin package.

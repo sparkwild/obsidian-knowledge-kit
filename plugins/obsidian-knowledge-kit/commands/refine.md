@@ -1,10 +1,10 @@
 ---
-description: Refine the active Obsidian knowledge base without changing top-level structure silently.
+description: Refine the active Vaultwright knowledge vault without changing top-level structure silently.
 ---
 
-# Obsidian Knowledge Refine
+# Vaultwright Refine
 
-Improve the active knowledge base by fixing structure, boundaries, links, and stale status information.
+Improve the active knowledge vault by fixing structure, boundaries, links, and stale status information.
 
 ## Preflight
 
@@ -49,5 +49,6 @@ Then update:
 ## Rules
 
 - Do not change top-level directory structure without confirmation.
+- Do not create or recommend an external raw/wiki directory system outside the vault.
 - Do not bulk-migrate paths silently.
 - Do not delete core system notes without confirmation.

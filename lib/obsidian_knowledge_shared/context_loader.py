@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from .preflight import run_obsidian_info
+from .obsidian_runtime import detect_active_vault_info, list_markdown_notes, read_note_content
 
 STARTUP_NOTE_PATHS = (
     "00_system/system.md",
@@ -25,36 +25,27 @@ class LoadedNote:
 
 
 def detect_active_vault() -> Path | None:
-    connected, raw_vault = run_obsidian_info()
-    if not connected or not raw_vault:
+    info = detect_active_vault_info()
+    if info is None:
         return None
-    return Path(raw_vault).expanduser()
+    return info.path
 
 
 def read_note(vault_path: Path, note_path: str) -> LoadedNote | None:
-    absolute = vault_path / note_path
-    if not absolute.exists():
+    content = read_note_content(vault_path, note_path)
+    if content is None:
         return None
-    return LoadedNote(path=note_path, content=absolute.read_text(encoding="utf-8"))
+    return LoadedNote(path=note_path, content=content)
 
 
 def latest_session_notes(vault_path: Path, limit: int = 2) -> list[LoadedNote]:
-    session_dir = vault_path / SESSION_DIRECTORY
-    if not session_dir.exists():
-        return []
-
-    session_paths = sorted(
-        (path for path in session_dir.glob("*.md") if path.is_file()),
-        key=lambda path: (path.stat().st_mtime, path.name),
-        reverse=True,
-    )
-    return [
-        LoadedNote(
-            path=str(path.relative_to(vault_path)),
-            content=path.read_text(encoding="utf-8"),
-        )
-        for path in session_paths[:limit]
-    ]
+    session_paths = sorted(list_markdown_notes(vault_path, folder=SESSION_DIRECTORY), reverse=True)
+    loaded_notes: list[LoadedNote] = []
+    for note_path in session_paths[:limit]:
+        content = read_note_content(vault_path, note_path)
+        if content is not None:
+            loaded_notes.append(LoadedNote(path=note_path, content=content))
+    return loaded_notes
 
 
 def load_context(vault_path: Path, session_limit: int = 2) -> dict:
@@ -68,9 +59,7 @@ def load_context(vault_path: Path, session_limit: int = 2) -> dict:
             notes.append({"path": loaded.path, "content": loaded.content})
 
     project_overviews = sorted(
-        path.relative_to(vault_path).as_posix()
-        for path in (vault_path / "04_projects").glob("*/project_overview.md")
-        if path.is_file()
+        path for path in list_markdown_notes(vault_path, folder="04_projects") if path.endswith("/project_overview.md")
     )
     if not project_overviews:
         missing_notes.append("04_projects/*/project_overview.md")

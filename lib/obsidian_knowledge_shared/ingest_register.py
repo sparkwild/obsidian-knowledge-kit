@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
+from .obsidian_runtime import append_note_content, list_markdown_notes, write_note_content
 
 @dataclass
 class IngestRegisterDraft:
@@ -15,6 +16,16 @@ class IngestRegisterDraft:
     source: str
     source_kind: str
     source_mode: str
+    source_id: str
+    source_hash: str
+    captured_at: str
+    extracted_at: str | None
+    snapshot_path: str | None
+    capture_status: str
+    distill_status: str
+    verification_status: str
+    claim_count: int
+    synthesis_targets: list[str]
     register_path: str
     title: str
     alias: str
@@ -71,6 +82,14 @@ def compact_token(raw_token: str, source: str, source_kind: str) -> str:
     return f"{source_kind}_{digest}"
 
 
+def build_source_id(batch_token: str) -> str:
+    return f"src_{batch_token}"
+
+
+def build_source_hash(source: str) -> str:
+    return hashlib.sha1(source.encode("utf-8")).hexdigest()
+
+
 def infer_title(source: str, source_kind: str, batch_token: str) -> tuple[str, str]:
     if source_kind == "url":
         parsed = urlparse(source)
@@ -99,11 +118,15 @@ def infer_material_types(source: str, source_kind: str) -> list[str]:
     return [item for item, _count in counter.most_common(6)]
 
 
+def infer_snapshot_path(batch_token: str, source_mode: str) -> str | None:
+    if source_mode != "extracted_snapshot":
+        return None
+    return f"03_raw/snapshots/{batch_token}.md"
+
+
 def detect_project_overview_path(vault_path: Path) -> str | None:
     project_overviews = sorted(
-        path.relative_to(vault_path).as_posix()
-        for path in (vault_path / "04_projects").glob("*/project_overview.md")
-        if path.is_file()
+        path for path in list_markdown_notes(vault_path, folder="04_projects") if path.endswith("/project_overview.md")
     )
     return project_overviews[0] if project_overviews else None
 
@@ -112,11 +135,21 @@ def build_register_content(
     title: str,
     alias: str,
     created_date: str,
+    captured_at: str,
+    register_path: str,
     source_mode: str,
+    source_id: str,
+    source_hash: str,
     source: str,
     material_types: list[str],
     project_overview_path: str | None,
     source_kind: str,
+    snapshot_path: str | None,
+    capture_status: str,
+    distill_status: str,
+    verification_status: str,
+    claim_count: int,
+    synthesis_targets: list[str],
 ) -> str:
     related_lines = []
     if project_overview_path:
@@ -125,6 +158,11 @@ def build_register_content(
     material_type_lines = "\n".join(f"  - {material_type}" for material_type in material_types)
     related_block = "\n".join(related_lines) if related_lines else "  - 04_projects/*/project_overview.md"
     overview_label = "外部链接" if source_kind == "url" else "本地路径"
+    synthesis_target_lines = "\n".join(f"  - {target}" for target in synthesis_targets) if synthesis_targets else "  - "
+    extracted_at_line = ""
+    snapshot_path_line = snapshot_path or ""
+    evidence_block_id = f"evidence_{source_id}_001"
+    claim_block_id = f"claim_{source_id}_001"
 
     return f"""---
 title: {title}
@@ -133,11 +171,22 @@ aliases:
 created: {created_date}
 updated: {created_date}
 type: raw
+source_id: {source_id}
+source_hash: {source_hash}
+captured_at: {captured_at}
+extracted_at: {extracted_at_line}
 source_mode: {source_mode}
 external_path: {source}
+snapshot_path: {snapshot_path_line}
+capture_status: {capture_status}
+distill_status: {distill_status}
+verification_status: {verification_status}
 ingest_status: pending
+claim_count: {claim_count}
 material_types:
 {material_type_lines}
+synthesis_targets:
+{synthesis_target_lines}
 related:
 {related_block}
 ---
@@ -152,9 +201,36 @@ related:
 
 ## source_assessment 来源判断
 
+- source_id: `{source_id}`
+- source_hash: `{source_hash}`
 - source_kind: `{source_kind}`
 - source_mode: `{source_mode}`
 - material_types: `{", ".join(material_types)}`
+- capture_status: `{capture_status}`
+- distill_status: `{distill_status}`
+- verification_status: `{verification_status}`
+- claim_count: `{claim_count}`
+
+## evidence_blocks 证据块
+
+### evidence_001
+
+- source_excerpt: [TODO]
+- interpretation: [TODO]
+- capture_status: `{capture_status}`
+- verification_status: `{verification_status}`
+^{evidence_block_id}
+
+## claim_candidates 断言候选
+
+> [!claim]
+> claim: [TODO]
+> source: [[{register_path}#^{evidence_block_id}]]
+> status: pending
+> confidence: low
+> reviewed_at:
+> synthesis_target:
+^{claim_block_id}
 
 ## current_result 当前结果
 
@@ -181,22 +257,41 @@ def build_log_entry(created_date: str, register_path: str, source: str, source_k
 def build_ingest_register_draft(vault_path: Path, source: str, project_overview_path: str | None = None) -> IngestRegisterDraft:
     now = datetime.now()
     created_date = now.date().isoformat()
+    captured_at = now.isoformat(timespec="seconds")
     source_kind = detect_source_kind(source)
     source_mode = default_source_mode(source_kind)
     batch_token = infer_batch_token(source, source_kind)
+    source_id = build_source_id(batch_token)
+    source_hash = build_source_hash(source)
+    snapshot_path = infer_snapshot_path(batch_token, source_mode)
     title, alias = infer_title(source, source_kind, batch_token)
     register_path = f"03_raw/registers/{batch_token}_{now.strftime('%Y_%m')}.md"
     material_types = infer_material_types(source, source_kind)
+    capture_status = "registered"
+    distill_status = "pending"
+    verification_status = "unverified"
+    claim_count = 1
+    synthesis_targets: list[str] = []
     project_overview_path = project_overview_path or detect_project_overview_path(vault_path)
     content = build_register_content(
         title=title,
         alias=alias,
         created_date=created_date,
+        captured_at=captured_at,
+        register_path=register_path,
         source_mode=source_mode,
+        source_id=source_id,
+        source_hash=source_hash,
         source=source,
         material_types=material_types,
         project_overview_path=project_overview_path,
         source_kind=source_kind,
+        snapshot_path=snapshot_path,
+        capture_status=capture_status,
+        distill_status=distill_status,
+        verification_status=verification_status,
+        claim_count=claim_count,
+        synthesis_targets=synthesis_targets,
     )
     log_entry = build_log_entry(created_date, register_path, source, source_kind)
     return IngestRegisterDraft(
@@ -204,6 +299,16 @@ def build_ingest_register_draft(vault_path: Path, source: str, project_overview_
         source=source,
         source_kind=source_kind,
         source_mode=source_mode,
+        source_id=source_id,
+        source_hash=source_hash,
+        captured_at=captured_at,
+        extracted_at=None,
+        snapshot_path=snapshot_path,
+        capture_status=capture_status,
+        distill_status=distill_status,
+        verification_status=verification_status,
+        claim_count=claim_count,
+        synthesis_targets=synthesis_targets,
         register_path=register_path,
         title=title,
         alias=alias,
@@ -215,11 +320,5 @@ def build_ingest_register_draft(vault_path: Path, source: str, project_overview_
 
 
 def apply_ingest_register_draft(vault_path: Path, draft: IngestRegisterDraft) -> None:
-    register_absolute = vault_path / draft.register_path
-    register_absolute.parent.mkdir(parents=True, exist_ok=True)
-    register_absolute.write_text(draft.content, encoding="utf-8")
-
-    log_absolute = vault_path / "00_system/log.md"
-    if log_absolute.exists():
-        existing = log_absolute.read_text(encoding="utf-8").rstrip()
-        log_absolute.write_text(existing + draft.log_entry + "\n", encoding="utf-8")
+    write_note_content(vault_path, draft.register_path, draft.content)
+    append_note_content(vault_path, "00_system/log.md", draft.log_entry)

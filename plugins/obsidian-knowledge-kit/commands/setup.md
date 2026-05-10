@@ -1,10 +1,10 @@
 ---
-description: Verify installation state and optionally install the minimal global AGENTS knowledge-base hint.
+description: Verify Vaultwright installation state and optionally install the minimal global AGENTS knowledge-base hint.
 ---
 
-# Obsidian Knowledge Setup
+# Vaultwright Setup
 
-Prepare Codex so new sessions can reliably discover and use the Obsidian knowledge base.
+Prepare Codex so new sessions can reliably discover and use the active Obsidian vault through Vaultwright.
 
 ## Preflight
 
@@ -42,6 +42,7 @@ After setup, new sessions should have a stable discovery path:
 2. read `00_system/system.md`
 3. read `05_knowledge/manuals/codex_native_workflow.md`
 4. read `00_system/index.md` or project/manual notes only when the task needs them
+5. never create an external raw/wiki directory system outside the vault
 
 ## Rules
 

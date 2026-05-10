@@ -1,10 +1,10 @@
 ---
-description: Distill the current work back into a session note and point the agent to update the knowledge base.
+description: Distill the current work back into the active Vaultwright knowledge vault through session and log updates.
 ---
 
-# Obsidian Knowledge Distill
+# Vaultwright Distill
 
-Close the loop after meaningful work by creating a session note skeleton and updating the knowledge vault deliberately.
+Close the loop after meaningful work by creating a session note skeleton and updating the active Vaultwright knowledge vault deliberately.
 
 ## Preflight
 
@@ -56,5 +56,6 @@ This updates:
 ## Guardrails
 
 - Do not bulk-copy temporary reasoning into stable knowledge notes.
+- Do not create a second raw/wiki directory system outside the vault during distill.
 - Do not update the top-level structure or metadata model without confirmation.
 - If the session was minor, keep the distillation lightweight but still leave a durable trail in the session note and log.

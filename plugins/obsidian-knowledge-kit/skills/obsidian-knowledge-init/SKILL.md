@@ -1,13 +1,14 @@
 ---
 name: obsidian-knowledge-init
-description: Initialize an Obsidian knowledge vault into the codex-native knowledge system. Use when a vault has not been set up yet, when core system notes are missing, or when the user wants to bootstrap a new Obsidian knowledge base. Before doing anything, verify Obsidian is running, the obsidian CLI works, and the official kepano/obsidian-skills dependencies exist. If required official skills are missing or outdated, stop and ask the user whether to install or update them from the official repo before continuing.
+description: Initialize an Obsidian knowledge vault into the codex-native Vaultwright knowledge system. Use when a vault has not been set up yet, when core system notes are missing, or when the user wants to bootstrap a new Obsidian knowledge base. Before doing anything, verify Obsidian is running, the obsidian CLI works, and the official kepano/obsidian-skills dependencies exist. The active Obsidian vault is the only knowledge carrier; do not create an external raw/wiki directory system.
 ---
 
-# Obsidian Knowledge Init
+# Vaultwright Init
 
 ## Purpose
 - Turn the active Obsidian vault into a runnable codex-native knowledge system.
 - Create the minimum system skeleton only after preflight checks pass.
+- Keep the knowledge model inside the active Obsidian vault instead of creating a second external wiki structure.
 
 ## Required preflight
 1. Run `scripts/check_obsidian_env.py --task init --json`.

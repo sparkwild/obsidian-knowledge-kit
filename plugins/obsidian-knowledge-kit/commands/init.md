@@ -1,10 +1,10 @@
 ---
-description: Initialize the active Obsidian vault into the codex-native knowledge system.
+description: Initialize the active Obsidian vault into the Vaultwright knowledge system.
 ---
 
-# Obsidian Knowledge Init
+# Vaultwright Init
 
-Use the active Obsidian vault as the target and bootstrap the minimum codex-native knowledge-base structure.
+Use the active Obsidian vault as the target and bootstrap the minimum Vaultwright knowledge structure.
 
 ## Preflight
 
@@ -41,5 +41,6 @@ The result must create or repair these core notes:
 ## Rules
 
 - Do not import business knowledge during init.
+- Do not create an external raw/wiki directory system outside the vault.
 - If the vault is already initialized, only repair missing core notes.
 - Do not silently overwrite user-authored knowledge pages.

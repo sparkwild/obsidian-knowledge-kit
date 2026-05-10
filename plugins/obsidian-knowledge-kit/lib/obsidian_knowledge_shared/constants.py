@@ -22,7 +22,10 @@ CORE_NOTE_PATHS = (
 
 BASE_DIRECTORIES = (
     "00_system",
+    "00_system/dashboards",
+    "00_system/reports",
     "01_ai_core",
+    "01_ai_core/context_packs",
     "02_timeline/daily_notes",
     "02_timeline/sessions",
     "02_timeline/weekly_reviews",

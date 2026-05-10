@@ -11,17 +11,23 @@ PLUGIN_NAME = "obsidian-knowledge-kit"
 EXPECTED_SKILLS = (
     "obsidian-knowledge-init",
     "obsidian-knowledge-ingest",
+    "obsidian-knowledge-lint",
+    "obsidian-knowledge-query",
     "obsidian-knowledge-refine",
 )
-EXPECTED_COMMANDS = ("setup.md", "start.md", "doctor.md", "init.md", "ingest.md", "refine.md", "distill.md")
+EXPECTED_COMMANDS = ("setup.md", "start.md", "query.md", "lint.md", "doctor.md", "init.md", "ingest.md", "refine.md", "distill.md")
 EXPECTED_SCRIPTS = (
+    "build_context_pack.py",
     "check_codex_plugin.py",
     "apply_distill_updates.py",
     "install_global_knowledge_hint.py",
     "install_home_local_plugin.py",
     "install_local_runtime.py",
+    "lint_knowledge_vault.py",
     "load_knowledge_context.py",
     "prepare_ingest_source.py",
+    "render_bases_dashboards.py",
+    "reconcile_source_register.py",
     "render_session_skeleton.py",
     "sync_plugin_package.py",
 )

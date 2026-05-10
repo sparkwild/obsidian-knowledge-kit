@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 
-KNOWLEDGE_HINT = """# Global Working Rules
+LEGACY_KNOWLEDGE_HINT = """# Global Working Rules
 
 - The user uses an Obsidian knowledge base.
 - For knowledge-base-related tasks, first use `obsidian vault info=path` to detect the active vault.
@@ -15,6 +15,19 @@ KNOWLEDGE_HINT = """# Global Working Rules
 - `00_system/system.md`
 - `05_knowledge/manuals/codex_native_workflow.md`
 - Read `00_system/index.md`, `04_projects/*/project_overview.md`, or specialized manuals only when the task needs them.
+"""
+
+KNOWLEDGE_HINT = """# Global Working Rules
+
+- The user uses an Obsidian knowledge base.
+- The active Obsidian vault is the knowledge carrier.
+- For knowledge-base-related tasks, first use `obsidian vault info=path` to detect the active vault.
+- Then read:
+- `00_system/system.md`
+- `05_knowledge/manuals/codex_native_workflow.md`
+- Read `00_system/index.md`, `04_projects/*/project_overview.md`, or specialized manuals only when the task needs them.
+- Do not create external raw/wiki directory systems outside the vault.
+- Use Obsidian notes, Properties, wikilinks, block references, and `index/log` as the knowledge model.
 """
 
 
@@ -28,9 +41,12 @@ def target_path(raw_path: str | None) -> Path:
 def has_knowledge_hint(content: str) -> bool:
     markers = (
         "The user uses an Obsidian knowledge base.",
+        "The active Obsidian vault is the knowledge carrier.",
         "obsidian vault info=path",
         "00_system/system.md",
         "05_knowledge/manuals/codex_native_workflow.md",
+        "Do not create external raw/wiki directory systems outside the vault.",
+        "Use Obsidian notes, Properties, wikilinks, block references, and `index/log` as the knowledge model.",
     )
     return all(marker in content for marker in markers)
 
@@ -39,6 +55,12 @@ def apply_hint(path: Path) -> str:
     existing = path.read_text(encoding="utf-8") if path.exists() else ""
     if has_knowledge_hint(existing):
         return "already_present"
+
+    if LEGACY_KNOWLEDGE_HINT.rstrip() in existing:
+        updated_content = existing.replace(LEGACY_KNOWLEDGE_HINT.rstrip(), KNOWLEDGE_HINT.rstrip())
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(updated_content.rstrip() + "\n", encoding="utf-8")
+        return "upgraded"
 
     path.parent.mkdir(parents=True, exist_ok=True)
     if existing.strip():
@@ -67,7 +89,7 @@ def build_report(path: Path, apply: bool) -> dict:
             {
                 "exists": path.exists(),
                 "has_knowledge_hint": has_knowledge_hint(updated),
-                "applied": status in {"created", "appended"},
+                "applied": status in {"created", "appended", "upgraded"},
                 "status": status,
             }
         )
