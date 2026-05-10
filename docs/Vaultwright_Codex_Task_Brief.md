@@ -1,9 +1,9 @@
 # Vaultwright — Codex 执行任务方案文档
 
-版本：v0.1  
-日期：2026-05-10  
+版本：v0.1
+日期：2026-05-10
 适用仓库：`sparkwild/Vaultwright`
-目标执行者：本地 Codex App  
+目标执行者：本地 Codex App
 文档定位：产品与技术负责人给 Codex 的需求、边界、任务拆分与验收标准；不在本文中提供实现代码。
 
 ---
