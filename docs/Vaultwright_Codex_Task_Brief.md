@@ -2,7 +2,7 @@
 
 版本：v0.1  
 日期：2026-05-10  
-适用仓库：`sparkwild/obsidian-knowledge-kit`  
+适用仓库：`sparkwild/Vaultwright`
 目标执行者：本地 Codex App  
 文档定位：产品与技术负责人给 Codex 的需求、边界、任务拆分与验收标准；不在本文中提供实现代码。
 
@@ -18,7 +18,7 @@
 - 不要把项目改造成 Obsidian 社区插件。
 - 不要在 Obsidian vault 外建立独立 `raw/wiki` 知识库系统。
 - 不要静默修改用户实际 Obsidian vault；本次任务只修改本仓库的插件包、skills、commands、scripts、文档与模板。
-- 保留内部兼容名 `obsidian-knowledge-kit`，先只把产品展示名、文档定位、命令体验升级为 `Vaultwright`。
+- 将产品展示名、内部包名、插件名、skill 名和安装路径统一收敛到 `Vaultwright` / `vaultwright`。
 - 所有新增能力必须能够被 `scripts/check_codex_plugin.py --json` 检查到。
 - 完成后输出修改摘要、风险点、验证结果和下一阶段建议。
 
@@ -61,9 +61,9 @@
 当前应保留的核心形态：
 
 - `skills/`：Codex skills 源。
-- `plugins/obsidian-knowledge-kit/`：repo-local Codex plugin package。
-- `plugins/obsidian-knowledge-kit/.codex-plugin/plugin.json`：Codex 插件 manifest。
-- `plugins/obsidian-knowledge-kit/commands/`：Codex 命令入口。
+- `plugins/vaultwright/`：repo-local Codex plugin package。
+- `plugins/vaultwright/.codex-plugin/plugin.json`：Codex 插件 manifest。
+- `plugins/vaultwright/commands/`：Codex 命令入口。
 - `lib/obsidian_knowledge_shared/`：共享 runtime。
 - `scripts/`：安装、检查、上下文加载、session、distill 等辅助脚本。
 
@@ -126,7 +126,7 @@ Codex 应该：
 
 ### 目标
 
-把产品展示名升级为 Vaultwright，同时保留内部兼容路径 `obsidian-knowledge-kit`。强化全仓库约束：不要脱离 Obsidian vault，不要另起外部 raw/wiki 系统。
+把产品展示名、内部包名、插件名和安装路径统一升级为 Vaultwright / vaultwright。强化全仓库约束：不要脱离 Obsidian vault，不要另起外部 raw/wiki 系统。
 
 ### 范围
 
@@ -134,25 +134,25 @@ Codex 应该：
 
 - `README.md`
 - `README.zh-CN.md`
-- `plugins/obsidian-knowledge-kit/.codex-plugin/plugin.json`
-- `plugins/obsidian-knowledge-kit/agents/openai.yaml`
+- `plugins/vaultwright/.codex-plugin/plugin.json`
+- `plugins/vaultwright/agents/openai.yaml`
 - `scripts/install_global_knowledge_hint.py`
 - `lib/obsidian_knowledge_shared/render_core_notes.py`
-- `skills/obsidian-knowledge-init/SKILL.md`
-- `skills/obsidian-knowledge-ingest/SKILL.md`
-- `skills/obsidian-knowledge-refine/SKILL.md`
-- `plugins/obsidian-knowledge-kit/commands/setup.md`
-- `plugins/obsidian-knowledge-kit/commands/start.md`
-- `plugins/obsidian-knowledge-kit/commands/init.md`
-- `plugins/obsidian-knowledge-kit/commands/ingest.md`
-- `plugins/obsidian-knowledge-kit/commands/refine.md`
-- `plugins/obsidian-knowledge-kit/commands/distill.md`
-- `plugins/obsidian-knowledge-kit/commands/doctor.md`
+- `skills/vaultwright-init/SKILL.md`
+- `skills/vaultwright-ingest/SKILL.md`
+- `skills/vaultwright-refine/SKILL.md`
+- `plugins/vaultwright/commands/setup.md`
+- `plugins/vaultwright/commands/start.md`
+- `plugins/vaultwright/commands/init.md`
+- `plugins/vaultwright/commands/ingest.md`
+- `plugins/vaultwright/commands/refine.md`
+- `plugins/vaultwright/commands/distill.md`
+- `plugins/vaultwright/commands/doctor.md`
 
 ### 产品文案要求
 
 - 展示名使用 `Vaultwright`。
-- 内部兼容名可继续使用 `obsidian-knowledge-kit`。
+- 插件、skill、安装路径和文档统一使用 `vaultwright`。
 - README 要解释：Vaultwright 是 Codex-native steward for Obsidian vaults。
 - README 要明确：当前项目是 Codex 本地插件包，不是 Obsidian community plugin。
 - README 要明确：不在 Obsidian vault 外创建独立知识库。
@@ -165,7 +165,7 @@ Codex 应该：
 - `interface.shortDescription` 强调 Obsidian vault knowledge stewardship。
 - `interface.longDescription` 强调 init / ingest / query / lint / refine / distill 的长期知识闭环。
 - `interface.defaultPrompt` 更新为最多三条，包含 active vault、ingest、query/lint/refine 的使用场景。
-- 插件内部 `name` 暂时保留 `obsidian-knowledge-kit`，避免破坏安装路径和 marketplace 兼容性。
+- 插件内部 `name` 使用 `vaultwright`，并与安装路径和 marketplace 统一。
 
 ### Global AGENTS hint 要求
 
@@ -191,7 +191,7 @@ Codex 应该：
 
 - README 中主品牌为 Vaultwright。
 - Codex plugin UI 展示名为 Vaultwright。
-- 内部兼容路径仍然工作。
+- 插件包名、skill 名、安装路径与文档引用一致。
 - 不存在鼓励“外部 raw/wiki 目录系统”的新文案。
 - `scripts/check_codex_plugin.py --json` 通过。
 - 执行同步脚本后，plugin package 内的 skills/lib/scripts 与根目录一致。
@@ -208,11 +208,11 @@ Codex 应该：
 
 新增 skill：
 
-- `skills/obsidian-knowledge-query/SKILL.md`
+- `skills/vaultwright-query/SKILL.md`
 
 新增 command：
 
-- `plugins/obsidian-knowledge-kit/commands/query.md`
+- `plugins/vaultwright/commands/query.md`
 
 新增脚本：
 
@@ -280,7 +280,7 @@ context pack 应该是普通 Obsidian note，而不是只存在于终端 JSON。
 ### 验收标准
 
 - `query.md` 命令存在并被插件检查脚本识别。
-- `obsidian-knowledge-query` skill 存在并被插件检查脚本识别。
+- `vaultwright-query` skill 存在并被插件检查脚本识别。
 - 能在不修改稳定知识页的情况下生成 context pack note。
 - context pack 位于 Obsidian vault 内。
 - context pack 不要求全库读取。
@@ -299,11 +299,11 @@ context pack 应该是普通 Obsidian note，而不是只存在于终端 JSON。
 
 新增 skill：
 
-- `skills/obsidian-knowledge-lint/SKILL.md`
+- `skills/vaultwright-lint/SKILL.md`
 
 新增 command：
 
-- `plugins/obsidian-knowledge-kit/commands/lint.md`
+- `plugins/vaultwright/commands/lint.md`
 
 新增脚本：
 
@@ -354,7 +354,7 @@ lint 结果应写入 Obsidian note，路径建议：
 ### 验收标准
 
 - `lint.md` 命令存在并被插件检查脚本识别。
-- `obsidian-knowledge-lint` skill 存在并被插件检查脚本识别。
+- `vaultwright-lint` skill 存在并被插件检查脚本识别。
 - lint 默认只读。
 - lint 可选写入 Obsidian report note。
 - lint 不自动改稳定知识页。
@@ -484,8 +484,8 @@ Codex Queue：
 
 需要纳入 expected skills：
 
-- `obsidian-knowledge-query`
-- `obsidian-knowledge-lint`
+- `vaultwright-query`
+- `vaultwright-lint`
 
 需要纳入 expected scripts：
 
@@ -547,8 +547,8 @@ Codex Queue：
 
 - 不要把仓库改成 Obsidian community plugin。
 - 不要新增 TypeScript 插件工程结构。
-- 不要重命名 `plugins/obsidian-knowledge-kit` 路径。
-- 不要把 `plugin.json.name` 改成会破坏安装兼容性的值。
+- 不要重命名 `plugins/vaultwright` 路径。
+- 不要再引入旧仓库名或旧插件名。
 - 不要批量迁移 vault 目录结构。
 - 不要删除或重排用户实际 vault 内容。
 - 不要让 Codex 默认使用 Computer Use 抓取所有网页。
@@ -581,7 +581,7 @@ Codex 完成任务后，需要至少验证：
 第一阶段完成时，应该达到：
 
 - `Vaultwright` 成为面向用户的产品名。
-- `obsidian-knowledge-kit` 作为内部兼容名继续工作。
+- `vaultwright` 成为统一的内部包名、插件名与安装路径名。
 - Codex 明确知道 active Obsidian vault 是知识载体。
 - Codex 不会被引导去创建外部 raw/wiki 目录系统。
 - 本地 Codex 插件包能发现 query 工作流。
@@ -604,9 +604,9 @@ Codex 完成任务后，需要至少验证：
 
 请在当前仓库内实现 Vaultwright 第一批演进：
 
-1. 将用户展示层品牌从 `obsidian-knowledge-kit` 升级为 `Vaultwright`，同时保留内部兼容路径和插件 package 名。
+1. 将用户展示层品牌、内部包名、插件 package 名和安装路径统一为 `Vaultwright` / `vaultwright`。
 2. 强化所有相关文档、global hint、system note 模板中的 Obsidian-native 边界：active vault 是知识载体，不要另建外部 raw/wiki 系统。
-3. 新增 `obsidian-knowledge-query` skill、`query.md` command 和 context pack 生成能力。
+3. 新增 `vaultwright-query` skill、`query.md` command 和 context pack 生成能力。
 4. context pack 必须写入 active Obsidian vault 内的普通 Markdown note。
 5. 更新结构检查脚本，让新增 command/skill/script 被验证。
 6. 同步 plugin package。
@@ -620,4 +620,4 @@ Codex 完成任务后，需要至少验证：
 - 修改文件列表。
 - 已运行的验证。
 - 未完成或建议下一阶段处理的事项。
-- 任何兼容性风险。
+- 任何迁移或清理风险。

@@ -1,6 +1,6 @@
 # Terms of Use
 
-`obsidian-knowledge-kit` is provided under the MIT License.
+`vaultwright` is provided under the MIT License.
 
 ## Use at your own risk
 

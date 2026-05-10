@@ -1,0 +1,42 @@
+{
+  "name": "vaultwright",
+  "version": "0.2.0",
+  "description": "Vaultwright stewards an Obsidian vault through Codex-native knowledge workflows.",
+  "author": {
+    "name": "sparkwild",
+    "url": "https://github.com/sparkwild"
+  },
+  "homepage": "https://github.com/sparkwild/Vaultwright",
+  "repository": "https://github.com/sparkwild/Vaultwright",
+  "license": "MIT",
+  "keywords": [
+    "obsidian",
+    "knowledge-base",
+    "codex",
+    "notes"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Vaultwright",
+    "shortDescription": "A Codex-native steward for Obsidian vaults",
+    "longDescription": "Use Vaultwright to steward the active Obsidian vault through init, ingest, query, lint, refine, and distill workflows without creating a second raw/wiki system outside the vault.",
+    "developerName": "sparkwild",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/sparkwild/Vaultwright",
+    "privacyPolicyURL": "https://github.com/sparkwild/Vaultwright/blob/main/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/sparkwild/Vaultwright/blob/main/TERMS.md",
+    "defaultPrompt": [
+      "Initialize my active Obsidian vault as a Vaultwright knowledge system",
+      "Query my active vault and build a focused context pack before answering",
+      "Lint or refine my active vault without creating an external wiki"
+    ],
+    "brandColor": "#2563EB",
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/logo.svg",
+    "screenshots": []
+  }
+}

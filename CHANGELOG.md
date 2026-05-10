@@ -6,16 +6,16 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Rebranded the user-facing product layer from `obsidian-knowledge-kit` to `Vaultwright` while preserving the internal compatibility name.
+- Rebranded the project fully to `Vaultwright` / `vaultwright` across product, plugin, skills, and install paths.
 - Strengthened the Obsidian-native contract across plugin metadata, skill text, command docs, the AGENTS hint installer, and the core note template.
 
 ### Added
 
-- Added the `obsidian-knowledge-query` skill.
+- Added the `vaultwright-query` skill.
 - Added the `query` command for building Vaultwright context pack notes.
 - Added `scripts/build_context_pack.py` and `lib/obsidian_knowledge_shared/context_pack.py`.
 - Added `01_ai_core/context_packs/` to the default vault directory scaffold.
-- Added the `obsidian-knowledge-lint` skill.
+- Added the `vaultwright-lint` skill.
 - Added the `lint` command and `scripts/lint_knowledge_vault.py`.
 - Added `lib/obsidian_knowledge_shared/knowledge_lint.py` for report-driven vault health checks.
 - Enhanced raw/source registers with evidence-ready metadata fields and evidence/claim scaffolds.
@@ -45,7 +45,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- First usable pre-release of `obsidian-knowledge-kit`.
+- First usable pre-release of `vaultwright`.
 - Self-contained Codex plugin packaging and home-local installation support.
 - Lifecycle commands: `setup`, `start`, `doctor`, `init`, `ingest`, `refine`, and `distill`.
 - Startup context loading, semi-automated ingest source registration, and semi-automated distill writeback.
