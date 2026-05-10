@@ -1,19 +1,29 @@
-# obsidian-knowledge-kit
+# Vaultwright
 
 [简体中文说明](./README.zh-CN.md)
 
-An Obsidian knowledge workflow toolkit for Codex-style agents. It helps initialize a vault, ingest external materials, refine existing knowledge, and keep the knowledge base structured, traceable, and maintainable.
+Vaultwright is a Codex-native steward for Obsidian vaults. It helps initialize a vault, ingest external materials, query targeted context, refine existing knowledge, and keep the knowledge base structured, traceable, and maintainable.
+
+For active-vault operations, Vaultwright now prefers Obsidian CLI-backed reads and writes through a shared runtime layer, using direct filesystem I/O only as a fallback when the target vault is not the active vault or the CLI cannot satisfy the operation.
+
+Project note:
+
+- The product-facing name is `Vaultwright`.
+- The internal package, plugin name, and install path now also use `vaultwright`.
+- This repository is a Codex local plugin package and runtime, not an Obsidian community plugin.
+- The active Obsidian vault is the only knowledge carrier; Vaultwright does not create a second raw/wiki system outside the vault.
 
 ## Repository Layout
 
 ```text
-obsidian-knowledge-kit/
+vaultwright/
 ├─ skills/
-│  ├─ obsidian-knowledge-init/
-│  ├─ obsidian-knowledge-ingest/
-│  └─ obsidian-knowledge-refine/
+│  ├─ vaultwright-init/
+│  ├─ vaultwright-ingest/
+│  ├─ vaultwright-query/
+│  └─ vaultwright-refine/
 ├─ plugins/
-│  └─ obsidian-knowledge-kit/
+│  └─ vaultwright/
 │     ├─ .codex-plugin/plugin.json
 │     ├─ agents/
 │     ├─ assets/
@@ -26,10 +36,12 @@ obsidian-knowledge-kit/
 
 ## Components
 
-- `obsidian-knowledge-init`: bootstrap the minimum codex-native vault skeleton.
-- `obsidian-knowledge-ingest`: bring external materials into `03_raw/` and distill them into stable notes.
-- `obsidian-knowledge-refine`: improve structure, links, boundaries, and status notes in an initialized vault.
-- `plugins/obsidian-knowledge-kit`: repo-local Codex plugin package with `.codex-plugin/plugin.json`.
+- `vaultwright-init`: bootstrap the minimum codex-native vault skeleton.
+- `vaultwright-ingest`: bring external materials into `03_raw/` and distill them into stable notes.
+- `vaultwright-query`: build an Obsidian-native context pack before answering knowledge questions.
+- `vaultwright-lint`: inspect vault content quality, sources, links, and stale knowledge without auto-fixing by default.
+- `vaultwright-refine`: improve structure, links, boundaries, and status notes in an initialized vault.
+- `plugins/vaultwright`: repo-local Codex plugin package with `.codex-plugin/plugin.json`.
 - `lib/obsidian_knowledge_shared`: shared preflight, official skill update checks, and bootstrap note rendering.
 
 Web ingest policy:
@@ -43,6 +55,8 @@ Web ingest policy:
 - Repository migration completed from the earlier workspace prototype.
 - Shared runtime is no longer exposed as a fourth skill.
 - Plugin direction has been corrected to a Codex plugin package, not an Obsidian community plugin.
+- The current evolution target is Vaultwright Phase 1 and Phase 2: branding plus query/context-pack workflows.
+- The next evolution layer is Phase 3: knowledge lint and report-driven governance.
 
 ## Project Docs
 
@@ -61,9 +75,9 @@ python3 scripts/install_local_runtime.py
 
 By default it symlinks:
 
-- `skills/obsidian-knowledge-init`
-- `skills/obsidian-knowledge-ingest`
-- `skills/obsidian-knowledge-refine`
+- `skills/vaultwright-init`
+- `skills/vaultwright-ingest`
+- `skills/vaultwright-refine`
 - `lib/obsidian_knowledge_shared`
 
 into `~/.codex` or the path from `CODEX_HOME`.
@@ -73,12 +87,13 @@ into `~/.codex` or the path from `CODEX_HOME`.
 This repository now exposes a repo-local Codex plugin package at:
 
 ```text
-plugins/obsidian-knowledge-kit/.codex-plugin/plugin.json
+plugins/vaultwright/.codex-plugin/plugin.json
 ```
 
 Current plugin scope:
 
-- expose the three main knowledge skills to Codex as a local plugin
+- expose the main knowledge skills, including targeted query/context-pack retrieval, to Codex as a local plugin
+- expose a query workflow that writes Obsidian-native context packs into the active vault
 - expose a setup command for installing the global AGENTS knowledge hint
 - expose command entrypoints for startup and distill loops
 - expose a doctor command for environment checks
@@ -105,7 +120,7 @@ python3 scripts/install_home_local_plugin.py --json
 
 This installs the plugin under the standard hidden personal path:
 
-- `~/.codex/plugins/obsidian-knowledge-kit`
+- `~/.codex/plugins/vaultwright`
 - `~/.agents/plugins/marketplace.json`
 
 Check or install the minimal global knowledge hint in `~/.codex/AGENTS.md`:
@@ -127,10 +142,39 @@ Create a distill session skeleton:
 python3 scripts/render_session_skeleton.py --apply --json
 ```
 
+Build a query-focused context pack:
+
+```bash
+python3 scripts/build_context_pack.py "What should I read before answering this knowledge question?" --json
+```
+
+Run a knowledge lint pass:
+
+```bash
+python3 scripts/lint_knowledge_vault.py --json
+```
+
+Render Obsidian Bases dashboards:
+
+```bash
+python3 scripts/render_bases_dashboards.py --json
+python3 scripts/render_bases_dashboards.py --apply --json
+```
+
+The ingest register model now includes evidence-ready fields such as `source_id`, `source_hash`, `snapshot_path`, `verification_status`, `claim_count`, and `synthesis_targets`, plus scaffolded evidence/claim blocks for later query and lint workflows. Lint now also checks claim-count drift and warns when stable knowledge only points to note-level sources instead of block-level evidence.
+
+After downstream notes cite a raw/source register, you can reconcile its state with:
+
+```bash
+python3 scripts/reconcile_source_register.py "03_raw/registers/<register>.md" --json
+```
+
+Dashboard files are written into `00_system/dashboards/` inside the active vault and can be opened directly in Obsidian Bases.
+
 Expected workflow:
 
 1. Open this repository in Codex.
-2. Install the plugin into `~/.codex/plugins/obsidian-knowledge-kit` and `~/.agents/plugins/marketplace.json`.
+2. Install the plugin into `~/.codex/plugins/vaultwright` and `~/.agents/plugins/marketplace.json`.
 3. If the plugin does not appear immediately, reopen the repository or restart Codex.
 
 The reopen/restart step is an operational fallback inferred from the local plugin packaging model and local plugin examples.

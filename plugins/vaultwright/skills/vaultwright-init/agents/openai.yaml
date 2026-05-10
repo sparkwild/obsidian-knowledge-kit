@@ -1,0 +1,4 @@
+interface:
+  display_name: "Vaultwright Init"
+  short_description: "Bootstrap an Obsidian vault into a Vaultwright system"
+  default_prompt: "Initialize the active Obsidian vault into a Vaultwright knowledge system after verifying the Obsidian environment and official obsidian-skills dependencies, without creating any external raw/wiki directory structure."

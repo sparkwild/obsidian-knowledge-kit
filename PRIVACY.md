@@ -1,6 +1,6 @@
 # Privacy Policy
 
-`obsidian-knowledge-kit` is a local-first toolkit and Codex plugin package.
+`vaultwright` is a local-first toolkit and Codex plugin package.
 
 ## What the project does
 
@@ -17,7 +17,7 @@
 ## Data handling
 
 - vault content stays on the user's machine unless the user explicitly chooses another workflow
-- plugin packaging and installation manipulate local files under the repository, `~/plugins/`, `~/.agents/`, and `~/.codex/` only when requested
+- plugin packaging and installation manipulate local files under the repository, `~/.agents/`, and `~/.codex/plugins/` only when requested
 - external web access depends on the user's Codex environment and the commands they choose to run
 
 ## Responsibility
