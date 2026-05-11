@@ -693,7 +693,7 @@ PoC 要求：
 - Vaultwright 品牌和仓库 URL 在 README / plugin manifest / docs 中一致。
 - MCP/CLI 分层架构文档完成。
 - MCP adapter design 已明确 tools/resources/prompts、权限模型和 CLI 调用关系。
-- 完整 MCP server 和 MCP Inspector 验证留到后续获批实现阶段。
+- 只读 stdio MCP Adapter MVP 已实现；写入型完整 MCP server 和 MCP Inspector 验证留到后续获批实现阶段。
 - MCP 查询工具的目标 contract 能返回 context pack summary。
 - CLI scripts 仍然可独立运行。
 - benchmark 文档和初始基线完成。

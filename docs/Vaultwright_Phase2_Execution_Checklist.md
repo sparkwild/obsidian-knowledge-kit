@@ -24,7 +24,8 @@ Advance Vaultwright toward MCP-first AI conversation and CLI-first deterministic
 - [x] Add an MCP adapter design document.
 - [x] Add a runtime performance evaluation document.
 - [x] Add benchmark implementation scaffold.
-- [ ] Implement a complete MCP server.
+- [x] Implement the read-only MCP Adapter MVP.
+- [ ] Implement a write-capable or complete MCP server.
 - [ ] Rewrite the Python runtime.
 - [ ] Introduce heavy new dependencies.
 - [ ] Create an external raw/wiki knowledge system.
@@ -36,13 +37,14 @@ Advance Vaultwright toward MCP-first AI conversation and CLI-first deterministic
 - [x] Run `python3 scripts/check_codex_plugin.py --json`.
 - [x] Run `python3 scripts/sync_plugin_package.py`.
 - [x] Run `python3 scripts/check_codex_plugin.py --json` again.
+- [x] Run `python3 scripts/smoke_mcp_adapter.py`.
 - [x] Run a stale-name scan for old plugin and skill names.
 - [x] Run `git diff --check`.
 - [x] Produce a final acceptance report with branch, status, files changed, validation, risks, and next steps.
 
 ## Acceptance Notes
 
-- Full MCP server implementation is intentionally out of scope until the adapter contract is reviewed.
+- Write-capable MCP server implementation remains out of scope until the adapter contract is reviewed.
 - Benchmark implementation is planned but not required in this pass.
 - Python remains the default runtime until benchmark data proves a different core is needed.
 - MCP adapter work must call Vaultwright CLI/scripts or shared runtime instead of copying knowledge processing logic.

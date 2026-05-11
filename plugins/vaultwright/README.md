@@ -20,6 +20,11 @@ Lifecycle commands included:
 - `refine`
 - `distill`
 
+Bundled MCP adapter scripts:
+
+- `scripts/mcp_adapter.py`: read-only stdio MCP adapter.
+- `scripts/smoke_mcp_adapter.py`: generated-vault smoke test for the adapter.
+
 This package is intended to be installed into the home-local Codex plugin marketplace.
 
 Under the official personal-local plugin layout, the installed copy lives at:

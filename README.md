@@ -30,7 +30,7 @@ Local Codex execution
 
 MCP is the preferred interface for AI conversation tools because it can expose Vaultwright tools, resources, and prompts in a structured way. The MCP adapter should stay thin: it must call the Vaultwright CLI/scripts or shared runtime instead of bypassing the runtime or inventing a second knowledge-processing layer.
 
-The CLI remains the deterministic execution layer. It continues to own active vault detection, context packs, lint, ingest, distill, dashboards, reports, and other stable local tasks. MCP is an optional enhancement layer for AI clients, not a hard dependency for the core runtime. The current priority is to stabilize the Python CLI/runtime, then design the MCP adapter on top of it.
+The CLI remains the deterministic execution layer. It continues to own active vault detection, context packs, lint, ingest, distill, dashboards, reports, and other stable local tasks. MCP is an optional enhancement layer for AI clients, not a hard dependency for the core runtime. The current MVP is a read-only stdio MCP adapter that delegates to the Vaultwright shared runtime.
 
 ## Repository Layout
 
@@ -187,6 +187,26 @@ Run a synthetic runtime benchmark without touching a real vault:
 ```bash
 python3 scripts/benchmark_runtime.py --fixture-notes 100 --runs 1 --json
 ```
+
+Run the read-only MCP adapter over stdio:
+
+```bash
+python3 scripts/mcp_adapter.py
+```
+
+For offline smoke testing against a generated temporary vault:
+
+```bash
+python3 scripts/smoke_mcp_adapter.py
+```
+
+MVP tools:
+
+- `vaultwright_status`
+- `vaultwright_query`
+- `vaultwright_lint`
+- `vaultwright_read_note`
+- `vaultwright_review_queue`
 
 Render Obsidian Bases dashboards:
 

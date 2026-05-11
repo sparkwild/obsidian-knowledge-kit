@@ -30,6 +30,8 @@ EXPECTED_SCRIPTS = (
     "render_bases_dashboards.py",
     "reconcile_source_register.py",
     "render_session_skeleton.py",
+    "mcp_adapter.py",
+    "smoke_mcp_adapter.py",
     "sync_plugin_package.py",
 )
 EXPECTED_SKILL_SCRIPT_PATHS = (

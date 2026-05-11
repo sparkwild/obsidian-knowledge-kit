@@ -1,8 +1,8 @@
 # Vaultwright MCP Adapter Design
 
-Version: 2026-05-10
-Status: design draft
-Scope: interface and boundary design only. This document does not approve a full MCP server implementation.
+Version: 2026-05-11
+Status: MVP implemented
+Scope: read-only stdio MCP adapter. This document does not approve write-capable MCP tools.
 
 ## Purpose
 
@@ -31,6 +31,16 @@ Local Codex execution
 - MCP adapter logic should call existing Vaultwright CLI/scripts or shared runtime instead of duplicating knowledge-processing logic.
 
 ## MCP Tools Draft
+
+The implemented MVP exposes these canonical tool names:
+
+- `vaultwright_status`
+- `vaultwright_query`
+- `vaultwright_lint`
+- `vaultwright_read_note`
+- `vaultwright_review_queue`
+
+They are read-only and delegate to Vaultwright shared runtime functions. They do not write context pack notes, lint report notes, stable knowledge, raw sources, secrets, or external raw/wiki systems.
 
 ### `vaultwright_get_status`
 
@@ -102,6 +112,7 @@ Behavior:
 - Should build or reuse a context pack before reading candidate notes.
 - Must not full-read the vault by default.
 - Must not write stable conclusions without explicit write workflow.
+- MVP implementation name: `vaultwright_query`.
 
 ### `vaultwright_lint_vault`
 
@@ -126,6 +137,7 @@ Behavior:
 - Calls `scripts/lint_knowledge_vault.py` or shared lint runtime.
 - Defaults to read-only.
 - If report write is enabled, writes only under `00_system/reports/`.
+- MVP implementation name: `vaultwright_lint`; report writes are not enabled in the MVP.
 
 ### `vaultwright_list_review_queue`
 
@@ -148,6 +160,29 @@ Behavior:
 
 - Read-only.
 - Uses existing reports, dashboards, indexes, or runtime scans.
+- MVP implementation name: `vaultwright_review_queue`.
+
+### `vaultwright_read_note`
+
+Purpose: read one bounded Markdown note from the bound active vault.
+
+Inputs:
+
+- `path`: vault-relative note path or `vaultwright://note/{path}` resource URI.
+- optional `max_chars`: maximum returned characters.
+
+Outputs:
+
+- note path
+- MIME type
+- bounded text
+- truncation status
+
+Behavior:
+
+- Read-only.
+- Refuses absolute paths, parent traversal, `.obsidian/`, and `.trash/`.
+- Reads only through the bound active vault or the explicit vault path used when launching the adapter.
 
 ### `vaultwright_ingest_source`
 
@@ -248,3 +283,23 @@ MCP tools should call existing scripts or shared runtime functions:
 - distill tools use existing session/distill scripts.
 
 Do not copy a separate knowledge processing engine into the MCP adapter. The adapter should translate MCP requests into stable Vaultwright operations and return structured, auditable results.
+
+## MVP Entry Points
+
+Run the stdio adapter:
+
+```bash
+python3 scripts/mcp_adapter.py
+```
+
+Bind it to an explicit vault for offline testing:
+
+```bash
+python3 scripts/mcp_adapter.py --vault "/path/to/vault"
+```
+
+Run the smoke test against a generated temporary vault:
+
+```bash
+python3 scripts/smoke_mcp_adapter.py
+```

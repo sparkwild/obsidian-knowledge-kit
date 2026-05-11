@@ -30,7 +30,7 @@ Local Codex execution
 
 MCP 是 Vaultwright 面向 AI 对话工具的优先入口，用于暴露结构化的 tools、resources 和 prompts。MCP adapter 应该保持薄层设计：调用 Vaultwright CLI、scripts 或 shared runtime，不绕过 runtime，也不复制一套独立知识处理逻辑。
 
-CLI 仍是确定性执行层，继续负责 active vault 检测、context pack、lint、ingest、distill、dashboard、report 等稳定任务。短期不把 MCP 作为核心依赖；它是面向 AI 客户端的可选增强层。当前优先级是先稳定 Python CLI/runtime，再设计 MCP adapter。
+CLI 仍是确定性执行层，继续负责 active vault 检测、context pack、lint、ingest、distill、dashboard、report 等稳定任务。短期不把 MCP 作为核心依赖；它是面向 AI 客户端的可选增强层。当前 MVP 是只读 stdio MCP adapter，并委托 Vaultwright shared runtime 执行。
 
 ## 仓库结构
 
@@ -126,6 +126,26 @@ python3 scripts/lint_knowledge_vault.py --json
 ```bash
 python3 scripts/benchmark_runtime.py --fixture-notes 100 --runs 1 --json
 ```
+
+运行只读 stdio MCP adapter：
+
+```bash
+python3 scripts/mcp_adapter.py
+```
+
+使用临时合成 vault 做离线 smoke test：
+
+```bash
+python3 scripts/smoke_mcp_adapter.py
+```
+
+MVP tools：
+
+- `vaultwright_status`
+- `vaultwright_query`
+- `vaultwright_lint`
+- `vaultwright_read_note`
+- `vaultwright_review_queue`
 
 渲染 Obsidian Bases dashboard：
 
