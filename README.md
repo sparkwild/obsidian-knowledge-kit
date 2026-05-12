@@ -15,7 +15,34 @@ The current product direction is being reset from the older Codex plugin-first w
 - Memory carrier: Obsidian vault notes, Properties, wikilinks, block references, review queues, and audit logs.
 - Runtime role: indexing, recall, context packs, lint previews, source analysis, writeback planning, permission checks, and audit event generation.
 
-This repository still contains the previous Codex local plugin package and Python runtime. Treat that code as legacy reference while the new Obsidian-native product line is built. Do not delete or migrate it without an explicit decision.
+This repository still contains the previous Codex local plugin package and Python runtime. Treat that code as legacy reference while the new Obsidian-native product line is built. It is currently retained as an archive candidate for migration rollback.
+
+Current migration decision: see [docs/obs_wiki_new_start_plan/11_Migration_Decision.md](./docs/obs_wiki_new_start_plan/11_Migration_Decision.md).
+
+## Phase 10 Verification
+
+```bash
+cd /Users/zhangjie/AgentProjects/sparkwild/obs-wiki
+
+npm run --prefix packages/core typecheck
+npm run --prefix packages/core build
+npm run --prefix packages/core test
+
+npm run --prefix apps/mcp-server typecheck
+npm run --prefix apps/mcp-server build
+npm run --prefix apps/mcp-server smoke
+npm run --prefix apps/mcp-server test
+
+npm run --prefix apps/obsidian-plugin typecheck
+npm run --prefix apps/obsidian-plugin build
+npm run --prefix apps/obsidian-plugin package
+```
+
+or:
+
+```bash
+./scripts/verify_phase10.sh
+```
 
 ## Product Principles
 
@@ -97,6 +124,7 @@ The first coding milestone is a buildable Obsidian plugin scaffold with:
 - [Codex Task Prompts](./docs/obs_wiki_new_start_plan/08_Codex_Task_Prompts.md)
 - [Acceptance Checklists](./docs/obs_wiki_new_start_plan/09_Acceptance_Checklists.md)
 - [Open Questions](./docs/obs_wiki_new_start_plan/10_Open_Questions.md)
+- [Migration Decision](./docs/obs_wiki_new_start_plan/11_Migration_Decision.md)
 - [Implementation Manifest](./docs/obs_wiki_new_start_plan/IMPLEMENTATION_MANIFEST.json)
 
 ## Legacy Reference

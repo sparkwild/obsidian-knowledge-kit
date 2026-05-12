@@ -53,6 +53,7 @@ cd /Users/zhangjie/AgentProjects/sparkwild/obs-wiki/apps/mcp-server
 npm install --cache /private/tmp/obs-wiki-npm-cache
 npm run typecheck
 npm run build
+npm run test
 node dist/server.js --vault-root /path/to/vault
 ```
 
@@ -63,7 +64,16 @@ Then send one JSON object per line over stdin (JSON-RPC 2.0).
 ```bash
 npm run typecheck
 npm run build
+npm run test
+npm run smoke
 ```
+
+`npm run test`/`npm run smoke` executes `./scripts/smoke_phase10.mjs` against a temporary, non-network vault fixture and validates:
+
+- initialize/tools/list/resources/list/prompts/list
+- read_note and status paths
+- controlled write tools
+- analyze_source_request source-analysis flow
 
 ## Notes
 

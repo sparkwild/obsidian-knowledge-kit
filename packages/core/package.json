@@ -7,6 +7,7 @@
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
 	"scripts": {
+		"test": "node ./scripts/test_phase10.mjs",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"build": "tsc -p tsconfig.json"
 	},

@@ -1,5 +1,10 @@
 # obs-wiki Plugin
 
+# Legacy (archive candidate)
+
+This directory is retained as a legacy/archive reference for migration rollback.
+Phase 10 decision keeps this directory available and does **not** delete it.
+
 This directory is the repo-local Codex plugin package for `obs-wiki`.
 
 - Manifest: `.codex-plugin/plugin.json`

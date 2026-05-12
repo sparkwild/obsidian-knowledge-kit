@@ -30,3 +30,18 @@ const lint = lintNotes(scan.vaultRoot, scan.notes);
 - Scan and link resolution are read-only.
 - `/.obsidian/` directories are skipped.
 - Paths are checked to remain inside the configured vault root.
+
+## Phase 10 Verification
+
+```bash
+npm run typecheck
+npm run build
+npm run test
+```
+
+`npm run test` runs a local Node smoke script under `scripts/test_phase10.mjs` and validates:
+
+- vault root containment rules
+- `.obsidian` skip behavior
+- symlink-safe scan behavior (skip if supported)
+- basic source-analysis output shape
