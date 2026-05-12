@@ -34,10 +34,12 @@ const CONTROL_PATHS = {
 	auditDir: '00_control/audit',
 	dashboards: '00_control/dashboards',
 };
+const REVIEW_QUEUE_PATH = '01_inbox/review_queue';
 const AGENT_TASKS_PATH = '02_timeline/agent_tasks';
 const MAX_TASK_SNIPPET_LENGTH = 160;
 const MAX_TASK_ROWS = 6;
 const MAX_AUDIT_ROWS = 12;
+const MAX_REVIEW_QUEUE_ROWS = 20;
 const MEMORY_STRUCTURE: string[] = [
 	'01_inbox/agent_requests',
 	'01_inbox/review_queue',
@@ -96,6 +98,8 @@ interface AgentTaskRecord {
 	sortTimestamp: number;
 }
 
+type MemoryProposalStatus = 'pending' | 'approved' | 'rejected' | 'deferred';
+
 interface AuditEventRecord {
 	path: string;
 	auditId: string;
@@ -107,6 +111,27 @@ interface AuditEventRecord {
 	timestamp: string;
 	sortTimestamp: number;
 	snippet: string;
+}
+
+interface MemoryProposalRecord {
+	path: string;
+	proposalId: string;
+	proposalKind: string;
+	proposedBy: string;
+	taskId: string;
+	targetNote: string;
+	evidence: string[];
+	riskLevel: string;
+	approvalStatus: MemoryProposalStatus;
+	created: string;
+	snippet: string;
+	sortTimestamp: number;
+}
+
+interface MemoryReviewQueueSnapshot {
+	proposals: MemoryProposalRecord[];
+	missingReviewQueueFolder: boolean;
+	updatedAt: string;
 }
 
 interface AgentActivitySnapshot {
@@ -142,7 +167,7 @@ export default class ObsWikiPlugin extends Plugin {
 		);
 		this.registerView(
 			OBS_WIKI_REVIEW_QUEUE_VIEW,
-			(leaf) => new ObsWikiReviewQueueView(leaf)
+			(leaf) => new ObsWikiReviewQueueView(leaf, this)
 		);
 		this.registerView(
 			OBS_WIKI_PERMISSION_CENTER_VIEW,
@@ -182,6 +207,14 @@ export default class ObsWikiPlugin extends Plugin {
 			name: 'Refresh Agent Activity',
 			callback: () => {
 				void this.refreshActivityViews();
+			},
+		});
+
+		this.addCommand({
+			id: 'refresh-review-queue',
+			name: 'Refresh Review Queue',
+			callback: () => {
+				void this.refreshReviewQueueViews();
 			},
 		});
 
@@ -332,30 +365,65 @@ export default class ObsWikiPlugin extends Plugin {
 	private async appendAuditEvent(plan: MemoryInitializationPlan): Promise<void> {
 		const now = new Date().toISOString();
 		const event = this.renderAuditEvent(now, plan.foldersToCreate.length, plan.filesToCreate.length);
-
-		const auditPath = this.buildAuditLogPath();
-		const auditFile = this.app.vault.getAbstractFileByPath(auditPath);
-		if (!auditFile) {
-			await this.ensureFileDoesNotExist(
-				auditPath,
-				this.buildAuditLogHeader() + event
-			);
-			return;
-		}
-
-		if (auditFile instanceof TFile) {
-			const current = await this.app.vault.read(auditFile);
-			const normalizedCurrent = current.endsWith('\n') ? current : `${current}\n`;
-			const separator = normalizedCurrent.length > 0 ? '\n' : '';
-			await this.app.vault.modify(auditFile, `${normalizedCurrent}${separator}${event}`);
-			return;
-		}
-
-		throw new Error(`Cannot append audit log: ${auditPath} already exists as a folder.`);
+		await this.appendToAuditLog(event);
 	}
 
 	private renderAuditEvent(timestamp: string, folderCount: number, fileCount: number): string {
 		return `## ${timestamp}\naction: memory.initialize\nactor: user\nfolders_created: ${folderCount}\nfiles_created: ${fileCount}\nresult: success\n\n`;
+	}
+
+	private async appendProposalStatusAuditEvent(
+		proposal: MemoryProposalRecord,
+		nextStatus: MemoryProposalStatus
+	): Promise<void> {
+		const now = new Date().toISOString();
+		const event = this.renderProposalStatusAuditEvent(
+			now,
+			proposal.path,
+			proposal.proposalId,
+			nextStatus,
+			proposal.taskId
+		);
+		await this.appendToAuditLog(event);
+	}
+
+	private renderProposalStatusAuditEvent(
+		timestamp: string,
+		target: string,
+		proposalId: string,
+		nextStatus: MemoryProposalStatus,
+		taskId?: string
+	): string {
+		return (
+			`## ${timestamp}\n` +
+			`action: memory.proposal.${nextStatus}\n` +
+			`actor: user\n` +
+			`target: ${target}\n` +
+			`reason: proposal ${proposalId} marked ${nextStatus}\n` +
+			`task_id: ${taskId || ''}\n` +
+			`timestamp: ${timestamp}\n\n`
+		);
+	}
+
+	private async appendToAuditLog(rawEvent: string): Promise<void> {
+		const auditPath = this.buildAuditLogPath();
+		const auditFile = this.app.vault.getAbstractFileByPath(auditPath);
+		if (!auditFile) {
+			await this.ensureFileDoesNotExist(auditPath, this.buildAuditLogHeader());
+		}
+
+		const finalAuditFile = this.app.vault.getAbstractFileByPath(auditPath);
+		if (!(finalAuditFile instanceof TFile)) {
+			throw new Error(`Cannot append audit log: ${auditPath} is not a file.`);
+		}
+
+		const current = await this.app.vault.read(finalAuditFile);
+		const normalizedCurrent = current.endsWith('\n') ? current : `${current}\n`;
+		const separator = normalizedCurrent.length > 0 ? '\n' : '';
+		await this.app.vault.modify(
+			finalAuditFile,
+			`${normalizedCurrent}${separator}${rawEvent}`
+		);
 	}
 
 	private async refreshActivityViews(): Promise<void> {
@@ -363,6 +431,16 @@ export default class ObsWikiPlugin extends Plugin {
 		for (const leaf of activityLeaves) {
 			const view = leaf.view;
 			if (view instanceof ObsWikiActivityView) {
+				await view.refresh();
+			}
+		}
+	}
+
+	private async refreshReviewQueueViews(): Promise<void> {
+		const reviewQueueLeaves = this.app.workspace.getLeavesOfType(OBS_WIKI_REVIEW_QUEUE_VIEW);
+		for (const leaf of reviewQueueLeaves) {
+			const view = leaf.view;
+			if (view instanceof ObsWikiReviewQueueView) {
 				await view.refresh();
 			}
 		}
@@ -387,6 +465,131 @@ export default class ObsWikiPlugin extends Plugin {
 			missingAuditSources: auditLogMissing && auditDirMissing,
 			updatedAt: new Date().toISOString(),
 		};
+	}
+
+	async loadMemoryReviewQueueSnapshot(): Promise<MemoryReviewQueueSnapshot> {
+		const folder = this.app.vault.getAbstractFileByPath(REVIEW_QUEUE_PATH);
+		if (!(folder instanceof TFolder)) {
+			return {
+				proposals: [],
+				missingReviewQueueFolder: true,
+				updatedAt: new Date().toISOString(),
+			};
+		}
+
+		const files = this.collectMarkdownFiles(folder);
+		const records = await Promise.all(files.map((file) => this.readMemoryProposalFile(file)));
+		const proposals = records
+			.filter((record): record is MemoryProposalRecord => Boolean(record))
+			.sort((a, b) => this.compareProposalRecords(a, b))
+			.slice(0, MAX_REVIEW_QUEUE_ROWS);
+
+		return {
+			proposals,
+			missingReviewQueueFolder: false,
+			updatedAt: new Date().toISOString(),
+		};
+	}
+
+	private async readMemoryProposalFile(file: TFile): Promise<MemoryProposalRecord | null> {
+		let content = '';
+		try {
+			content = await this.app.vault.cachedRead(file);
+		} catch (error) {
+			console.error(`obs-wiki failed to read memory proposal: ${file.path}`, error);
+			content = '';
+		}
+
+		const parsed = this.readFrontmatter(content);
+		const data = parsed.fields;
+		const proposalType = this.firstString(data, ['type']);
+		if (
+			proposalType &&
+			!proposalType.toLowerCase().includes('memory-proposal')
+		) {
+			return null;
+		}
+
+		const created = this.firstString(data, ['created']);
+		const proposalId = this.firstString(data, ['proposal_id', 'proposalId']) || file.basename;
+		const approvalStatus = this.normalizeProposalStatus(
+			this.firstString(data, ['approval_status', 'approvalStatus'])
+		);
+		const sortTimestamp = this.parseTimestamp(
+			created,
+			file.stat?.mtime
+		);
+
+		return {
+			path: file.path,
+			proposalId,
+			proposalKind: this.firstString(data, ['proposal_kind', 'proposalKind']) || 'unknown',
+			proposedBy: this.firstString(data, ['proposed_by', 'proposedBy']) || 'unknown',
+			taskId: this.firstString(data, ['task_id', 'taskId']) || '',
+			targetNote: this.firstString(data, ['target_note', 'targetNote']) || '',
+			evidence: this.readStringList(data, ['evidence']),
+			riskLevel: this.firstString(data, ['risk_level', 'riskLevel']) || 'unknown',
+			approvalStatus,
+			created,
+			snippet: this.snippetFromText(parsed.body, proposalId),
+			sortTimestamp,
+		};
+	}
+
+	async updateMemoryProposalStatus(
+		proposal: MemoryProposalRecord,
+		nextStatus: MemoryProposalStatus
+	): Promise<void> {
+		const file = this.app.vault.getAbstractFileByPath(proposal.path);
+		if (!(file instanceof TFile)) {
+			throw new Error(`Cannot update proposal status: ${proposal.path} is not available.`);
+		}
+
+		let content = '';
+		try {
+			content = await this.app.vault.cachedRead(file);
+		} catch (error) {
+			console.error(`obs-wiki failed to read proposal for update: ${proposal.path}`, error);
+			throw error;
+		}
+
+		const normalizedStatus = this.normalizeProposalStatus(nextStatus);
+		const updatedContent = this.updateApprovalStatusInFrontmatter(content, normalizedStatus);
+		await this.app.vault.modify(file, updatedContent);
+		await this.appendProposalStatusAuditEvent(
+			{
+				...proposal,
+				approvalStatus: normalizedStatus,
+			},
+			normalizedStatus
+		);
+	}
+
+	private normalizeProposalStatus(rawStatus?: string): MemoryProposalStatus {
+		const status = (rawStatus || 'pending').toLowerCase().trim();
+		if (
+			status === 'approved' ||
+			status === 'rejected' ||
+			status === 'deferred'
+		) {
+			return status;
+		}
+		return 'pending';
+	}
+
+	private compareProposalRecords(a: MemoryProposalRecord, b: MemoryProposalRecord): number {
+		const statusRank: Record<MemoryProposalStatus, number> = {
+			pending: 0,
+			approved: 2,
+			rejected: 3,
+			deferred: 4,
+		};
+		const rankA = statusRank[a.approvalStatus] ?? 1;
+		const rankB = statusRank[b.approvalStatus] ?? 1;
+		if (rankA !== rankB) {
+			return rankA - rankB;
+		}
+		return b.sortTimestamp - a.sortTimestamp;
 	}
 
 	private async readRecentAgentTasks(limit: number): Promise<AgentTaskRecord[]> {
@@ -585,6 +788,55 @@ export default class ObsWikiPlugin extends Plugin {
 		}
 
 		return events;
+	}
+
+	private updateApprovalStatusInFrontmatter(content: string, nextStatus: MemoryProposalStatus): string {
+		const normalized = content.replace(/\r\n/g, '\n');
+		const fmStatusLine = `approval_status: ${nextStatus}`;
+		const fmPrefix = '---';
+
+		if (normalized.trim() === '') {
+			return `${fmPrefix}\n${fmStatusLine}\n${fmPrefix}\n`;
+		}
+
+		const lines = normalized.split('\n');
+		if (lines.length === 0 || lines[0].trim() !== fmPrefix) {
+			return `${fmPrefix}\n${fmStatusLine}\n${fmPrefix}\n${normalized}`;
+		}
+
+		let end = -1;
+		for (let index = 1; index < lines.length; index++) {
+			if (lines[index].trim() === fmPrefix) {
+				end = index;
+				break;
+			}
+		}
+
+		if (end < 0) {
+			return `${fmPrefix}\n${fmStatusLine}\n${fmPrefix}\n${normalized}`;
+		}
+
+		const frontmatterLines = lines.slice(1, end);
+		let found = false;
+		const updatedFrontmatter = frontmatterLines.map((line) => {
+			if (/^\s*approval_status\s*:/i.test(line)) {
+				found = true;
+				const indent = line.match(/^(\s*)/)?.[0] || '';
+				return `${indent}${fmStatusLine}`;
+			}
+			return line;
+		});
+
+		if (!found) {
+			updatedFrontmatter.push(fmStatusLine);
+		}
+
+		return [
+			fmPrefix,
+			...updatedFrontmatter,
+			fmPrefix,
+			...lines.slice(end + 1),
+		].join('\n');
 	}
 
 	private readFrontmatter(content: string): ParsedFrontmatter {
@@ -1008,7 +1260,10 @@ class ObsWikiActivityView extends ItemView {
 }
 
 class ObsWikiReviewQueueView extends ItemView {
-	constructor(leaf: WorkspaceLeaf) {
+	constructor(
+		leaf: WorkspaceLeaf,
+		private plugin: ObsWikiPlugin
+	) {
 		super(leaf);
 	}
 
@@ -1034,35 +1289,152 @@ class ObsWikiReviewQueueView extends ItemView {
 
 	async onOpen() {
 		await super.onOpen();
-		this.render();
+		await this.refresh();
 	}
 
-	private render() {
+	private async render(snapshot: MemoryReviewQueueSnapshot): Promise<void> {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass('obs-wiki-view-root');
 
 		contentEl.createEl('h2', { text: 'Review Queue', cls: 'obs-wiki-view__title' });
-		contentEl.createEl('p', {
-			text: 'Scaffold placeholder: Review Queue is a static view for future approval actions.',
+
+		const header = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
+		header.createEl('div', {
+			text: `Last refreshed: ${this.plugin.formatDisplayTime(
+				Date.parse(snapshot.updatedAt)
+			)}`,
 			cls: 'obs-wiki-view__description',
 		});
 
-		const section = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-		section.createEl('h3', { text: 'Queued items (placeholder)' });
-		const list = section.createEl('ul', { cls: 'obs-wiki-view__list' });
-		list.createEl('li', {
-			text: 'memory-proposal note: pending approval (placeholder)',
-			cls: 'obs-wiki-view__item',
+		const actions = header.createDiv();
+		const refreshButton = actions.createEl('button', {
+			text: 'Refresh',
+			cls: 'mod-cta',
 		});
-		list.createEl('li', {
-			text: 'source analysis request: pending verification (placeholder)',
-			cls: 'obs-wiki-view__item',
+		refreshButton.addEventListener('click', async () => {
+			await this.refresh();
 		});
-		list.createEl('li', {
-			text: 'knowledge claim review: not connected yet (placeholder)',
-			cls: 'obs-wiki-view__item',
-		});
+
+		if (snapshot.missingReviewQueueFolder) {
+			contentEl.createEl('p', {
+				text: 'No review queue folder found at 01_inbox/review_queue. Run Initialize Memory Structure first.',
+				cls: 'obs-wiki-view__description',
+			});
+			return;
+		}
+
+		if (snapshot.proposals.length === 0) {
+			contentEl.createEl('p', {
+				text: 'No memory proposals in the review queue yet.',
+				cls: 'obs-wiki-view__description',
+			});
+			return;
+		}
+
+		const sections = this.groupByStatus(snapshot.proposals);
+		const orderedStatuses: MemoryProposalStatus[] = ['pending', 'approved', 'rejected', 'deferred'];
+		const unknown = sections['unknown'] || [];
+
+		for (const status of orderedStatuses) {
+			const proposals = sections[status] || [];
+			if (proposals.length === 0) {
+				continue;
+			}
+
+			const section = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
+			section.createEl('h3', { text: `${status.toUpperCase()} (${proposals.length})` });
+
+			for (const proposal of proposals) {
+				const card = section.createDiv({ cls: 'obs-wiki-view__item' });
+				card.createEl('div', {
+					text: `${proposal.proposalId} • ${proposal.proposalKind} • ${proposal.riskLevel}`,
+				});
+				if (proposal.taskId) {
+					card.createEl('div', { text: `Task: ${proposal.taskId}` });
+				}
+				if (proposal.targetNote) {
+					card.createEl('div', { text: `Target: ${proposal.targetNote}` });
+				}
+				if (proposal.evidence.length > 0) {
+					card.createEl('div', { text: `Evidence refs: ${proposal.evidence.join(', ')}` });
+				}
+				card.createEl('div', {
+					text: `Created: ${proposal.created || 'unknown'} • Proposed by: ${proposal.proposedBy}`,
+				});
+				if (proposal.snippet) {
+					card.createEl('div', {
+						text: this.plugin.trimText(proposal.snippet, 140),
+					});
+				}
+
+				card.createEl('small', { text: `file: ${proposal.path}` });
+
+				if (proposal.approvalStatus === 'pending') {
+					const actionRow = card.createDiv({ cls: 'obs-wiki-view__actions' });
+					const approve = actionRow.createEl('button', {
+						text: 'Approve',
+						cls: 'mod-cta',
+					});
+					const reject = actionRow.createEl('button', {
+						text: 'Reject',
+						cls: 'mod-warning',
+					});
+					const defer = actionRow.createEl('button', {
+						text: 'Defer',
+					});
+
+					const actionButtons = [approve, reject, defer];
+					const updateStatus = async (status: MemoryProposalStatus) => {
+						for (const button of actionButtons) {
+							button.setAttribute('disabled', 'true');
+						}
+						try {
+							await this.plugin.updateMemoryProposalStatus(proposal, status);
+							await this.refresh();
+						} finally {
+							for (const button of actionButtons) {
+								button.removeAttribute('disabled');
+							}
+						}
+					};
+
+					approve.addEventListener('click', () => void updateStatus('approved'));
+					reject.addEventListener('click', () => void updateStatus('rejected'));
+					defer.addEventListener('click', () => void updateStatus('deferred'));
+				}
+			}
+		}
+
+		if (unknown.length > 0) {
+			const section = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
+			section.createEl('h3', {
+				text: `UNKNOWN (${unknown.length})`,
+			});
+			for (const proposal of unknown) {
+				const card = section.createDiv({ cls: 'obs-wiki-view__item' });
+				card.createEl('div', {
+					text: `${proposal.proposalId} • status: ${proposal.approvalStatus}`,
+				});
+			}
+		}
+	}
+
+	async refresh(): Promise<void> {
+		const snapshot = await this.plugin.loadMemoryReviewQueueSnapshot();
+		await this.render(snapshot);
+	}
+
+	private groupByStatus(proposals: MemoryProposalRecord[]): Record<string, MemoryProposalRecord[]> {
+		const grouped: Record<string, MemoryProposalRecord[]> = {};
+		for (const proposal of proposals) {
+			const status = proposal.approvalStatus || 'pending';
+			if (!grouped[status]) {
+				grouped[status] = [];
+			}
+			grouped[status].push(proposal);
+		}
+		return grouped;
 	}
 }
 

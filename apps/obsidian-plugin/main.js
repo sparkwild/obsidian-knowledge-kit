@@ -47,10 +47,12 @@ var CONTROL_PATHS = {
   auditDir: "00_control/audit",
   dashboards: "00_control/dashboards"
 };
+var REVIEW_QUEUE_PATH = "01_inbox/review_queue";
 var AGENT_TASKS_PATH = "02_timeline/agent_tasks";
 var MAX_TASK_SNIPPET_LENGTH = 160;
 var MAX_TASK_ROWS = 6;
 var MAX_AUDIT_ROWS = 12;
+var MAX_REVIEW_QUEUE_ROWS = 20;
 var MEMORY_STRUCTURE = [
   "01_inbox/agent_requests",
   "01_inbox/review_queue",
@@ -90,7 +92,7 @@ var ObsWikiPlugin = class extends import_obsidian.Plugin {
     );
     this.registerView(
       OBS_WIKI_REVIEW_QUEUE_VIEW,
-      (leaf) => new ObsWikiReviewQueueView(leaf)
+      (leaf) => new ObsWikiReviewQueueView(leaf, this)
     );
     this.registerView(
       OBS_WIKI_PERMISSION_CENTER_VIEW,
@@ -124,6 +126,13 @@ var ObsWikiPlugin = class extends import_obsidian.Plugin {
       name: "Refresh Agent Activity",
       callback: () => {
         void this.refreshActivityViews();
+      }
+    });
+    this.addCommand({
+      id: "refresh-review-queue",
+      name: "Refresh Review Queue",
+      callback: () => {
+        void this.refreshReviewQueueViews();
       }
     });
     this.addSettingTab(new ObsWikiSettingTab(this.app, this));
@@ -246,24 +255,7 @@ var ObsWikiPlugin = class extends import_obsidian.Plugin {
   async appendAuditEvent(plan) {
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const event = this.renderAuditEvent(now, plan.foldersToCreate.length, plan.filesToCreate.length);
-    const auditPath = this.buildAuditLogPath();
-    const auditFile = this.app.vault.getAbstractFileByPath(auditPath);
-    if (!auditFile) {
-      await this.ensureFileDoesNotExist(
-        auditPath,
-        this.buildAuditLogHeader() + event
-      );
-      return;
-    }
-    if (auditFile instanceof import_obsidian.TFile) {
-      const current = await this.app.vault.read(auditFile);
-      const normalizedCurrent = current.endsWith("\n") ? current : `${current}
-`;
-      const separator = normalizedCurrent.length > 0 ? "\n" : "";
-      await this.app.vault.modify(auditFile, `${normalizedCurrent}${separator}${event}`);
-      return;
-    }
-    throw new Error(`Cannot append audit log: ${auditPath} already exists as a folder.`);
+    await this.appendToAuditLog(event);
   }
   renderAuditEvent(timestamp, folderCount, fileCount) {
     return `## ${timestamp}
@@ -275,11 +267,61 @@ result: success
 
 `;
   }
+  async appendProposalStatusAuditEvent(proposal, nextStatus) {
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    const event = this.renderProposalStatusAuditEvent(
+      now,
+      proposal.path,
+      proposal.proposalId,
+      nextStatus,
+      proposal.taskId
+    );
+    await this.appendToAuditLog(event);
+  }
+  renderProposalStatusAuditEvent(timestamp, target, proposalId, nextStatus, taskId) {
+    return `## ${timestamp}
+action: memory.proposal.${nextStatus}
+actor: user
+target: ${target}
+reason: proposal ${proposalId} marked ${nextStatus}
+task_id: ${taskId || ""}
+timestamp: ${timestamp}
+
+`;
+  }
+  async appendToAuditLog(rawEvent) {
+    const auditPath = this.buildAuditLogPath();
+    const auditFile = this.app.vault.getAbstractFileByPath(auditPath);
+    if (!auditFile) {
+      await this.ensureFileDoesNotExist(auditPath, this.buildAuditLogHeader());
+    }
+    const finalAuditFile = this.app.vault.getAbstractFileByPath(auditPath);
+    if (!(finalAuditFile instanceof import_obsidian.TFile)) {
+      throw new Error(`Cannot append audit log: ${auditPath} is not a file.`);
+    }
+    const current = await this.app.vault.read(finalAuditFile);
+    const normalizedCurrent = current.endsWith("\n") ? current : `${current}
+`;
+    const separator = normalizedCurrent.length > 0 ? "\n" : "";
+    await this.app.vault.modify(
+      finalAuditFile,
+      `${normalizedCurrent}${separator}${rawEvent}`
+    );
+  }
   async refreshActivityViews() {
     const activityLeaves = this.app.workspace.getLeavesOfType(OBS_WIKI_ACTIVITY_VIEW);
     for (const leaf of activityLeaves) {
       const view = leaf.view;
       if (view instanceof ObsWikiActivityView) {
+        await view.refresh();
+      }
+    }
+  }
+  async refreshReviewQueueViews() {
+    const reviewQueueLeaves = this.app.workspace.getLeavesOfType(OBS_WIKI_REVIEW_QUEUE_VIEW);
+    for (const leaf of reviewQueueLeaves) {
+      const view = leaf.view;
+      if (view instanceof ObsWikiReviewQueueView) {
         await view.refresh();
       }
     }
@@ -299,6 +341,108 @@ result: success
       missingAuditSources: auditLogMissing && auditDirMissing,
       updatedAt: (/* @__PURE__ */ new Date()).toISOString()
     };
+  }
+  async loadMemoryReviewQueueSnapshot() {
+    const folder = this.app.vault.getAbstractFileByPath(REVIEW_QUEUE_PATH);
+    if (!(folder instanceof import_obsidian.TFolder)) {
+      return {
+        proposals: [],
+        missingReviewQueueFolder: true,
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+    }
+    const files = this.collectMarkdownFiles(folder);
+    const records = await Promise.all(files.map((file) => this.readMemoryProposalFile(file)));
+    const proposals = records.filter((record) => Boolean(record)).sort((a, b) => this.compareProposalRecords(a, b)).slice(0, MAX_REVIEW_QUEUE_ROWS);
+    return {
+      proposals,
+      missingReviewQueueFolder: false,
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  async readMemoryProposalFile(file) {
+    var _a;
+    let content = "";
+    try {
+      content = await this.app.vault.cachedRead(file);
+    } catch (error) {
+      console.error(`obs-wiki failed to read memory proposal: ${file.path}`, error);
+      content = "";
+    }
+    const parsed = this.readFrontmatter(content);
+    const data = parsed.fields;
+    const proposalType = this.firstString(data, ["type"]);
+    if (proposalType && !proposalType.toLowerCase().includes("memory-proposal")) {
+      return null;
+    }
+    const created = this.firstString(data, ["created"]);
+    const proposalId = this.firstString(data, ["proposal_id", "proposalId"]) || file.basename;
+    const approvalStatus = this.normalizeProposalStatus(
+      this.firstString(data, ["approval_status", "approvalStatus"])
+    );
+    const sortTimestamp = this.parseTimestamp(
+      created,
+      (_a = file.stat) == null ? void 0 : _a.mtime
+    );
+    return {
+      path: file.path,
+      proposalId,
+      proposalKind: this.firstString(data, ["proposal_kind", "proposalKind"]) || "unknown",
+      proposedBy: this.firstString(data, ["proposed_by", "proposedBy"]) || "unknown",
+      taskId: this.firstString(data, ["task_id", "taskId"]) || "",
+      targetNote: this.firstString(data, ["target_note", "targetNote"]) || "",
+      evidence: this.readStringList(data, ["evidence"]),
+      riskLevel: this.firstString(data, ["risk_level", "riskLevel"]) || "unknown",
+      approvalStatus,
+      created,
+      snippet: this.snippetFromText(parsed.body, proposalId),
+      sortTimestamp
+    };
+  }
+  async updateMemoryProposalStatus(proposal, nextStatus) {
+    const file = this.app.vault.getAbstractFileByPath(proposal.path);
+    if (!(file instanceof import_obsidian.TFile)) {
+      throw new Error(`Cannot update proposal status: ${proposal.path} is not available.`);
+    }
+    let content = "";
+    try {
+      content = await this.app.vault.cachedRead(file);
+    } catch (error) {
+      console.error(`obs-wiki failed to read proposal for update: ${proposal.path}`, error);
+      throw error;
+    }
+    const normalizedStatus = this.normalizeProposalStatus(nextStatus);
+    const updatedContent = this.updateApprovalStatusInFrontmatter(content, normalizedStatus);
+    await this.app.vault.modify(file, updatedContent);
+    await this.appendProposalStatusAuditEvent(
+      {
+        ...proposal,
+        approvalStatus: normalizedStatus
+      },
+      normalizedStatus
+    );
+  }
+  normalizeProposalStatus(rawStatus) {
+    const status = (rawStatus || "pending").toLowerCase().trim();
+    if (status === "approved" || status === "rejected" || status === "deferred") {
+      return status;
+    }
+    return "pending";
+  }
+  compareProposalRecords(a, b) {
+    var _a, _b;
+    const statusRank = {
+      pending: 0,
+      approved: 2,
+      rejected: 3,
+      deferred: 4
+    };
+    const rankA = (_a = statusRank[a.approvalStatus]) != null ? _a : 1;
+    const rankB = (_b = statusRank[b.approvalStatus]) != null ? _b : 1;
+    if (rankA !== rankB) {
+      return rankA - rankB;
+    }
+    return b.sortTimestamp - a.sortTimestamp;
   }
   async readRecentAgentTasks(limit) {
     const folder = this.app.vault.getAbstractFileByPath(AGENT_TASKS_PATH);
@@ -470,6 +614,57 @@ result: success
       });
     }
     return events;
+  }
+  updateApprovalStatusInFrontmatter(content, nextStatus) {
+    const normalized = content.replace(/\r\n/g, "\n");
+    const fmStatusLine = `approval_status: ${nextStatus}`;
+    const fmPrefix = "---";
+    if (normalized.trim() === "") {
+      return `${fmPrefix}
+${fmStatusLine}
+${fmPrefix}
+`;
+    }
+    const lines = normalized.split("\n");
+    if (lines.length === 0 || lines[0].trim() !== fmPrefix) {
+      return `${fmPrefix}
+${fmStatusLine}
+${fmPrefix}
+${normalized}`;
+    }
+    let end = -1;
+    for (let index = 1; index < lines.length; index++) {
+      if (lines[index].trim() === fmPrefix) {
+        end = index;
+        break;
+      }
+    }
+    if (end < 0) {
+      return `${fmPrefix}
+${fmStatusLine}
+${fmPrefix}
+${normalized}`;
+    }
+    const frontmatterLines = lines.slice(1, end);
+    let found = false;
+    const updatedFrontmatter = frontmatterLines.map((line) => {
+      var _a;
+      if (/^\s*approval_status\s*:/i.test(line)) {
+        found = true;
+        const indent = ((_a = line.match(/^(\s*)/)) == null ? void 0 : _a[0]) || "";
+        return `${indent}${fmStatusLine}`;
+      }
+      return line;
+    });
+    if (!found) {
+      updatedFrontmatter.push(fmStatusLine);
+    }
+    return [
+      fmPrefix,
+      ...updatedFrontmatter,
+      fmPrefix,
+      ...lines.slice(end + 1)
+    ].join("\n");
   }
   readFrontmatter(content) {
     const normalized = content.replace(/\r\n/g, "\n");
@@ -821,8 +1016,9 @@ var ObsWikiActivityView = class extends import_obsidian.ItemView {
   }
 };
 var ObsWikiReviewQueueView = class extends import_obsidian.ItemView {
-  constructor(leaf) {
+  constructor(leaf, plugin) {
     super(leaf);
+    this.plugin = plugin;
   }
   getViewType() {
     return OBS_WIKI_REVIEW_QUEUE_VIEW;
@@ -841,32 +1037,135 @@ var ObsWikiReviewQueueView = class extends import_obsidian.ItemView {
   }
   async onOpen() {
     await super.onOpen();
-    this.render();
+    await this.refresh();
   }
-  render() {
+  async render(snapshot) {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("obs-wiki-view-root");
     contentEl.createEl("h2", { text: "Review Queue", cls: "obs-wiki-view__title" });
-    contentEl.createEl("p", {
-      text: "Scaffold placeholder: Review Queue is a static view for future approval actions.",
+    const header = contentEl.createDiv({ cls: "obs-wiki-view__section" });
+    header.createEl("div", {
+      text: `Last refreshed: ${this.plugin.formatDisplayTime(
+        Date.parse(snapshot.updatedAt)
+      )}`,
       cls: "obs-wiki-view__description"
     });
-    const section = contentEl.createDiv({ cls: "obs-wiki-view__section" });
-    section.createEl("h3", { text: "Queued items (placeholder)" });
-    const list = section.createEl("ul", { cls: "obs-wiki-view__list" });
-    list.createEl("li", {
-      text: "memory-proposal note: pending approval (placeholder)",
-      cls: "obs-wiki-view__item"
+    const actions = header.createDiv();
+    const refreshButton = actions.createEl("button", {
+      text: "Refresh",
+      cls: "mod-cta"
     });
-    list.createEl("li", {
-      text: "source analysis request: pending verification (placeholder)",
-      cls: "obs-wiki-view__item"
+    refreshButton.addEventListener("click", async () => {
+      await this.refresh();
     });
-    list.createEl("li", {
-      text: "knowledge claim review: not connected yet (placeholder)",
-      cls: "obs-wiki-view__item"
-    });
+    if (snapshot.missingReviewQueueFolder) {
+      contentEl.createEl("p", {
+        text: "No review queue folder found at 01_inbox/review_queue. Run Initialize Memory Structure first.",
+        cls: "obs-wiki-view__description"
+      });
+      return;
+    }
+    if (snapshot.proposals.length === 0) {
+      contentEl.createEl("p", {
+        text: "No memory proposals in the review queue yet.",
+        cls: "obs-wiki-view__description"
+      });
+      return;
+    }
+    const sections = this.groupByStatus(snapshot.proposals);
+    const orderedStatuses = ["pending", "approved", "rejected", "deferred"];
+    const unknown = sections["unknown"] || [];
+    for (const status of orderedStatuses) {
+      const proposals = sections[status] || [];
+      if (proposals.length === 0) {
+        continue;
+      }
+      const section = contentEl.createDiv({ cls: "obs-wiki-view__section" });
+      section.createEl("h3", { text: `${status.toUpperCase()} (${proposals.length})` });
+      for (const proposal of proposals) {
+        const card = section.createDiv({ cls: "obs-wiki-view__item" });
+        card.createEl("div", {
+          text: `${proposal.proposalId} \u2022 ${proposal.proposalKind} \u2022 ${proposal.riskLevel}`
+        });
+        if (proposal.taskId) {
+          card.createEl("div", { text: `Task: ${proposal.taskId}` });
+        }
+        if (proposal.targetNote) {
+          card.createEl("div", { text: `Target: ${proposal.targetNote}` });
+        }
+        if (proposal.evidence.length > 0) {
+          card.createEl("div", { text: `Evidence refs: ${proposal.evidence.join(", ")}` });
+        }
+        card.createEl("div", {
+          text: `Created: ${proposal.created || "unknown"} \u2022 Proposed by: ${proposal.proposedBy}`
+        });
+        if (proposal.snippet) {
+          card.createEl("div", {
+            text: this.plugin.trimText(proposal.snippet, 140)
+          });
+        }
+        card.createEl("small", { text: `file: ${proposal.path}` });
+        if (proposal.approvalStatus === "pending") {
+          const actionRow = card.createDiv({ cls: "obs-wiki-view__actions" });
+          const approve = actionRow.createEl("button", {
+            text: "Approve",
+            cls: "mod-cta"
+          });
+          const reject = actionRow.createEl("button", {
+            text: "Reject",
+            cls: "mod-warning"
+          });
+          const defer = actionRow.createEl("button", {
+            text: "Defer"
+          });
+          const actionButtons = [approve, reject, defer];
+          const updateStatus = async (status2) => {
+            for (const button of actionButtons) {
+              button.setAttribute("disabled", "true");
+            }
+            try {
+              await this.plugin.updateMemoryProposalStatus(proposal, status2);
+              await this.refresh();
+            } finally {
+              for (const button of actionButtons) {
+                button.removeAttribute("disabled");
+              }
+            }
+          };
+          approve.addEventListener("click", () => void updateStatus("approved"));
+          reject.addEventListener("click", () => void updateStatus("rejected"));
+          defer.addEventListener("click", () => void updateStatus("deferred"));
+        }
+      }
+    }
+    if (unknown.length > 0) {
+      const section = contentEl.createDiv({ cls: "obs-wiki-view__section" });
+      section.createEl("h3", {
+        text: `UNKNOWN (${unknown.length})`
+      });
+      for (const proposal of unknown) {
+        const card = section.createDiv({ cls: "obs-wiki-view__item" });
+        card.createEl("div", {
+          text: `${proposal.proposalId} \u2022 status: ${proposal.approvalStatus}`
+        });
+      }
+    }
+  }
+  async refresh() {
+    const snapshot = await this.plugin.loadMemoryReviewQueueSnapshot();
+    await this.render(snapshot);
+  }
+  groupByStatus(proposals) {
+    const grouped = {};
+    for (const proposal of proposals) {
+      const status = proposal.approvalStatus || "pending";
+      if (!grouped[status]) {
+        grouped[status] = [];
+      }
+      grouped[status].push(proposal);
+    }
+    return grouped;
   }
 };
 var ObsWikiPermissionCenterView = class extends import_obsidian.ItemView {
