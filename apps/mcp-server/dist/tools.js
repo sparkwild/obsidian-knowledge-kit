@@ -18,8 +18,11 @@ const MAX_LIST_QUEUE_ITEMS = 20;
 const MAX_AUDIT_ITEMS = 20;
 const CONTEXT_PACK_DIR = '06_outputs/context_packs';
 const SESSION_NOTE_DIR = '02_timeline/sessions';
+const SOURCE_REQUESTS_DIR = '01_inbox/agent_requests';
 const SOURCES_DIR = '03_sources';
+const SOURCE_ANALYSIS_REPORT_DIR = '06_outputs/source_analysis';
 const MEMORY_PROPOSAL_DIR = '01_inbox/review_queue';
+const MAX_SOURCE_EXCERPT_LENGTH = 1000;
 function toolResult(payload, isError = false) {
     return {
         content: [
@@ -64,6 +67,24 @@ function coercePositiveInt(value, fallback, min = 1, max = 100) {
         throw new safety_1.ToolInputError('Expected integer within allowed bounds.');
     }
     return value;
+}
+function coerceBoolean(value, field, fallback = false) {
+    if (value === undefined || value === null) {
+        return fallback;
+    }
+    if (typeof value === 'boolean') {
+        return value;
+    }
+    if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
+            return true;
+        }
+        if (normalized === 'false' || normalized === '0' || normalized === 'no') {
+            return false;
+        }
+    }
+    throw new safety_1.ToolInputError(`Invalid boolean argument: ${field}.`);
 }
 function sanitizeYamlValue(value) {
     if (value === null || value === undefined) {
@@ -114,6 +135,63 @@ function assertNoSensitiveText(values) {
         }
     }
 }
+function toText(value) {
+    if (value === null || value === undefined) {
+        return '';
+    }
+    if (typeof value === 'string') {
+        return value.trim();
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
+        return String(value);
+    }
+    if (Array.isArray(value)) {
+        return value
+            .map((entry) => toText(entry))
+            .filter((entry) => entry.length > 0)
+            .join('\n');
+    }
+    return '';
+}
+function readFrontmatterString(frontmatter, keys) {
+    for (const key of keys) {
+        const value = frontmatter[key];
+        if (value === undefined) {
+            continue;
+        }
+        const text = toText(value);
+        if (text) {
+            return text;
+        }
+    }
+    return '';
+}
+function isLikelyVaultPath(value, sourceKind) {
+    const trimmed = value.trim();
+    if (!trimmed) {
+        return false;
+    }
+    if (trimmed.includes('\n') || trimmed.includes('\r')) {
+        return false;
+    }
+    if (/^https?:\/\//i.test(trimmed) || /^(mailto:|file:|ftp:)/i.test(trimmed)) {
+        return false;
+    }
+    if (['url', 'selection', 'http', 'external'].includes(sourceKind.toLowerCase())) {
+        return false;
+    }
+    if (trimmed.startsWith('.') && !trimmed.includes('/')) {
+        return false;
+    }
+    return /\.(md|markdown|txt)$/i.test(trimmed) || trimmed.includes('/') || sourceKind === 'current_note' || sourceKind === 'local_file';
+}
+function isSourceRequestPending(status) {
+    const normalized = status.toLowerCase();
+    return ['pending', 'todo', 'open', 'queued', 'new'].includes(normalized);
+}
+function isUrlSource(source) {
+    return /^https?:\/\//i.test(source.trim());
+}
 function safeReadNote(vaultRoot, notePath) {
     const normalized = (0, safety_1.normalizeNotePath)(notePath);
     const absolute = (0, safety_1.resolveSafeNotePath)(vaultRoot, normalized);
@@ -121,6 +199,115 @@ function safeReadNote(vaultRoot, notePath) {
         path: (0, safety_1.relativeFromAbsolute)(vaultRoot, absolute),
         text: node_fs_1.default.readFileSync(absolute, 'utf8'),
     };
+}
+function safeReadTextFile(vaultRoot, notePath) {
+    const normalized = (0, safety_1.normalizeNotePath)(notePath);
+    const absolute = (0, safety_1.resolveSafeNotePath)(vaultRoot, normalized);
+    (0, safety_1.assertNoSymlinkSegments)(vaultRoot, absolute);
+    return node_fs_1.default.readFileSync(absolute, 'utf8');
+}
+function assertSourceRequestPath(relativePath) {
+    if (!relativePath.startsWith(`${SOURCE_REQUESTS_DIR}/`)) {
+        throw new safety_1.ToolInputError(`Source request path must be under ${SOURCE_REQUESTS_DIR}.`);
+    }
+}
+function readSourceRequest(vaultRoot, requestPath) {
+    const data = safeReadNote(vaultRoot, requestPath);
+    assertSourceRequestPath(data.path);
+    const parsed = (0, core_1.parseMarkdown)(data.text);
+    const frontmatter = parsed.frontmatter.fields;
+    const sourceKind = readFrontmatterString(frontmatter, ['source_kind', 'sourceKind', 'source-kind']);
+    const status = readFrontmatterString(frontmatter, ['status']) || 'pending';
+    const requestPathRelative = data.path;
+    return {
+        path: requestPathRelative,
+        type: readFrontmatterString(frontmatter, ['type']) || 'agent-request',
+        source: readFrontmatterString(frontmatter, ['source']),
+        sourceKind: sourceKind || 'unknown',
+        purpose: readFrontmatterString(frontmatter, ['purpose']),
+        relatedProject: readFrontmatterString(frontmatter, ['related_project', 'relatedProject']),
+        analysisMode: readFrontmatterString(frontmatter, ['analysis_mode', 'analysisMode']) || 'default',
+        status,
+        created: readFrontmatterString(frontmatter, ['created']) || '',
+        content: parsed.body,
+        filename: requestPathRelative,
+    };
+}
+function extractSelectionText(sourceBody) {
+    const marker = '## Selected Text';
+    const markerIndex = sourceBody.indexOf(marker);
+    if (markerIndex >= 0) {
+        const selected = sourceBody.slice(markerIndex + marker.length).trim();
+        return selected
+            .split('\n')
+            .map((line) => line.replace(/^>\s?/, ''))
+            .join('\n')
+            .trim();
+    }
+    const bodyLines = sourceBody.split('\n');
+    const contentLines = [];
+    let started = false;
+    for (const line of bodyLines) {
+        if (!started) {
+            if (line.startsWith('- ')) {
+                continue;
+            }
+            if (line.startsWith('#')) {
+                continue;
+            }
+            if (line.trim() === '') {
+                continue;
+            }
+            started = true;
+        }
+        contentLines.push(line);
+    }
+    return contentLines.join('\n').trim();
+}
+function resolveRequestStatusPath(vaultRoot, requestPath) {
+    const normalized = (0, safety_1.normalizeNotePath)(requestPath);
+    const absolute = (0, safety_1.resolveSafeNotePath)(vaultRoot, normalized);
+    const relative = (0, safety_1.relativeFromAbsolute)(vaultRoot, absolute);
+    assertSourceRequestPath(relative);
+    (0, safety_1.assertNoSymlinkSegments)(vaultRoot, absolute);
+    return absolute;
+}
+function updateRequestStatus(vaultRoot, requestPath, nextStatus) {
+    const absolutePath = resolveRequestStatusPath(vaultRoot, requestPath);
+    let text = node_fs_1.default.readFileSync(absolutePath, 'utf8');
+    const fmMatch = text.match(/^---\n[\s\S]*?\n---\n?/);
+    if (!fmMatch) {
+        throw new safety_1.ToolInputError(`Request note does not have frontmatter: ${requestPath}`);
+    }
+    const fmBlock = fmMatch[0];
+    const fmStart = fmBlock.length;
+    const body = text.slice(fmStart);
+    const hasStatus = /^status:\s*/m.test(fmBlock);
+    let updatedFrontmatter = fmBlock;
+    if (hasStatus) {
+        updatedFrontmatter = fmBlock.replace(/^status:\s*.*$/m, `status: ${nextStatus}`);
+    }
+    else {
+        updatedFrontmatter = fmBlock.replace(/\n---\n?$/, `\nstatus: ${nextStatus}\n---\n`);
+    }
+    text = `${updatedFrontmatter}${body}`;
+    node_fs_1.default.writeFileSync(absolutePath, text, 'utf8');
+    return {
+        path: (0, safety_1.relativeFromAbsolute)(vaultRoot, absolutePath),
+    };
+}
+function parseOptionalIntendedSourcePath(rawSource, sourceKind) {
+    const source = rawSource.trim();
+    if (!source) {
+        return {};
+    }
+    if (isUrlSource(source)) {
+        return {};
+    }
+    if (!isLikelyVaultPath(source, sourceKind)) {
+        return {};
+    }
+    return { requestedPath: source };
 }
 function buildProjectCounts(scan) {
     const typeCount = {};
@@ -415,6 +602,33 @@ function toolDefinitions() {
             },
         },
         {
+            name: 'obs_wiki.list_source_requests',
+            title: 'obs_wiki.list_source_requests',
+            description: 'Read pending source-analysis agent requests under 01_inbox/agent_requests.',
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    vaultRoot: {
+                        type: 'string',
+                        description: 'Vault root path. If omitted, uses server configured --vault-root.',
+                    },
+                    max_items: {
+                        type: 'integer',
+                        description: 'Maximum number of pending requests to return.',
+                    },
+                    status: {
+                        type: 'string',
+                        description: 'Optional status filter, defaults to pending.',
+                    },
+                    source_kind: {
+                        type: 'string',
+                        description: 'Optional source kind filter.',
+                    },
+                },
+                additionalProperties: false,
+            },
+        },
+        {
             name: 'obs_wiki.audit_recent',
             title: 'obs_wiki.audit_recent',
             description: 'Read parsed sections from 00_control/audit_log.md.',
@@ -434,6 +648,40 @@ function toolDefinitions() {
             },
             annotations: {
                 readOnlyHint: true,
+            },
+        },
+        {
+            name: 'obs_wiki.analyze_source_request',
+            title: 'obs_wiki.analyze_source_request',
+            description: 'Analyze one pending source request and write source note, report, and review proposals.',
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    vaultRoot: {
+                        type: 'string',
+                        description: 'Vault root path. If omitted, uses server configured --vault-root.',
+                    },
+                    request_path: {
+                        type: 'string',
+                        description: 'Vault-relative path to an agent-request note.',
+                    },
+                    path: {
+                        type: 'string',
+                        description: 'Alias of request_path.',
+                    },
+                    update_request_status: {
+                        type: 'boolean',
+                        description: 'Whether to update request status to completed/failed. Defaults to true.',
+                    },
+                    force_reprocess: {
+                        type: 'boolean',
+                        description: 'Process request even if status is not pending.',
+                    },
+                },
+                additionalProperties: false,
+            },
+            annotations: {
+                destructiveHint: true,
             },
         },
         {
@@ -565,8 +813,12 @@ function callTool(name, rawParams, context) {
                 return toolResult(handleReadNote(rawParams, context));
             case 'obs_wiki.list_review_queue':
                 return toolResult(handleReviewQueue(rawParams, context));
+            case 'obs_wiki.list_source_requests':
+                return toolResult(handleListSourceRequests(rawParams, context));
             case 'obs_wiki.audit_recent':
                 return toolResult(handleAuditRecent(rawParams, context));
+            case 'obs_wiki.analyze_source_request':
+                return toolResult(handleAnalyzeSourceRequest(rawParams, context));
             case 'obs_wiki.write_context_pack':
                 return toolResult(handleWriteContextPack(rawParams, context));
             case 'obs_wiki.write_session_note':
@@ -676,6 +928,301 @@ function handleReadNote(rawArgs, context) {
         content: data.text,
         excerpt: parsed.body.slice(0, 1024),
     };
+}
+function handleListSourceRequests(rawArgs, context) {
+    const vaultRoot = vaultRootFromArgs(rawArgs, context);
+    const maxItems = coercePositiveInt(rawArgs.max_items, MAX_LIST_QUEUE_ITEMS, 1, MAX_LIST_QUEUE_ITEMS);
+    const statusFilter = coerceOptionalString(rawArgs.status) || 'pending';
+    const sourceKindFilter = coerceOptionalString(rawArgs.source_kind).toLowerCase();
+    const scan = (0, core_1.scanVault)(vaultRoot);
+    const normalizedStatus = statusFilter.toLowerCase().trim();
+    const requests = scan.notes
+        .filter((note) => note.relativePath.startsWith(`${SOURCE_REQUESTS_DIR}/`))
+        .filter((note) => {
+        const noteType = typeof note.frontmatter.type === 'string' ? note.frontmatter.type.toLowerCase() : '';
+        return noteType.includes('agent-request');
+    })
+        .map((note) => ({
+        path: note.relativePath,
+        source: String(note.frontmatter.source || ''),
+        sourceKind: String(note.frontmatter.source_kind || note.frontmatter.sourceKind || note.frontmatter.sourcekind || ''),
+        purpose: String(note.frontmatter.purpose || ''),
+        relatedProject: String(note.frontmatter.related_project || note.frontmatter.relatedProject || ''),
+        analysisMode: String(note.frontmatter.analysis_mode || note.frontmatter.analysisMode || 'default'),
+        status: String(note.frontmatter.status || 'pending'),
+        modifiedAt: note.modifiedAt,
+    }))
+        .filter((request) => sourceKindFilter === '' || request.sourceKind.toLowerCase() === sourceKindFilter)
+        .filter((request) => {
+        if (!normalizedStatus || normalizedStatus === 'pending') {
+            return isSourceRequestPending(request.status);
+        }
+        return request.status.toLowerCase() === normalizedStatus;
+    })
+        .sort((a, b) => Date.parse(b.modifiedAt) - Date.parse(a.modifiedAt))
+        .slice(0, maxItems);
+    return {
+        ok: true,
+        read_only: true,
+        vault_root: vaultRoot,
+        count: requests.length,
+        filter: {
+            status: statusFilter || 'pending',
+            source_kind: sourceKindFilter || 'any',
+        },
+        entries: requests,
+    };
+}
+function buildSourceRunToken(request) {
+    const safeRequest = request.filename
+        .replace(/\.[^/.]+$/, '')
+        .replace(/[^a-z0-9._-]+/gi, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 60);
+    return `${safeRequest}-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+}
+function resolveSourceInput(request, vaultRoot) {
+    const source = request.source.trim();
+    const sourceKind = request.sourceKind.trim().toLowerCase();
+    const warnings = [];
+    if (!source) {
+        return {
+            sourceText: `No source identifier found in request ${request.path}.`,
+            mode: 'extracted_snapshot',
+            warnings: ['request has empty source field'],
+        };
+    }
+    if (isUrlSource(source)) {
+        return {
+            sourceText: `External reference pending human/agent fetch. ` +
+                `Source URL: ${source}. ` +
+                'This request intentionally avoids network fetch.',
+            mode: 'external_reference',
+            warnings: ['external network fetch intentionally skipped'],
+        };
+    }
+    const parsedPath = parseOptionalIntendedSourcePath(source, sourceKind);
+    if (parsedPath.requestedPath) {
+        try {
+            const fileText = safeReadTextFile(vaultRoot, parsedPath.requestedPath);
+            return {
+                sourceText: fileText,
+                mode: 'local_copy',
+                resolvedSourcePath: parsedPath.requestedPath,
+                warnings: [],
+            };
+        }
+        catch (error) {
+            if (error instanceof safety_1.ToolInputError || error instanceof core_1.VaultPathError) {
+                return {
+                    sourceText: request.content || source,
+                    mode: 'extracted_snapshot',
+                    warnings: ['source path is not readable, fallback to request body'],
+                };
+            }
+            throw error;
+        }
+    }
+    const bodyText = extractSelectionText(request.content);
+    return {
+        sourceText: bodyText || request.content || source,
+        mode: 'extracted_snapshot',
+        warnings: ['using request-provided text for analysis'],
+    };
+}
+function buildSourceNoteContent(request, mode, sourceText, analysis, resolvedSourcePath) {
+    const section = ['## Source note', `- request_path: ${request.path}`, `- mode: ${mode}`, `- source_kind: ${request.sourceKind || 'unknown'}`];
+    section.push(`- analysis_mode: ${request.analysisMode || 'default'}`);
+    if (resolvedSourcePath) {
+        section.push(`- resolved_source_path: ${resolvedSourcePath}`);
+    }
+    section.push('');
+    section.push('## Source summary');
+    section.push(analysis.summary);
+    section.push('');
+    section.push('## Evidence scaffold');
+    for (const item of analysis.evidenceScaffolds) {
+        section.push(`- ${item}`);
+    }
+    section.push('');
+    section.push('## Claim scaffold');
+    for (const item of analysis.claimScaffolds) {
+        section.push(`- ${item}`);
+    }
+    section.push('');
+    section.push('## Source excerpt');
+    section.push(analysis.excerpt);
+    return section.join('\n');
+}
+function buildReportContent(request, mode, sourceText, analysis, sourceNotePath, warnings) {
+    const sourceContent = `\n## Source\n\n${sourceText.slice(0, MAX_SOURCE_EXCERPT_LENGTH)}\n`;
+    const section = [
+        '## Source Analysis Report',
+        `- source: ${request.source}`,
+        `- request_path: ${request.path}`,
+        `- source_kind: ${request.sourceKind || 'unknown'}`,
+        `- analysis_mode: ${request.analysisMode || 'default'}`,
+        `- mode: ${mode}`,
+        `- source_note: ${sourceNotePath}`,
+        `- related_project: ${request.relatedProject || 'unset'}`,
+        `- purpose: ${request.purpose || 'unset'}`,
+    ];
+    if (warnings.length > 0) {
+        section.push(`- warnings: ${JSON.stringify(warnings)}`);
+    }
+    section.push('');
+    section.push('## Summary');
+    section.push(analysis.summary);
+    section.push('');
+    section.push('## Excerpt');
+    section.push(`\n${analysis.excerpt}\n`);
+    section.push('');
+    section.push('## Evidence scaffold');
+    section.push(...analysis.evidenceScaffolds.map((entry) => `- ${entry}`));
+    section.push('');
+    section.push('## Claim scaffold');
+    section.push(...analysis.claimScaffolds.map((entry) => `- ${entry}`));
+    section.push('');
+    section.push(sourceContent);
+    return section.join('\n');
+}
+function handleAnalyzeSourceRequest(rawArgs, context) {
+    const vaultRoot = vaultRootFromArgs(rawArgs, context);
+    const requestPath = coerceOptionalString(rawArgs.request_path) || coerceOptionalString(rawArgs.path);
+    if (!requestPath) {
+        throw new safety_1.ToolInputError('Missing required argument: request_path or path.');
+    }
+    const requestPathAlias = requestPath;
+    const updateStatus = coerceBoolean(rawArgs.update_request_status, 'update_request_status', true);
+    const forceReprocess = coerceBoolean(rawArgs.force_reprocess, 'force_reprocess', false);
+    const now = new Date().toISOString();
+    try {
+        const request = readSourceRequest(vaultRoot, requestPathAlias);
+        if (!request.type.toLowerCase().includes('agent-request')) {
+            throw new safety_1.ToolInputError('Request note is not an agent-request note.');
+        }
+        if (!forceReprocess && request.status && !isSourceRequestPending(request.status)) {
+            throw new safety_1.ToolInputError(`Request status is ${request.status}; use force_reprocess=true to process anyway.`);
+        }
+        const { sourceText, mode, resolvedSourcePath, warnings } = resolveSourceInput(request, vaultRoot);
+        const analysis = (0, core_1.analyzeSourceText)({
+            source: request.source,
+            sourceKind: request.sourceKind || 'unknown',
+            analysisMode: request.analysisMode || 'default',
+            purpose: request.purpose,
+            content: sourceText,
+            requestPath: request.path,
+        });
+        assertNoSensitiveText([
+            { label: 'source', value: request.source },
+            { label: 'purpose', value: request.purpose },
+            { label: 'summary', value: analysis.summary },
+            { label: 'excerpt', value: analysis.excerpt },
+        ]);
+        const runToken = buildSourceRunToken(request);
+        const sourceFilename = buildSafeFilename(`${runToken}-source`, 'source');
+        const sourceNote = buildAndWriteNote(vaultRoot, 'obs_wiki.analyze_source_request', SOURCES_DIR, sourceFilename, {
+            tool: 'obs_wiki.analyze_source_request',
+            type: 'source_analysis_source',
+            title: `source_analysis_source_${runToken}`,
+            source: request.source,
+            source_kind: request.sourceKind || null,
+            analysis_mode: request.analysisMode || 'default',
+            request_path: request.path,
+            mode,
+            created_at: now,
+        }, buildSourceNoteContent(request, mode, sourceText, analysis, resolvedSourcePath), null, { target_type: 'source', mode, request_path: request.path });
+        const reportFilename = buildSafeFilename(`${runToken}-report`, 'source-report');
+        const report = buildAndWriteNote(vaultRoot, 'obs_wiki.analyze_source_request', SOURCE_ANALYSIS_REPORT_DIR, reportFilename, {
+            tool: 'obs_wiki.analyze_source_request',
+            type: 'source_analysis_report',
+            title: `source_analysis_report_${runToken}`,
+            source: request.source,
+            source_kind: request.sourceKind || null,
+            analysis_mode: request.analysisMode || 'default',
+            request_path: request.path,
+            source_note: sourceNote.path,
+            created_at: now,
+        }, buildReportContent(request, mode, sourceText, analysis, sourceNote.path, warnings), null, { target_type: 'source_analysis_report', request_path: request.path });
+        const proposalPaths = analysis.proposalDrafts.map((entry) => {
+            const proposalNote = buildAndWriteNote(vaultRoot, 'obs_wiki.analyze_source_request', MEMORY_PROPOSAL_DIR, buildSafeFilename(`proposal-${runToken}-${entry.proposalKind}`, entry.proposalKind), {
+                tool: 'obs_wiki.analyze_source_request',
+                type: 'memory_proposal',
+                title: entry.title || `source_proposal_${runToken}`,
+                proposal_kind: entry.proposalKind,
+                status: 'pending',
+                source: request.source,
+                source_kind: request.sourceKind || null,
+                target_note: report.path,
+                risk_level: entry.riskLevel || null,
+                created_at: now,
+                task_id: null,
+            }, `## Source analysis proposal\n\n- evidence: ${entry.evidence}\n\n${entry.content}\n`, null, {
+                target_type: 'memory_proposal',
+                proposal_kind: entry.proposalKind,
+                request_path: request.path,
+                source_note: sourceNote.path,
+            });
+            return proposalNote.path;
+        });
+        if (updateStatus) {
+            updateRequestStatus(vaultRoot, request.path, 'completed');
+            appendAuditEvent(vaultRoot, {
+                tool: 'obs_wiki.analyze_source_request',
+                targetPath: request.path,
+                status: 'written',
+                taskId: null,
+                metadata: {
+                    action: 'source.request.completed',
+                    source_note: sourceNote.path,
+                    source_report: report.path,
+                    proposals: proposalPaths.join(','),
+                },
+            });
+        }
+        return {
+            ok: true,
+            read_only: false,
+            tool: 'obs_wiki.analyze_source_request',
+            status: 'completed',
+            vault_root: vaultRoot,
+            request_path: request.path,
+            mode,
+            source_note: {
+                path: sourceNote.path,
+                audit_path: sourceNote.audit_path,
+            },
+            report: {
+                path: report.path,
+                audit_path: report.audit_path,
+            },
+            proposals: proposalPaths.map((proposalPath) => ({ path: proposalPath })),
+            summary: analysis.summary,
+            warnings,
+        };
+    }
+    catch (error) {
+        if (updateStatus) {
+            try {
+                updateRequestStatus(vaultRoot, requestPathAlias, 'failed');
+                appendAuditEvent(vaultRoot, {
+                    tool: 'obs_wiki.analyze_source_request',
+                    targetPath: requestPathAlias,
+                    status: 'failed',
+                    taskId: null,
+                    metadata: {
+                        action: 'source.request.failed',
+                        error: error instanceof Error ? error.message : String(error),
+                    },
+                });
+            }
+            catch {
+                // audit and state update are best-effort; keep original error handling path.
+            }
+        }
+        throw error;
+    }
 }
 function handleReviewQueue(rawArgs, context) {
     const vaultRoot = vaultRootFromArgs(rawArgs, context);

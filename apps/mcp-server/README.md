@@ -19,11 +19,13 @@ MCP server for obs-wiki operations with controlled write tooling for low-risk wo
 - `obs_wiki.recall`
 - `obs_wiki.read_note`
 - `obs_wiki.list_review_queue`
+- `obs_wiki.list_source_requests`
 - `obs_wiki.audit_recent`
 - `obs_wiki.write_context_pack`
 - `obs_wiki.write_session_note`
 - `obs_wiki.capture_source`
 - `obs_wiki.propose_memory`
+- `obs_wiki.analyze_source_request`
 
 Write policy:
 
