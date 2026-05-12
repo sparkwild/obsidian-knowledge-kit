@@ -3,5 +3,11 @@ export declare class ToolInputError extends Error {
 }
 export declare function toSafeVaultRoot(vaultRoot?: unknown): string;
 export declare function normalizeNotePath(rawPath: string): string;
+export declare function assertNoSymlinkSegments(vaultRoot: string, absolutePath: string): void;
 export declare function resolveSafeNotePath(vaultRoot: string, rawPath: string): string;
+export interface WritablePathResolution {
+    absolutePath: string;
+    relativePath: string;
+}
+export declare function resolveSafeWritableNotePath(vaultRoot: string, rawPath: string, allowedDirectory: string): WritablePathResolution;
 export declare function relativeFromAbsolute(vaultRoot: string, absolutePath: string): string;

@@ -4,6 +4,7 @@ import { ensureInsideVaultRoot, resolveVaultRoot, isSafeDirectoryName, VaultPath
 
 const FORBIDDEN_SEGMENTS = new Set(['.obsidian']);
 const TEXT_LIKE_EXTENSIONS = new Set(['.md', '.markdown', '.txt', '.text']);
+const MARKDOWN_EXTENSIONS = new Set(['.md']);
 
 export class ToolInputError extends Error {
 	constructor(message: string) {
@@ -59,18 +60,26 @@ function hasTextLikeExtension(candidate: string): boolean {
 	return TEXT_LIKE_EXTENSIONS.has(ext);
 }
 
+function hasMarkdownExtension(candidate: string): boolean {
+	const ext = path.extname(candidate).toLowerCase();
+	return MARKDOWN_EXTENSIONS.has(ext);
+}
+
 function resolveCandidatePath(vaultRoot: string, candidate: string): string {
 	const absoluteCandidate = path.resolve(vaultRoot, candidate);
 	return ensureInsideVaultRoot(vaultRoot, absoluteCandidate);
 }
 
-function assertNoSymlinkSegments(vaultRoot: string, absolutePath: string): void {
+export function assertNoSymlinkSegments(vaultRoot: string, absolutePath: string): void {
 	const relative = path.relative(vaultRoot, absolutePath);
 	const segments = relative.split(path.sep).filter(Boolean);
 	let cursor = vaultRoot;
 
 	for (const segment of segments) {
 		cursor = path.join(cursor, segment);
+		if (!fs.existsSync(cursor)) {
+			continue;
+		}
 		const stat = fs.lstatSync(cursor);
 		if (stat.isSymbolicLink()) {
 			throw new VaultPathError('Symlink paths are not allowed for note reads.');
@@ -110,6 +119,55 @@ export function resolveSafeNotePath(vaultRoot: string, rawPath: string): string 
 	}
 
 	throw new VaultPathError('Note not found or not a markdown/text-like file inside vault.');
+}
+
+export interface WritablePathResolution {
+	absolutePath: string;
+	relativePath: string;
+}
+
+export function resolveSafeWritableNotePath(
+	vaultRoot: string,
+	rawPath: string,
+	allowedDirectory: string
+): WritablePathResolution {
+	const candidate = normalizeNotePath(rawPath);
+	const withMarkdown = hasMarkdownExtension(candidate) ? candidate : `${candidate}.md`;
+	const absolute = path.resolve(vaultRoot, withMarkdown);
+	const resolved = ensureInsideVaultRoot(vaultRoot, absolute);
+	const relative = path.relative(vaultRoot, resolved).replace(/\\/g, '/');
+
+	if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
+		throw new VaultPathError('Path is outside vault root.');
+	}
+
+	const normalizedAllowed = path.posix.normalize(allowedDirectory.replace(/\\/g, '/')).replace(/\/+$/g, '');
+	if (!normalizedAllowed || normalizedAllowed.includes('..')) {
+		throw new ToolInputError('Allowed directory prefix is invalid.');
+	}
+
+	const allowedPrefix = `${normalizedAllowed}/`;
+	if (!relative.startsWith(allowedPrefix)) {
+		throw new ToolInputError(`Path must be under ${normalizedAllowed}`);
+	}
+	if (!hasMarkdownExtension(relative)) {
+		throw new ToolInputError('Only markdown (.md) files can be written.');
+	}
+
+	const relParts = path.relative(vaultRoot, resolved).split(path.sep);
+	if (relParts.some((segment) => FORBIDDEN_SEGMENTS.has(segment))) {
+		throw new VaultPathError('Writing .obsidian paths is not allowed.');
+	}
+	assertNoSymlinkSegments(vaultRoot, resolved);
+
+	if (fs.existsSync(resolved)) {
+		throw new ToolInputError('Target file already exists and cannot be overwritten.');
+	}
+
+	return {
+		absolutePath: resolved,
+		relativePath: path.relative(vaultRoot, resolved).replace(/\\/g, '/'),
+	};
 }
 
 export function relativeFromAbsolute(vaultRoot: string, absolutePath: string): string {

@@ -6,13 +6,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ToolInputError = void 0;
 exports.toSafeVaultRoot = toSafeVaultRoot;
 exports.normalizeNotePath = normalizeNotePath;
+exports.assertNoSymlinkSegments = assertNoSymlinkSegments;
 exports.resolveSafeNotePath = resolveSafeNotePath;
+exports.resolveSafeWritableNotePath = resolveSafeWritableNotePath;
 exports.relativeFromAbsolute = relativeFromAbsolute;
 const node_path_1 = __importDefault(require("node:path"));
 const node_fs_1 = __importDefault(require("node:fs"));
 const core_1 = require("@obs-wiki/core");
 const FORBIDDEN_SEGMENTS = new Set(['.obsidian']);
 const TEXT_LIKE_EXTENSIONS = new Set(['.md', '.markdown', '.txt', '.text']);
+const MARKDOWN_EXTENSIONS = new Set(['.md']);
 class ToolInputError extends Error {
     constructor(message) {
         super(message);
@@ -59,6 +62,10 @@ function hasTextLikeExtension(candidate) {
     const ext = node_path_1.default.extname(candidate).toLowerCase();
     return TEXT_LIKE_EXTENSIONS.has(ext);
 }
+function hasMarkdownExtension(candidate) {
+    const ext = node_path_1.default.extname(candidate).toLowerCase();
+    return MARKDOWN_EXTENSIONS.has(ext);
+}
 function resolveCandidatePath(vaultRoot, candidate) {
     const absoluteCandidate = node_path_1.default.resolve(vaultRoot, candidate);
     return (0, core_1.ensureInsideVaultRoot)(vaultRoot, absoluteCandidate);
@@ -69,6 +76,9 @@ function assertNoSymlinkSegments(vaultRoot, absolutePath) {
     let cursor = vaultRoot;
     for (const segment of segments) {
         cursor = node_path_1.default.join(cursor, segment);
+        if (!node_fs_1.default.existsSync(cursor)) {
+            continue;
+        }
         const stat = node_fs_1.default.lstatSync(cursor);
         if (stat.isSymbolicLink()) {
             throw new core_1.VaultPathError('Symlink paths are not allowed for note reads.');
@@ -100,6 +110,39 @@ function resolveSafeNotePath(vaultRoot, rawPath) {
         return absolute;
     }
     throw new core_1.VaultPathError('Note not found or not a markdown/text-like file inside vault.');
+}
+function resolveSafeWritableNotePath(vaultRoot, rawPath, allowedDirectory) {
+    const candidate = normalizeNotePath(rawPath);
+    const withMarkdown = hasMarkdownExtension(candidate) ? candidate : `${candidate}.md`;
+    const absolute = node_path_1.default.resolve(vaultRoot, withMarkdown);
+    const resolved = (0, core_1.ensureInsideVaultRoot)(vaultRoot, absolute);
+    const relative = node_path_1.default.relative(vaultRoot, resolved).replace(/\\/g, '/');
+    if (relative === '' || relative.startsWith('..') || node_path_1.default.isAbsolute(relative)) {
+        throw new core_1.VaultPathError('Path is outside vault root.');
+    }
+    const normalizedAllowed = node_path_1.default.posix.normalize(allowedDirectory.replace(/\\/g, '/')).replace(/\/+$/g, '');
+    if (!normalizedAllowed || normalizedAllowed.includes('..')) {
+        throw new ToolInputError('Allowed directory prefix is invalid.');
+    }
+    const allowedPrefix = `${normalizedAllowed}/`;
+    if (!relative.startsWith(allowedPrefix)) {
+        throw new ToolInputError(`Path must be under ${normalizedAllowed}`);
+    }
+    if (!hasMarkdownExtension(relative)) {
+        throw new ToolInputError('Only markdown (.md) files can be written.');
+    }
+    const relParts = node_path_1.default.relative(vaultRoot, resolved).split(node_path_1.default.sep);
+    if (relParts.some((segment) => FORBIDDEN_SEGMENTS.has(segment))) {
+        throw new core_1.VaultPathError('Writing .obsidian paths is not allowed.');
+    }
+    assertNoSymlinkSegments(vaultRoot, resolved);
+    if (node_fs_1.default.existsSync(resolved)) {
+        throw new ToolInputError('Target file already exists and cannot be overwritten.');
+    }
+    return {
+        absolutePath: resolved,
+        relativePath: node_path_1.default.relative(vaultRoot, resolved).replace(/\\/g, '/'),
+    };
 }
 function relativeFromAbsolute(vaultRoot, absolutePath) {
     return node_path_1.default.relative(vaultRoot, absolutePath).replace(/\\/g, '/');

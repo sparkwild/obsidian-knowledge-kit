@@ -1,6 +1,6 @@
-# obs-wiki MCP Server (Phase 7 Read-only)
+# obs-wiki MCP Server (Phase 8 Controlled Write)
 
-Minimal stdio MCP server for read-only obs-wiki operations.
+MCP server for obs-wiki operations with controlled write tooling for low-risk working records.
 
 ## JSON-RPC methods
 
@@ -20,14 +20,29 @@ Minimal stdio MCP server for read-only obs-wiki operations.
 - `obs_wiki.read_note`
 - `obs_wiki.list_review_queue`
 - `obs_wiki.audit_recent`
+- `obs_wiki.write_context_pack`
+- `obs_wiki.write_session_note`
+- `obs_wiki.capture_source`
+- `obs_wiki.propose_memory`
 
-All tools are read-only:
+Write policy:
 
-- no writes
+- Writes are strictly limited to:
+  - `06_outputs/context_packs/`
+  - `02_timeline/sessions/`
+  - `03_sources/`
+  - `01_inbox/review_queue/`
+- only markdown (`.md`) files are created
+- no overwrite of existing files
+- no delete / no rename
+
+Security constraints:
+
 - no shell calls
 - no network calls
 - no vault-outside reads
 - no `.obsidian` reads
+- all writes append events to `00_control/audit_log.md` (file is created if absent)
 
 ## Run
 

@@ -165,11 +165,11 @@ class StdioMcpServer {
 					},
 					serverInfo: {
 						name: 'obs-wiki-mcp-server',
-						title: 'obs-wiki MCP Server (Read-only MVP)',
+						title: 'obs-wiki MCP Server (Phase 8 Controlled Write)',
 						version: '0.1.0',
 					},
 					instructions:
-						'This MCP server is read-only and scoped to vault-local read operations only. It refuses vault-outside reads and .obsidian paths.',
+						'This MCP server supports controlled write tools for low-risk outputs while keeping all reads scoped to vault-local paths and rejecting vault-outside or .obsidian access.',
 				};
 			case 'tools/list':
 				return { tools: toolDefinitions() };
