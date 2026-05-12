@@ -1,0 +1,11 @@
+{
+  "id": "obs-wiki",
+  "name": "obs-wiki",
+  "version": "0.1.0",
+  "minAppVersion": "1.6.0",
+  "description": "Native Obsidian plugin scaffold for obs-wiki.",
+  "author": "obs-wiki",
+  "authorUrl": "https://github.com",
+  "isDesktopOnly": false,
+  "main": "main.js"
+}

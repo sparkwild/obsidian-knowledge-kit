@@ -4,3 +4,5 @@ __pycache__/
 # Ignore the earlier Obsidian-community-plugin experiment path if it reappears.
 plugin/
 /.idea/
+apps/**/node_modules/
+apps/obsidian-plugin/node_modules/

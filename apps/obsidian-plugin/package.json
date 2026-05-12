@@ -1,0 +1,16 @@
+{
+  "name": "obs-wiki-obsidian-plugin",
+  "version": "0.1.0",
+  "description": "Obsidian plugin scaffold for obs-wiki.",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "build": "node ./scripts/build.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "obsidian": "^1.7.2",
+    "typescript": "^5.6.0"
+  }
+}

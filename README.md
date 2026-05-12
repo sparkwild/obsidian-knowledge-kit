@@ -2,233 +2,114 @@
 
 [简体中文说明](./README.zh-CN.md)
 
-obs-wiki is a Codex-native steward for Obsidian vaults. It helps initialize a vault, ingest external materials, query targeted context, refine existing knowledge, and keep the knowledge base structured, traceable, and maintainable.
+obs-wiki is an Obsidian-native plugin direction for turning an Obsidian vault into an external memory and knowledge layer for AI agents.
 
-For active-vault operations, obs-wiki now prefers Obsidian CLI-backed reads and writes through a shared runtime layer, using direct filesystem I/O only as a fallback when the target vault is not the active vault or the CLI cannot satisfy the operation.
+The current product direction is being reset from the older Codex plugin-first workflow to an Obsidian plugin-first and Agent memory-first architecture. The Obsidian plugin is the user's review, audit, permission, and source-analysis interface. MCP is the primary interface for agents. The vault remains the only source of truth for durable memory and knowledge.
 
-Project note:
+## Current Direction
 
-- The product-facing name is `obs-wiki`.
-- The internal package, plugin name, and install path now also use `obs-wiki`.
-- This repository is a Codex local plugin package and runtime, not an Obsidian community plugin.
-- The active Obsidian vault is the only knowledge carrier; obs-wiki does not create a second raw/wiki system outside the vault.
+- Product name: `obs-wiki`.
+- Plugin id: `obs-wiki`.
+- Main product surface: Obsidian native plugin.
+- Agent interface: MCP tools, resources, and prompts.
+- Memory carrier: Obsidian vault notes, Properties, wikilinks, block references, review queues, and audit logs.
+- Runtime role: indexing, recall, context packs, lint previews, source analysis, writeback planning, permission checks, and audit event generation.
 
-## MCP-first for AI conversation, CLI-first for execution
+This repository still contains the previous Codex local plugin package and Python runtime. Treat that code as legacy reference while the new Obsidian-native product line is built. Do not delete or migrate it without an explicit decision.
 
-obs-wiki separates AI-facing conversation entrypoints from deterministic local execution:
+## Product Principles
+
+- Agent-first: agents should actively recall context, history, preferences, and source material while working.
+- Obsidian-native: the vault is the knowledge body; caches and indexes are acceleration layers only.
+- Review-first: agents may propose long-term memory, but high-risk memory should not be silently committed.
+- Evidence-first: important claims should trace back to sources, evidence blocks, and review state.
+- Audit-first: critical agent reads and writes should be visible and reviewable in Obsidian.
+- MCP-first for agent access: expose memory semantics, not arbitrary filesystem operations.
+- Plugin-first for user supervision: Obsidian is the UI for review, audit, permissions, and source queues.
+
+## Target Architecture
 
 ```text
-AI conversation tools
--> obs-wiki MCP adapter
--> obs-wiki CLI / shared runtime
--> Active Obsidian vault
-
-Local Codex execution
--> obs-wiki CLI / scripts
--> Active Obsidian vault
+Agent / AI Client
+Codex / Claude / Cursor / ChatGPT / Local Agent
+        ↓ MCP
+obs-wiki MCP Server
+        ↓
+obs-wiki Memory Runtime
+        ↓
+obs-wiki Obsidian Plugin Bridge
+        ↓
+Obsidian Vault
+        ↓
+Human Review / Audit / Correction in Obsidian App
 ```
 
-MCP is the preferred interface for AI conversation tools because it can expose obs-wiki tools, resources, and prompts in a structured way. The MCP adapter should stay thin: it must call the obs-wiki CLI/scripts or shared runtime instead of bypassing the runtime or inventing a second knowledge-processing layer.
-
-The CLI remains the deterministic execution layer. It continues to own active vault detection, context packs, lint, ingest, distill, dashboards, reports, and other stable local tasks. MCP is an optional enhancement layer for AI clients, not a hard dependency for the core runtime. The current MVP is a read-only stdio MCP adapter that delegates to the obs-wiki shared runtime.
-
-## Repository Layout
+## Planned Repository Layout
 
 ```text
 obs-wiki/
-├─ skills/
-│  ├─ obs-wiki-init/
-│  ├─ obs-wiki-ingest/
-│  ├─ obs-wiki-query/
-│  ├─ obs-wiki-lint/
-│  └─ obs-wiki-refine/
-├─ plugins/
-│  └─ obs-wiki/
-│     ├─ .codex-plugin/plugin.json
-│     ├─ agents/
-│     ├─ assets/
-│     ├─ commands/
-│     ├─ lib/
-│     └─ skills/
-└─ lib/
-   └─ obs_wiki_shared/
+├─ apps/
+│  ├─ obsidian-plugin/
+│  ├─ mcp-server/
+│  └─ cli/
+├─ packages/
+│  ├─ core/
+│  ├─ schemas/
+│  └─ shared/
+├─ docs/
+├─ tests/
+└─ package.json
 ```
 
-## Components
+## First Implementation Track
 
-- `obs-wiki-init`: bootstrap the minimum codex-native vault skeleton.
-- `obs-wiki-ingest`: bring external materials into `03_raw/` and distill them into stable notes.
-- `obs-wiki-query`: build an Obsidian-native context pack before answering knowledge questions.
-- `obs-wiki-lint`: inspect vault content quality, sources, links, and stale knowledge without auto-fixing by default.
-- `obs-wiki-refine`: improve structure, links, boundaries, and status notes in an initialized vault.
-- `plugins/obs-wiki`: repo-local Codex plugin package with `.codex-plugin/plugin.json`.
-- `lib/obs_wiki_shared`: shared preflight, official skill update checks, and bootstrap note rendering.
+The first implementation track follows [docs/obs_wiki_new_start_plan](./docs/obs_wiki_new_start_plan/00_README.md):
 
-Web ingest policy:
+1. Direction reset and documentation landing.
+2. Obsidian plugin scaffold in `apps/obsidian-plugin/`.
+3. Vault memory structure initialization.
+4. Agent Activity and Audit UI.
+5. Review Queue.
+6. Source Analysis Request.
+7. Memory Runtime v0.
+8. Read-only MCP server MVP.
 
-- Prefer lightweight URL extraction first.
-- When websites block automated fetching, use `Computer Use` as a manual browser fallback.
-- If `Computer Use` is unavailable or missing permission on the user's machine, do not install or enable it automatically; ask the user to do that explicitly.
+The first coding milestone is a buildable Obsidian plugin scaffold with:
 
-## Current Status
+- `manifest.json` using id `obs-wiki`.
+- TypeScript project configuration.
+- `main.ts`.
+- Ribbon icon.
+- command palette entries.
+- settings tab with persistent settings.
+- basic ItemView.
 
-- Repository migration completed from the earlier workspace prototype.
-- Shared runtime is no longer exposed as a fourth skill.
-- Plugin direction has been corrected to a Codex plugin package, not an Obsidian community plugin.
-- The current evolution target is obs-wiki Phase 1 and Phase 2: branding plus query/context-pack workflows.
-- The current architecture target is MCP-first for AI conversation and CLI-first for deterministic execution.
-- The next implementation layer is an optional MCP adapter, after the CLI/runtime contract is stable.
+## New Direction Docs
 
-## Project Docs
+- [Plan package README](./docs/obs_wiki_new_start_plan/00_README.md)
+- [Product Vision](./docs/obs_wiki_new_start_plan/01_Product_Vision.md)
+- [System Architecture](./docs/obs_wiki_new_start_plan/02_System_Architecture.md)
+- [Knowledge and Memory Model](./docs/obs_wiki_new_start_plan/03_Knowledge_And_Memory_Model.md)
+- [Obsidian Plugin Design](./docs/obs_wiki_new_start_plan/04_Obsidian_Plugin_Design.md)
+- [Agent Memory API](./docs/obs_wiki_new_start_plan/05_Agent_Memory_API.md)
+- [Runtime and MCP Design](./docs/obs_wiki_new_start_plan/06_Runtime_And_MCP_Design.md)
+- [Phased Execution Plan](./docs/obs_wiki_new_start_plan/07_Phased_Execution_Plan.md)
+- [Codex Task Prompts](./docs/obs_wiki_new_start_plan/08_Codex_Task_Prompts.md)
+- [Acceptance Checklists](./docs/obs_wiki_new_start_plan/09_Acceptance_Checklists.md)
+- [Open Questions](./docs/obs_wiki_new_start_plan/10_Open_Questions.md)
+- [Implementation Manifest](./docs/obs_wiki_new_start_plan/IMPLEMENTATION_MANIFEST.json)
 
-- [Chinese README](./README.zh-CN.md)
-- [Codex Task Brief](./docs/obs-wiki_Codex_Task_Brief.md)
-- [Phase 2 MCP/CLI Performance Plan](./docs/obs-wiki_Phase2_MCP_CLI_Performance_Plan.md)
-- [MCP Adapter Design](./docs/obs-wiki_MCP_Adapter_Design.md)
-- [Runtime Performance Evaluation](./docs/obs-wiki_Runtime_Performance_Evaluation.md)
-- [Phase 2 Execution Checklist](./docs/obs-wiki_Phase2_Execution_Checklist.md)
-- [Contributing Guide](./CONTRIBUTING.md)
-- [Security Policy](./SECURITY.md)
-- [Code of Conduct](./CODE_OF_CONDUCT.md)
+## Legacy Reference
 
-## Development Install
+Existing `skills/`, `plugins/obs-wiki/`, `lib/obs_wiki_shared/`, and `scripts/` files belong to the previous Codex plugin-first implementation. They are useful references for context packs, lint, evidence scaffolding, MCP boundaries, and vault-only rules, but they are not the new product's primary user interface.
 
-Use the local installer to expose this repo to Codex without copying files by hand:
+Until the migration decision is made:
 
-```bash
-python3 scripts/install_local_runtime.py
-```
+- Do not remove legacy code by default.
+- Do not optimize old skills or commands as the main product path.
+- Do not write to a real Obsidian vault unless a task explicitly asks for it.
+- Keep new Obsidian-native work under `apps/` and `packages/`.
 
-By default it symlinks:
+## License
 
-- `skills/obs-wiki-init`
-- `skills/obs-wiki-ingest`
-- `skills/obs-wiki-query`
-- `skills/obs-wiki-lint`
-- `skills/obs-wiki-refine`
-- `lib/obs_wiki_shared`
-
-into `~/.codex` or the path from `CODEX_HOME`.
-
-## Codex Plugin
-
-This repository now exposes a repo-local Codex plugin package at:
-
-```text
-plugins/obs-wiki/.codex-plugin/plugin.json
-```
-
-Current plugin scope:
-
-- expose the main knowledge skills, including targeted query/context-pack retrieval, to Codex as a local plugin
-- expose a query workflow that writes Obsidian-native context packs into the active vault
-- expose a setup command for installing the global AGENTS knowledge hint
-- expose command entrypoints for startup and distill loops
-- expose a doctor command for environment checks
-- ship a self-contained plugin package so Codex cache installs do not depend on external symlinks
-- install into the home-local Codex plugin marketplace for actual daily use
-
-Validate the repo-local plugin package:
-
-```bash
-python3 scripts/check_codex_plugin.py --json
-```
-
-Sync the plugin package after root `skills/` or `lib/` changes:
-
-```bash
-python3 scripts/sync_plugin_package.py
-```
-
-Install the plugin into the home-local Codex marketplace:
-
-```bash
-python3 scripts/install_home_local_plugin.py --json
-```
-
-This installs the plugin under the standard hidden personal path:
-
-- `~/.codex/plugins/obs-wiki`
-- `~/.agents/plugins/marketplace.json`
-
-Check or install the minimal global knowledge hint in `~/.codex/AGENTS.md`:
-
-```bash
-python3 scripts/install_global_knowledge_hint.py --json
-python3 scripts/install_global_knowledge_hint.py --apply --json
-```
-
-Load the current knowledge context:
-
-```bash
-python3 scripts/load_knowledge_context.py --json
-```
-
-Create a distill session skeleton:
-
-```bash
-python3 scripts/render_session_skeleton.py --apply --json
-```
-
-Build a query-focused context pack:
-
-```bash
-python3 scripts/build_context_pack.py "What should I read before answering this knowledge question?" --json
-```
-
-Run a knowledge lint pass:
-
-```bash
-python3 scripts/lint_knowledge_vault.py --json
-```
-
-Run a synthetic runtime benchmark without touching a real vault:
-
-```bash
-python3 scripts/benchmark_runtime.py --fixture-notes 100 --runs 1 --json
-```
-
-Run the read-only MCP adapter over stdio:
-
-```bash
-python3 scripts/mcp_adapter.py
-```
-
-For offline smoke testing against a generated temporary vault:
-
-```bash
-python3 scripts/smoke_mcp_adapter.py
-```
-
-MVP tools:
-
-- `obs_wiki_status`
-- `obs_wiki_query`
-- `obs_wiki_lint`
-- `obs_wiki_read_note`
-- `obs_wiki_review_queue`
-
-Render Obsidian Bases dashboards:
-
-```bash
-python3 scripts/render_bases_dashboards.py --json
-python3 scripts/render_bases_dashboards.py --apply --json
-```
-
-The ingest register model now includes evidence-ready fields such as `source_id`, `source_hash`, `snapshot_path`, `verification_status`, `claim_count`, and `synthesis_targets`, plus scaffolded evidence/claim blocks for later query and lint workflows. Lint now also checks claim-count drift and warns when stable knowledge only points to note-level sources instead of block-level evidence.
-
-After downstream notes cite a raw/source register, you can reconcile its state with:
-
-```bash
-python3 scripts/reconcile_source_register.py "03_raw/registers/<register>.md" --json
-```
-
-Dashboard files are written into `00_system/dashboards/` inside the active vault and can be opened directly in Obsidian Bases.
-
-Expected workflow:
-
-1. Open this repository in Codex.
-2. Install the plugin into `~/.codex/plugins/obs-wiki` and `~/.agents/plugins/marketplace.json`.
-3. If the plugin does not appear immediately, reopen the repository or restart Codex.
-
-The reopen/restart step is an operational fallback inferred from the local plugin packaging model and local plugin examples.
+This project is licensed under the [MIT License](./LICENSE).
