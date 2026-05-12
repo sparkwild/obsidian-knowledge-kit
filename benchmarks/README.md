@@ -1,4 +1,4 @@
-# Vaultwright Benchmarks
+# obs-wiki Benchmarks
 
 This directory documents benchmark scenarios and report expectations. The first scaffold lives in `scripts/benchmark_runtime.py` so it can run without extra dependencies.
 

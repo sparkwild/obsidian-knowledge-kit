@@ -1,4 +1,0 @@
-interface:
-  display_name: "Vaultwright Refine"
-  short_description: "Refine a Vaultwright knowledge vault"
-  default_prompt: "Refine the active Obsidian knowledge vault by improving note structure, topic boundaries, links, and status synchronization after verifying the environment and required official obsidian-skills, while keeping the vault as the only knowledge carrier."

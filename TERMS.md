@@ -1,6 +1,6 @@
 # Terms of Use
 
-`vaultwright` is provided under the MIT License.
+`obs-wiki` is provided under the MIT License.
 
 ## Use at your own risk
 

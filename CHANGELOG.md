@@ -6,27 +6,28 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Rebranded the project fully to `Vaultwright` / `vaultwright` across product, plugin, skills, and install paths.
+- Rebranded the project fully to `obs-wiki` / `obs-wiki` across product, plugin, skills, and install paths.
+- Renamed the shared Python runtime package to `obs_wiki_shared`.
 - Strengthened the Obsidian-native contract across plugin metadata, skill text, command docs, the AGENTS hint installer, and the core note template.
 - Documented the MCP-first AI conversation and CLI-first execution architecture in English and Chinese README files.
-- Updated the Phase 2 plan to match the current `vaultwright` package, skill, and install paths.
+- Updated the Phase 2 plan to match the current `obs-wiki` package, skill, and install paths.
 - Clarified that MCP is an optional adapter layer and does not authorize a full MCP server or Python runtime rewrite in this phase.
 
 ### Added
 
-- Added `docs/Vaultwright_MCP_Adapter_Design.md` for MCP tools, resources, prompts, permissions, and CLI/runtime boundaries.
-- Added `docs/Vaultwright_Runtime_Performance_Evaluation.md` for the Python runtime, uv, benchmark, index, and Rust/Go decision path.
-- Added `docs/Vaultwright_Phase2_Execution_Checklist.md` as the next-pass execution and validation checklist.
+- Added `docs/obs-wiki_MCP_Adapter_Design.md` for MCP tools, resources, prompts, permissions, and CLI/runtime boundaries.
+- Added `docs/obs-wiki_Runtime_Performance_Evaluation.md` for the Python runtime, uv, benchmark, index, and Rust/Go decision path.
+- Added `docs/obs-wiki_Phase2_Execution_Checklist.md` as the next-pass execution and validation checklist.
 - Added `scripts/benchmark_runtime.py` and `benchmarks/README.md` as the first read-only runtime benchmark scaffold.
 - Added the read-only stdio MCP Adapter MVP with `status`, `query`, `lint`, `read-note`, and `review-queue` tools.
 - Added `scripts/smoke_mcp_adapter.py` for offline MCP protocol smoke testing against a generated temporary vault.
-- Added the `vaultwright-query` skill.
-- Added the `query` command for building Vaultwright context pack notes.
-- Added `scripts/build_context_pack.py` and `lib/obsidian_knowledge_shared/context_pack.py`.
+- Added the `obs-wiki-query` skill.
+- Added the `query` command for building obs-wiki context pack notes.
+- Added `scripts/build_context_pack.py` and `lib/obs_wiki_shared/context_pack.py`.
 - Added `01_ai_core/context_packs/` to the default vault directory scaffold.
-- Added the `vaultwright-lint` skill.
+- Added the `obs-wiki-lint` skill.
 - Added the `lint` command and `scripts/lint_knowledge_vault.py`.
-- Added `lib/obsidian_knowledge_shared/knowledge_lint.py` for report-driven vault health checks.
+- Added `lib/obs_wiki_shared/knowledge_lint.py` for report-driven vault health checks.
 - Enhanced raw/source registers with evidence-ready metadata fields and evidence/claim scaffolds.
 - Added lint checks for claim-count drift and note-level-vs-block-level source coverage.
 - Added `reconcile_source_register.py` to backfill register state from actual claim blocks and synthesis targets.
@@ -36,7 +37,7 @@ All notable changes to this project will be documented in this file.
 ### Validation
 
 - `scripts/check_codex_plugin.py` now validates the new query skill, command, and script.
-- `scripts/install_local_runtime.py` now installs `vaultwright-query` and `vaultwright-lint` during local development installs.
+- `scripts/install_local_runtime.py` now installs `obs-wiki-query` and `obs-wiki-lint` during local development installs.
 - `scripts/check_codex_plugin.py` now validates that the benchmark runtime script is bundled into the plugin package.
 - `scripts/check_codex_plugin.py` now validates that the MCP adapter and smoke test scripts are bundled into the plugin package.
 
@@ -57,7 +58,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- First usable pre-release of `vaultwright`.
+- First usable pre-release of `obs-wiki`.
 - Self-contained Codex plugin packaging and home-local installation support.
 - Lifecycle commands: `setup`, `start`, `doctor`, `init`, `ingest`, `refine`, and `distill`.
 - Startup context loading, semi-automated ingest source registration, and semi-automated distill writeback.

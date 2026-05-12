@@ -1,13 +1,13 @@
 # Contributing
 
-Thanks for contributing to `vaultwright`.
+Thanks for contributing to `obs-wiki`.
 
 ## Scope
 
 This repository contains two tightly coupled surfaces:
 
 - the root toolkit source (`skills/`, `lib/`, `scripts/`)
-- the packaged Codex plugin (`plugins/vaultwright/`)
+- the packaged Codex plugin (`plugins/obs-wiki/`)
 
 Changes should keep both surfaces consistent.
 
@@ -26,7 +26,7 @@ python3 scripts/sync_plugin_package.py
 Run these checks before opening a PR:
 
 ```bash
-python3 -B -m py_compile $(find lib scripts skills plugins/vaultwright/lib plugins/vaultwright/skills -name '*.py')
+python3 -B -m py_compile $(find lib scripts skills plugins/obs-wiki/lib plugins/obs-wiki/skills -name '*.py')
 python3 scripts/check_codex_plugin.py --json
 ```
 

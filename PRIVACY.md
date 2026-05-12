@@ -1,6 +1,6 @@
 # Privacy Policy
 
-`vaultwright` is a local-first toolkit and Codex plugin package.
+`obs-wiki` is a local-first toolkit and Codex plugin package.
 
 ## What the project does
 

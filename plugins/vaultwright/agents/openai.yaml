@@ -1,4 +1,0 @@
-interface:
-  display_name: "Vaultwright"
-  short_description: "Steward an Obsidian vault from Codex"
-  default_prompt: "Use Vaultwright to work with the active Obsidian vault through init, ingest, query, lint, refine, and distill workflows while treating the vault as the only knowledge carrier and avoiding external raw/wiki directory systems."

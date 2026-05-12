@@ -1,0 +1,4 @@
+interface:
+  display_name: "obs-wiki Ingest"
+  short_description: "Ingest material into an Obsidian vault"
+  default_prompt: "Ingest this local directory, file, or URL into the active Obsidian vault after verifying the environment and required official obsidian-skills. Keep the vault as the only knowledge carrier, prefer defuddle for web URLs, and only suggest Computer Use as a fallback when anti-bot or dynamic pages block automated fetching."

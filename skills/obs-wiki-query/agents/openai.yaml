@@ -1,0 +1,4 @@
+interface:
+  display_name: "obs-wiki Query"
+  short_description: "Build a focused context pack for an Obsidian vault question"
+  default_prompt: "Answer this Obsidian-knowledge question by building an obs-wiki context pack first, using the active vault as the only knowledge carrier and reading only the highest-value candidate notes."
