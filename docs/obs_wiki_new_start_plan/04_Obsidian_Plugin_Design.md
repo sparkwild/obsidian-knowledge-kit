@@ -6,10 +6,10 @@ obs-wiki Obsidian 插件是：
 
 - Agent Activity 观察窗。
 - Memory Review Queue。
-- Source Analysis 入口。
-- Permission Center。
+- Source / Context / Runtime 状态查看器。
+- Permission Policy Viewer。
 - Audit UI。
-- Vault Bridge。
+- 人类审核批准入口。
 
 它不是：
 
@@ -17,6 +17,8 @@ obs-wiki Obsidian 插件是：
 - Codex 插件。
 - 任意文件读写工具。
 - 自动长期记忆提交器。
+- 资料提交入口。
+- source analysis / lint / distill / context pack 的执行入口。
 
 ## 插件 ID 和显示名
 
@@ -54,30 +56,38 @@ Display Name: obs-wiki
 操作：
 
 - Approve。
-- Edit。
 - Reject。
 - Defer。
-- Mark stale。
+- Request Revision。
+- Apply Approved Writeback。
 - Open evidence。
 - Open target note。
 
-### Source Analysis View
+说明：
 
-用户手动让 Agent 分析资料的入口：
+- Review Queue 只修改 proposal 审核状态、review comment、revision request 和 audit event。
+- Apply Approved Writeback 只触发 Runtime 执行已批准写回，不由插件直接拼接长期记忆。
 
-- Analyze URL with Agent。
-- Analyze Local File with Agent。
-- Analyze Current Note。
-- Analyze Current Selection。
-- Add Source to Agent Inbox。
+### Source Status View
 
-表单字段：
+显示 Agent 已生成或正在处理的 source 状态：
 
-- source。
-- analysis purpose。
+- source note。
+- source kind。
+- capture status。
+- analysis status。
+- related task。
 - related project。
-- analysis mode。
-- write policy。
+- linked proposals。
+- audit trail。
+
+不提供：
+
+- Analyze URL。
+- Analyze Local File。
+- Analyze Current Note / Selection。
+- Add Source to Inbox。
+- Capture Source。
 
 ### Memory Inspector View
 
@@ -93,21 +103,14 @@ Display Name: obs-wiki
 - used by agent tasks。
 - stale status。
 
-### Permission Center
+### Audit Log View
 
-设置：
+显示：
 
-- Agent read scope。
-- Agent write scope。
-- Safe write folders。
-- Protected folders。
-- 是否允许 source capture。
-- 是否允许自动写 context pack。
-- 是否允许自动写 session note。
-- 是否允许自动提交 proposal。
-- Preference memory 是否必须显式确认。
-- MCP mode。
-- Audit level。
+- Agent read / write events。
+- Runtime approved writeback events。
+- Plugin review events。
+- Failed or blocked operations。
 
 ### Runtime Status View
 
@@ -121,24 +124,52 @@ Display Name: obs-wiki
 - Last source analysis。
 - Last benchmark。
 
+### Permission Policy View
+
+显示：
+
+- Agent read scope。
+- Agent write scope。
+- Safe write folders。
+- Protected folders。
+- source capture policy。
+- context pack / session note write policy。
+- proposal auto-create policy。
+- preference memory explicit-confirm policy。
+- MCP mode。
+- Audit level。
+
 ## Command Palette 命令
 
 ```text
 obs-wiki: Open Agent Activity
 obs-wiki: Open Review Queue
-obs-wiki: Open Source Analysis
 obs-wiki: Open Memory Inspector
-obs-wiki: Open Permission Center
-obs-wiki: Initialize Memory Structure
-obs-wiki: Analyze URL with Agent
-obs-wiki: Analyze Local File with Agent
+obs-wiki: Open Audit Log
+obs-wiki: Open Runtime Status
+obs-wiki: Open Permission Policy
+obs-wiki: Refresh Views
+obs-wiki: Approve Selected Proposal
+obs-wiki: Reject Selected Proposal
+obs-wiki: Defer Selected Proposal
+obs-wiki: Request Revision for Selected Proposal
+obs-wiki: Apply Approved Writeback
+```
+
+明确取消的命令：
+
+```text
+obs-wiki: Analyze URL
+obs-wiki: Analyze Local File
 obs-wiki: Analyze Current Note
-obs-wiki: Analyze Current Selection
+obs-wiki: Analyze Selection
+obs-wiki: Capture Source
+obs-wiki: Add Source to Inbox
 obs-wiki: Build Context Pack
-obs-wiki: Run Memory Lint
-obs-wiki: Rebuild Index
-obs-wiki: Show Runtime Status
-obs-wiki: Copy MCP Config
+obs-wiki: Run Ingest
+obs-wiki: Run Lint
+obs-wiki: Distill Session
+obs-wiki: Create Agent Request
 ```
 
 ## Ribbon 按钮
@@ -147,23 +178,31 @@ obs-wiki: Copy MCP Config
 
 - Agent Activity。
 - Review Queue。
-- Analyze Source。
 - Runtime Status。
 
 ## 写入策略
 
-### 可自动写入
+### Agent / Runtime 可自动写入
 
 - `06_outputs/context_packs/`
 - `06_outputs/reports/`
 - `02_timeline/sessions/`
 - `02_timeline/agent_tasks/`
 - `03_sources/`
-- `01_inbox/agent_requests/`
 - `01_inbox/review_queue/`
 - audit events。
 
-### 需要用户确认
+### Obsidian 插件可写入
+
+- proposal `approval_status`。
+- `review_comment`。
+- `reviewed_by`。
+- `reviewed_at`。
+- `revision_request`。
+- approval audit event。
+- UI settings。
+
+### 需要用户确认并由 Runtime 写回
 
 - `04_memory/`
 - `05_projects/`
@@ -178,19 +217,20 @@ obs-wiki: Copy MCP Config
 - 读取或写入 vault 外路径。
 - 保存 secrets / API key / tokens。
 - 静默提交用户偏好。
+- Obsidian 插件直接生成 source note / context pack / source analysis report / memory proposal。
 
 ## 第一代插件 MVP
 
 第一代只需要完成：
 
 - 插件可加载。
-- 初始化 vault memory structure。
 - Agent Activity View。
 - Review Queue View。
-- Source Analysis Request 创建。
 - Audit Log 展示。
-- Permission Settings。
+- Memory Inspector。
 - Runtime Status。
-- 基础 Memory Inspector。
+- Permission Policy。
+- Source Status 只读展示。
 
 不需要第一版内置完整 AI 聊天。
+不需要第一版提供资料提交或维护动作入口。

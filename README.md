@@ -2,18 +2,20 @@
 
 [简体中文说明](./README.zh-CN.md)
 
-obs-wiki is an Obsidian-native plugin direction for turning an Obsidian vault into an external memory and knowledge layer for AI agents.
+obs-wiki is an Agent-first memory system that uses an Obsidian vault as the durable knowledge layer and an Obsidian plugin as the human governance surface.
 
-The current product direction is being reset from the older Codex plugin-first workflow to an Obsidian plugin-first and Agent memory-first architecture. The Obsidian plugin is the user's review, audit, permission, and source-analysis interface. MCP is the primary interface for agents. The vault remains the only source of truth for durable memory and knowledge.
+The current product direction is being reset from the older Codex plugin-first workflow to an Obsidian-native and Agent-first architecture. Agent clients are the only operation entry for URL/file submission, source analysis, context packs, lint, distill, and memory proposals. The Obsidian plugin is the user's review, audit, permission, status, and approval interface. MCP is the primary interface for agents. The vault remains the only source of truth for durable memory and knowledge.
 
 ## Current Direction
 
 - Product name: `obs-wiki`.
 - Plugin id: `obs-wiki`.
-- Main product surface: Obsidian native plugin.
+- Main product surface: Agent operation entry plus Obsidian governance plugin.
 - Agent interface: MCP tools, resources, and prompts.
 - Memory carrier: Obsidian vault notes, Properties, wikilinks, block references, review queues, and audit logs.
-- Runtime role: indexing, recall, context packs, lint previews, source analysis, writeback planning, permission checks, and audit event generation.
+- Runtime role: indexing, recall, context packs, lint previews, source analysis, proposal generation, approved writeback, permission checks, and audit event generation.
+- Obsidian plugin role: Agent Activity, Review Queue, Audit Log, Memory Inspector, Runtime Status, and Permission Policy.
+- Removed from Obsidian plugin entry points: Analyze URL, Analyze Local File, Capture Source, Build Context Pack, Run Lint, Run Distill, and other source submission or maintenance actions.
 
 This repository still contains the previous Codex local plugin package and Python runtime. Treat that code as legacy reference while the new Obsidian-native product line is built. It is currently retained as an archive candidate for migration rollback.
 
@@ -46,13 +48,13 @@ or:
 
 ## Product Principles
 
-- Agent-first: agents should actively recall context, history, preferences, and source material while working.
+- Single Agent Operation Entry: users submit URLs, files, source analysis, context pack, lint, distill, and proposal work through an Agent client.
 - Obsidian-native: the vault is the knowledge body; caches and indexes are acceleration layers only.
 - Review-first: agents may propose long-term memory, but high-risk memory should not be silently committed.
 - Evidence-first: important claims should trace back to sources, evidence blocks, and review state.
 - Audit-first: critical agent reads and writes should be visible and reviewable in Obsidian.
 - MCP-first for agent access: expose memory semantics, not arbitrary filesystem operations.
-- Plugin-first for user supervision: Obsidian is the UI for review, audit, permissions, and source queues.
+- Human Governance in Obsidian: Obsidian is the UI for review, approval, rejection, revision requests, audit, permissions, and status.
 
 ## Target Architecture
 
@@ -96,8 +98,8 @@ The first implementation track follows [docs/obs_wiki_new_start_plan](./docs/obs
 2. Obsidian plugin scaffold in `apps/obsidian-plugin/`.
 3. Vault memory structure initialization.
 4. Agent Activity and Audit UI.
-5. Review Queue.
-6. Source Analysis Request.
+5. Review Queue and human approval actions.
+6. Agent-created source status visibility.
 7. Memory Runtime v0.
 8. Read-only MCP server MVP.
 
@@ -107,7 +109,7 @@ The first coding milestone is a buildable Obsidian plugin scaffold with:
 - TypeScript project configuration.
 - `main.ts`.
 - Ribbon icon.
-- command palette entries.
+- command palette entries for governance views only.
 - settings tab with persistent settings.
 - basic ItemView.
 
@@ -125,6 +127,7 @@ The first coding milestone is a buildable Obsidian plugin scaffold with:
 - [Acceptance Checklists](./docs/obs_wiki_new_start_plan/09_Acceptance_Checklists.md)
 - [Open Questions](./docs/obs_wiki_new_start_plan/10_Open_Questions.md)
 - [Migration Decision](./docs/obs_wiki_new_start_plan/11_Migration_Decision.md)
+- [First Batch Adjustment](./docs/obs_wiki_new_start_plan/12_First_Batch_Adjustment.md)
 - [Implementation Manifest](./docs/obs_wiki_new_start_plan/IMPLEMENTATION_MANIFEST.json)
 
 ## Legacy Reference

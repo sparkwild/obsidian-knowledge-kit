@@ -8,6 +8,8 @@
 - [ ] Obsidian vault 是唯一知识和记忆载体。
 - [ ] MCP 是 Agent 主接口。
 - [ ] Obsidian 插件是 review / audit / permission UI。
+- [ ] Agent 是 URL / 文件 / source analysis / context pack / lint / distill 的唯一操作入口。
+- [ ] Obsidian 插件不提供资料提交或维护动作入口。
 - [ ] Agent 不能默认静默提交高风险长期记忆。
 - [ ] 所有写入有审计记录。
 - [ ] 不允许 vault 外路径访问。
@@ -21,6 +23,8 @@
 - [ ] SettingsTab 可保存配置。
 - [ ] Ribbon icon 存在。
 - [ ] Command Palette 命令存在。
+- [ ] Command Palette 不包含 Analyze URL / Local File / Current Note / Selection。
+- [ ] Command Palette 不包含 Capture Source / Build Context Pack / Run Lint / Run Distill / Create Agent Request。
 
 ## Vault Structure
 
@@ -52,14 +56,13 @@
 - [ ] 操作写 audit event。
 - [ ] 不自动改长期记忆。
 
-## Source Analysis Request
+## Agent Source Status
 
-- [ ] Analyze URL 创建 agent-request。
-- [ ] Analyze Local File 创建 agent-request。
-- [ ] Analyze Current Note 创建 agent-request。
-- [ ] Analyze Current Selection 创建 agent-request。
-- [ ] Request 状态默认为 pending。
-- [ ] Request 可在 UI 中看到。
+- [ ] Agent / MCP 创建的 request 可在 UI 中看到。
+- [ ] Source status 显示 source、source_kind、purpose、analysis_mode、status。
+- [ ] Obsidian 插件不创建 agent-request。
+- [ ] Obsidian 插件不抓取 URL。
+- [ ] Obsidian 插件不读取 vault 外本地文件。
 
 ## MCP Read-only MVP
 

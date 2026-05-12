@@ -3,6 +3,8 @@
 ## 总体架构
 
 ```text
+User task
+        ↓
 Agent / AI Client
 Codex / Claude / Cursor / ChatGPT / Local Agent
         ↓ MCP
@@ -10,31 +12,37 @@ obs-wiki MCP Server
         ↓
 obs-wiki Memory Runtime
         ↓
-obs-wiki Obsidian Plugin Bridge
-        ↓
 Obsidian Vault
         ↓
-Human Review / Audit / Correction in Obsidian App
+obs-wiki Obsidian Plugin
+        ↓
+Human Review / Audit / Approval in Obsidian App
 ```
 
 ## 四层职责
 
 ### 1. Obsidian Plugin
 
-Obsidian 插件是用户信任界面和 vault bridge。
+Obsidian 插件是用户信任界面和治理入口，不是资料提交或维护动作入口。
 
 职责：
 
-- 初始化 vault memory structure。
 - 展示 Agent Activity。
 - 展示 Review Queue。
 - 展示 Audit Log。
-- 展示 Source Analysis Queue。
+- 展示 Agent 生成的 Source Status / Context Pack / Runtime Status。
 - 展示 Memory Inspector。
-- 管理权限。
+- 展示权限策略。
 - 监听 vault 文件变化。
-- 通过 Obsidian Vault API 安全读写。
-- 显示 runtime / MCP 状态。
+- 对 proposal 执行 approve / reject / defer / request revision。
+- 触发 Runtime 执行 approved writeback。
+- 只写入审核状态、审核意见、审计事件和 UI settings。
+
+明确不负责：
+
+- Analyze URL / Analyze Local File / Analyze Current Note / Analyze Selection。
+- Capture Source / Build Context Pack / Run Ingest / Run Lint / Run Distill。
+- 创建 source note / context pack / source-analysis report / session note / memory proposal。
 
 ### 2. Memory Runtime
 
@@ -50,6 +58,7 @@ Runtime 是执行内核。
 - source analysis。
 - lint / health checks。
 - writeback planner。
+- approved writeback executor。
 - permission engine。
 - audit event 生成。
 
@@ -65,10 +74,11 @@ MCP Server 是 Agent 调用入口。
 - 对所有请求执行权限检查。
 - 调用 Runtime，而不是复制业务逻辑。
 - 默认 read-only，写入受 allowlist 和 review policy 控制。
+- 用户提交 URL / 文件 / source analysis / context pack / lint / distill 等任务时，由 Agent 调用 MCP 发起。
 
 ### 4. CLI
 
-CLI 是自动化和调试入口，不是主产品入口。
+CLI 是自动化和调试入口，不是用户主产品入口，也不是 Obsidian 插件按钮背后的资料提交入口。
 
 职责：
 
@@ -113,9 +123,11 @@ obs-wiki/
 │   │   │   ├── views/
 │   │   │   │   ├── AgentActivityView.ts
 │   │   │   │   ├── ReviewQueueView.ts
-│   │   │   │   ├── SourceAnalysisView.ts
+│   │   │   │   ├── SourceStatusView.ts
 │   │   │   │   ├── MemoryInspectorView.ts
-│   │   │   │   └── PermissionCenterView.ts
+│   │   │   │   ├── AuditLogView.ts
+│   │   │   │   ├── RuntimeStatusView.ts
+│   │   │   │   └── PermissionPolicyView.ts
 │   │   │   ├── commands/
 │   │   │   ├── settings/
 │   │   │   ├── bridge/

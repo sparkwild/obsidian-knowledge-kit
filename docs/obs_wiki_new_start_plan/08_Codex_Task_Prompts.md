@@ -3,17 +3,19 @@
 ## Prompt 0：方向重置
 
 ```text
-请在当前 obs-wiki 仓库中执行方向重置。当前项目将从旧的 Codex plugin-first 路线转为 Obsidian plugin-first + Agent memory-first 路线。
+请在当前 obs-wiki 仓库中执行方向重置。当前项目将从旧的 Codex plugin-first 路线转为 Agent-first + Obsidian governance plugin 路线。
 
 要求：
 1. 产品名统一为 obs-wiki。
 2. 不再使用 VaultThread / Vaultwright 作为新主线名称。
 3. 不需要兼容旧 Codex 插件形态。
-4. 新定位：obs-wiki 是一个 Obsidian 原生插件，让 Agent 使用 Obsidian vault 作为外置长期记忆库和知识库。
-5. Obsidian 插件负责 Agent Activity、Review Queue、Audit Log、Permission Center、Source Analysis 入口。
-6. MCP Server 是外部 Agent 的主接入方式。
-7. Obsidian vault 是唯一知识和记忆载体。
-8. 先新增/更新文档，不写大规模实现。
+4. 新定位：obs-wiki 让 Agent 使用 Obsidian vault 作为外置长期记忆库和知识库。
+5. Agent 是唯一操作入口：URL / 文件 / source analysis / context pack / lint / distill / proposal 生成都由 Agent 通过 MCP 发起。
+6. Obsidian 插件负责 Agent Activity、Review Queue、Audit Log、Memory Inspector、Runtime Status、Permission Policy 和审核批准。
+7. MCP Server 是外部 Agent 的主接入方式。
+8. Obsidian vault 是唯一知识和记忆载体。
+9. Obsidian 插件不提供 Analyze URL、Analyze Local File、Capture Source、Build Context Pack、Run Lint、Run Distill、Create Agent Request 等入口。
+10. 先新增/更新文档，不写大规模实现。
 
 请输出：
 - 修改摘要
@@ -35,9 +37,10 @@
 5. 包含 manifest.json、package.json、main.ts、styles.css。
 6. 增加设置页。
 7. 增加 ribbon icon。
-8. 增加命令：Open Agent Activity、Open Review Queue、Open Permission Center。
+8. 增加命令：Open Agent Activity、Open Review Queue、Open Memory Inspector、Open Audit Log、Open Runtime Status、Open Permission Policy、Refresh Views。
 9. 不实现 AI，不实现 MCP，不调用旧 Python runtime。
-10. 所有代码应可构建，结构清晰。
+10. 不实现 Analyze URL / File / Capture Source / Build Context Pack / Run Lint / Distill / Create Agent Request 命令。
+11. 所有代码应可构建，结构清晰。
 
 验收：
 - npm install / build 指令清楚。
@@ -103,28 +106,21 @@
 - 操作可审计。
 ```
 
-## Prompt 5：Source Analysis Request
+## Prompt 5：Agent Source Status
 
 ```text
-请实现用户手动投喂资料的入口。
-
-命令：
-- obs-wiki: Analyze URL with Agent
-- obs-wiki: Analyze Local File with Agent
-- obs-wiki: Analyze Current Note
-- obs-wiki: Analyze Current Selection
+请实现 Agent source status 只读展示。
 
 要求：
-1. 只创建 agent-request note，不直接分析。
-2. request 写入 01_inbox/agent_requests/。
-3. 字段包含 source、source_kind、purpose、related_project、analysis_mode、status=pending。
-4. 写入 audit event。
+1. 读取 01_inbox/agent_requests/ 下由 Agent / MCP 创建的 request。
+2. 显示 source、source_kind、purpose、related_project、analysis_mode、status。
+3. 不提供 Analyze URL / Local File / Current Note / Selection 命令。
+4. 不创建 agent-request note。
 5. 不抓网页登录内容，不调用外部模型。
 
 验收：
-- 用户输入 URL 后生成 request。
-- 选择文件后生成 request。
-- Review / Activity 页面可看到 request。
+- Agent 创建 request 后，Obsidian 中可看到 status。
+- Obsidian 插件没有资料提交入口。
 ```
 
 ## Prompt 6：MCP Server Read-only MVP

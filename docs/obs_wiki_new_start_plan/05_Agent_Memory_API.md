@@ -10,6 +10,14 @@ MCP tools 前缀：
 obs_wiki.*
 ```
 
+核心边界：
+
+- Agent 是唯一操作入口。
+- URL / 文件 / 资料分析 / context pack / lint / distill / proposal 生成都由 Agent 通过 MCP 发起。
+- Obsidian 插件只提供 Review Queue、审核、审计、状态和权限界面。
+- 长期记忆、用户偏好、重要项目决策、高置信 claim 默认必须先进入 proposal。
+- 批准后的写回由 Runtime 执行。
+
 ## Task Lifecycle Tools
 
 ### `obs_wiki.start_task`
@@ -189,6 +197,12 @@ obs_wiki.*
 - proposal path
 - approval status
 
+安全：
+
+- 默认写入 `01_inbox/review_queue/`。
+- 不直接提交 `04_memory/` 或 `05_projects/`。
+- preference / identity / important decision / high-confidence claim / bulk migration 必须等待用户审核。
+
 ### `obs_wiki.distill_session`
 
 用途：将任务结果沉淀为 session 和 proposals。
@@ -218,6 +232,44 @@ obs_wiki.*
 - pending claims
 - pending preferences
 - pending gaps
+
+### `obs_wiki.list_approved_writebacks`
+
+用途：Agent 或 Runtime 查询已批准但尚未应用的 writeback。
+
+输入：
+
+- `scope`: optional string
+- `limit`: optional number
+
+输出：
+
+- approved proposal list
+- target note
+- patch / writeback plan
+- risk level
+- evidence refs
+
+### `obs_wiki.apply_approved_writeback`
+
+用途：Runtime 执行用户已批准的写回。
+
+输入：
+
+- `proposal_id`
+- `dry_run`: optional boolean
+
+输出：
+
+- writeback result
+- touched notes
+- audit event
+
+安全：
+
+- 只能处理 `approval_status=approved` 的 proposal。
+- 不允许插件直接拼接长期记忆内容。
+- 执行后必须更新 proposal 状态并写 audit event。
 
 ### `obs_wiki.lint`
 

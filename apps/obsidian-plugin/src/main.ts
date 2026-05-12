@@ -1,6 +1,5 @@
 import {
 	App,
-	MarkdownView,
 	ItemView,
 	Modal,
 	Notice,
@@ -13,9 +12,12 @@ import {
 } from 'obsidian';
 
 const OBS_WIKI_ACTIVITY_VIEW = 'obs-wiki-activity';
-const OBS_WIKI_SOURCE_ANALYSIS_VIEW = 'obs-wiki-source-analysis';
+const OBS_WIKI_SOURCE_STATUS_VIEW = 'obs-wiki-source-status';
 const OBS_WIKI_REVIEW_QUEUE_VIEW = 'obs-wiki-review-queue';
-const OBS_WIKI_PERMISSION_CENTER_VIEW = 'obs-wiki-permission-center';
+const OBS_WIKI_MEMORY_INSPECTOR_VIEW = 'obs-wiki-memory-inspector';
+const OBS_WIKI_AUDIT_LOG_VIEW = 'obs-wiki-audit-log';
+const OBS_WIKI_RUNTIME_STATUS_VIEW = 'obs-wiki-runtime-status';
+const OBS_WIKI_PERMISSION_POLICY_VIEW = 'obs-wiki-permission-policy';
 const CONTROL_FILES: Array<{ path: string; content: string }> = [
 	{
 		path: '00_control/system.md',
@@ -42,7 +44,7 @@ const AGENT_TASKS_PATH = '02_timeline/agent_tasks';
 const MAX_TASK_SNIPPET_LENGTH = 160;
 const MAX_TASK_ROWS = 6;
 const MAX_AUDIT_ROWS = 12;
-const MAX_SOURCE_REQUEST_ROWS = 20;
+const MAX_SOURCE_STATUS_ROWS = 20;
 const MAX_REVIEW_QUEUE_ROWS = 20;
 const MEMORY_STRUCTURE: string[] = [
 	'01_inbox/agent_requests',
@@ -122,7 +124,13 @@ interface SourceAnalysisSnapshot {
 	updatedAt: string;
 }
 
-type MemoryProposalStatus = 'pending' | 'approved' | 'rejected' | 'deferred';
+type MemoryProposalStatus =
+	| 'pending'
+	| 'approved'
+	| 'rejected'
+	| 'deferred'
+	| 'revision_requested'
+	| 'applied';
 
 interface AuditEventRecord {
 	path: string;
@@ -186,8 +194,8 @@ export default class ObsWikiPlugin extends Plugin {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 
 		this.registerView(
-			OBS_WIKI_SOURCE_ANALYSIS_VIEW,
-			(leaf) => new ObsWikiSourceAnalysisView(leaf, this)
+			OBS_WIKI_SOURCE_STATUS_VIEW,
+			(leaf) => new ObsWikiSourceStatusView(leaf, this)
 		);
 		this.registerView(
 			OBS_WIKI_ACTIVITY_VIEW,
@@ -198,78 +206,24 @@ export default class ObsWikiPlugin extends Plugin {
 			(leaf) => new ObsWikiReviewQueueView(leaf, this)
 		);
 		this.registerView(
-			OBS_WIKI_PERMISSION_CENTER_VIEW,
-			(leaf) => new ObsWikiPermissionCenterView(leaf)
+			OBS_WIKI_MEMORY_INSPECTOR_VIEW,
+			(leaf) => new ObsWikiMemoryInspectorView(leaf)
+		);
+		this.registerView(
+			OBS_WIKI_AUDIT_LOG_VIEW,
+			(leaf) => new ObsWikiAuditLogView(leaf, this)
+		);
+		this.registerView(
+			OBS_WIKI_RUNTIME_STATUS_VIEW,
+			(leaf) => new ObsWikiRuntimeStatusView(leaf)
+		);
+		this.registerView(
+			OBS_WIKI_PERMISSION_POLICY_VIEW,
+			(leaf) => new ObsWikiPermissionPolicyView(leaf)
 		);
 
 		this.addRibbonIcon('layout-dashboard', 'Open obs-wiki Activity', () => {
 			this.openPluginView(OBS_WIKI_ACTIVITY_VIEW);
-		});
-
-		this.addCommand({
-			id: 'open-source-analysis',
-			name: 'Open Source Analysis',
-			callback: () => this.openPluginView(OBS_WIKI_SOURCE_ANALYSIS_VIEW),
-		});
-
-		this.addCommand({
-			id: 'analyze-url-with-agent',
-			name: 'Analyze URL with Agent',
-			callback: () => {
-				new SourceRequestModal(this.app, {
-					title: 'Analyze URL with Agent',
-					sourceKind: 'url',
-					sourceLabel: 'Source URL',
-					sourcePlaceholder: 'https://example.com/article',
-					onConfirm: async ({ source, purpose }) => {
-						await this.createAgentRequest({
-							source,
-							sourceKind: 'url',
-							purpose,
-							relatedProject: '',
-							analysisMode: 'default',
-						});
-					},
-				}).open();
-			},
-		});
-
-		this.addCommand({
-			id: 'analyze-local-file-with-agent',
-			name: 'Analyze Local File with Agent',
-			callback: () => {
-				new SourceRequestModal(this.app, {
-					title: 'Analyze Local File with Agent',
-					sourceKind: 'local_file',
-					sourceLabel: 'Local File Path',
-					sourcePlaceholder: 'path/to/file.md',
-					onConfirm: async ({ source, purpose }) => {
-						await this.createAgentRequest({
-							source,
-							sourceKind: 'local_file',
-							purpose,
-							relatedProject: '',
-							analysisMode: 'default',
-						});
-					},
-				}).open();
-			},
-		});
-
-		this.addCommand({
-			id: 'analyze-current-note-with-agent',
-			name: 'Analyze Current Note',
-			callback: () => {
-				void this.createRequestFromCurrentNote();
-			},
-		});
-
-		this.addCommand({
-			id: 'analyze-current-selection-with-agent',
-			name: 'Analyze Current Selection',
-			callback: () => {
-				void this.createRequestFromCurrentSelection();
-			},
 		});
 
 		this.addCommand({
@@ -285,30 +239,34 @@ export default class ObsWikiPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: 'open-permission-center',
-			name: 'Open Permission Center',
-			callback: () => this.openPluginView(OBS_WIKI_PERMISSION_CENTER_VIEW),
+			id: 'open-memory-inspector',
+			name: 'Open Memory Inspector',
+			callback: () => this.openPluginView(OBS_WIKI_MEMORY_INSPECTOR_VIEW),
 		});
 
 		this.addCommand({
-			id: 'initialize-memory-structure',
-			name: 'Initialize Memory Structure',
-			callback: () => this.promptInitializeMemoryStructure(),
+			id: 'open-audit-log',
+			name: 'Open Audit Log',
+			callback: () => this.openPluginView(OBS_WIKI_AUDIT_LOG_VIEW),
 		});
 
 		this.addCommand({
-			id: 'refresh-agent-activity',
-			name: 'Refresh Agent Activity',
+			id: 'open-runtime-status',
+			name: 'Open Runtime Status',
+			callback: () => this.openPluginView(OBS_WIKI_RUNTIME_STATUS_VIEW),
+		});
+
+		this.addCommand({
+			id: 'open-permission-policy',
+			name: 'Open Permission Policy',
+			callback: () => this.openPluginView(OBS_WIKI_PERMISSION_POLICY_VIEW),
+		});
+
+		this.addCommand({
+			id: 'refresh-views',
+			name: 'Refresh Views',
 			callback: () => {
-				void this.refreshActivityViews();
-			},
-		});
-
-		this.addCommand({
-			id: 'refresh-review-queue',
-			name: 'Refresh Review Queue',
-			callback: () => {
-				void this.refreshReviewQueueViews();
+				void this.refreshGovernanceViews();
 			},
 		});
 
@@ -540,134 +498,14 @@ export default class ObsWikiPlugin extends Plugin {
 		}
 	}
 
-	private async refreshSourceAnalysisViews(): Promise<void> {
-		const sourceAnalysisLeaves = this.app.workspace.getLeavesOfType(OBS_WIKI_SOURCE_ANALYSIS_VIEW);
-		for (const leaf of sourceAnalysisLeaves) {
+	private async refreshSourceStatusViews(): Promise<void> {
+		const sourceStatusLeaves = this.app.workspace.getLeavesOfType(OBS_WIKI_SOURCE_STATUS_VIEW);
+		for (const leaf of sourceStatusLeaves) {
 			const view = leaf.view;
-			if (view instanceof ObsWikiSourceAnalysisView) {
+			if (view instanceof ObsWikiSourceStatusView) {
 				await view.refresh();
 			}
 		}
-	}
-
-	private async createRequestFromCurrentNote(): Promise<void> {
-		const file = this.app.workspace.getActiveFile();
-		if (!file) {
-			new Notice('No active note found. Open a note and run this command again.');
-			return;
-		}
-
-		await this.createAgentRequest({
-			source: file.path,
-			sourceKind: 'current_note',
-			purpose: 'Analyze current note',
-			relatedProject: '',
-			analysisMode: 'default',
-		});
-	}
-
-	private async createRequestFromCurrentSelection(): Promise<void> {
-		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-		if (!view) {
-			new Notice('No active markdown note found.');
-			return;
-		}
-
-		const selection = view.editor.getSelection().trim();
-		if (!selection) {
-			new Notice('No text is selected. Select text and run this command again.');
-			return;
-		}
-
-		await this.createAgentRequest(
-			{
-				source: this.trimText(selection, 320),
-				sourceKind: 'selection',
-				purpose: 'Analyze current selection',
-				relatedProject: '',
-				analysisMode: 'default',
-			},
-			{
-				body:
-					'## Selected Text\n\n' +
-					selection
-						.split('\n')
-						.map((line) => `> ${line}`)
-						.join('\n') +
-					'\n',
-			}
-		);
-	}
-
-	private async createAgentRequest(
-		request: {
-			source: string;
-			sourceKind: string;
-			purpose: string;
-			relatedProject: string;
-			analysisMode: string;
-		},
-		extra: {
-			body?: string;
-		} = {}
-	): Promise<void> {
-		try {
-			await this.ensureFolderExists(SOURCE_REQUESTS_PATH);
-			const timestamp = new Date().toISOString();
-			const safeSource = this.normalizeAgentRequestSource(request.source);
-			const filePath = await this.resolveUniqueRequestPath(request.sourceKind, safeSource);
-			const content = this.renderAgentRequestNote({
-				source: safeSource,
-				sourceKind: request.sourceKind,
-				purpose: request.purpose,
-				relatedProject: request.relatedProject,
-				analysisMode: request.analysisMode,
-				status: 'pending',
-				created: timestamp,
-				extraBody: extra.body,
-			});
-
-			await this.app.vault.create(filePath, content);
-			await this.appendSourceRequestAuditEvent(filePath, request.sourceKind, safeSource);
-			await this.refreshSourceAnalysisViews();
-
-			new Notice(`Source analysis request created: ${filePath}`);
-		} catch (error) {
-			console.error('obs-wiki failed to create source request', error);
-			new Notice('Failed to create source analysis request.');
-		}
-	}
-
-	private normalizeAgentRequestSource(value: string): string {
-		return this.trimText((value || '').replace(/\r/g, ' ').replace(/\n/g, ' ').trim(), 300);
-	}
-
-	private async resolveUniqueRequestPath(sourceKind: string, source: string): Promise<string> {
-		const now = new Date().toISOString().replace(/[.:]/g, '-').replace('T', '_').replace('Z', '');
-		const slug = this.slugify(source || sourceKind, 80);
-		const base = `${sourceKind}-${now}-${slug}`;
-
-		for (let index = 0; index < 10; index++) {
-			const suffix = index > 0 ? `-${index}` : '';
-			const name = `${base}${suffix}.md`;
-			const path = `${SOURCE_REQUESTS_PATH}/${name}`;
-			if (!this.app.vault.getAbstractFileByPath(path)) {
-				return path;
-			}
-		}
-
-		const fallback = `${sourceKind}-${Date.now()}`;
-		return `${SOURCE_REQUESTS_PATH}/${this.slugify(fallback, 140)}.md`;
-	}
-
-	private slugify(value: string, maxLength = 80): string {
-		const normalized = value
-			.toLowerCase()
-			.trim()
-			.replace(/[^a-z0-9]+/g, '-')
-			.replace(/-{2,}/g, '-')
-			.replace(/^-+|-+$/g, '');
-		return this.trimText(normalized || 'request', maxLength);
 	}
 
 	private quoteYamlString(value: string): string {
@@ -679,65 +517,13 @@ export default class ObsWikiPlugin extends Plugin {
 		return `"${escaped}"`;
 	}
 
-	private renderAgentRequestNote(payload: {
-		source: string;
-		sourceKind: string;
-		purpose: string;
-		relatedProject: string;
-		analysisMode: string;
-		status: string;
-		created: string;
-		extraBody?: string;
-	}): string {
-		const frontmatter =
-			'---\n' +
-			`type: "agent-request"\n` +
-			`source: ${this.quoteYamlString(payload.source)}\n` +
-			`source_kind: ${this.quoteYamlString(payload.sourceKind)}\n` +
-			`purpose: ${this.quoteYamlString(payload.purpose)}\n` +
-			`related_project: ${this.quoteYamlString(payload.relatedProject)}\n` +
-			`analysis_mode: ${this.quoteYamlString(payload.analysisMode)}\n` +
-			`status: ${this.quoteYamlString(payload.status)}\n` +
-			`created: ${payload.created}\n` +
-			'---\n\n';
-
-		const bodyLines = [
-			'# Source Analysis Request',
-			'',
-			`- source: ${payload.source}`,
-			`- source kind: ${payload.sourceKind}`,
-			`- analysis mode: ${payload.analysisMode}`,
-			`- related project: ${payload.relatedProject || 'unset'}`,
-			`- purpose: ${payload.purpose || 'unset'}`,
-			`- status: ${payload.status}`,
-		];
-
-		if (payload.extraBody) {
-			bodyLines.push('', payload.extraBody.trim());
-		}
-
-		return `${frontmatter}${bodyLines.join('\n')}\n`;
+	private async refreshGovernanceViews(): Promise<void> {
+		await this.refreshActivityViews();
+		await this.refreshReviewQueueViews();
+		await this.refreshSourceStatusViews();
 	}
 
-	private async appendSourceRequestAuditEvent(
-		requestPath: string,
-		sourceKind: string,
-		sourceValue: string
-	): Promise<void> {
-		const now = new Date().toISOString();
-		const event =
-			`## ${now}\n` +
-			`action: source.request.create\n` +
-			`actor: user\n` +
-			`target: ${requestPath}\n` +
-			`source_kind: ${sourceKind}\n` +
-			`source: ${this.quoteYamlString(sourceValue)}\n` +
-			`status: pending\n` +
-			`timestamp: ${now}\n\n`;
-		await this.appendToAuditLog(event);
-	}
-
-	async loadSourceAnalysisSnapshot(): Promise<SourceAnalysisSnapshot> {
+	async loadSourceStatusSnapshot(): Promise<SourceAnalysisSnapshot> {
 		const folder = this.app.vault.getAbstractFileByPath(SOURCE_REQUESTS_PATH);
 		if (!(folder instanceof TFolder)) {
 			return {
@@ -752,7 +538,7 @@ export default class ObsWikiPlugin extends Plugin {
 		const requests = records
 			.filter((record): record is SourceRequestRecord => Boolean(record))
 			.sort((a, b) => b.sortTimestamp - a.sortTimestamp)
-			.slice(0, MAX_SOURCE_REQUEST_ROWS);
+			.slice(0, MAX_SOURCE_STATUS_ROWS);
 
 		return {
 			requests,
@@ -925,9 +711,14 @@ export default class ObsWikiPlugin extends Plugin {
 		if (
 			status === 'approved' ||
 			status === 'rejected' ||
-			status === 'deferred'
+			status === 'deferred' ||
+			status === 'revision_requested' ||
+			status === 'applied'
 		) {
 			return status;
+		}
+		if (status === 'pending_review') {
+			return 'pending';
 		}
 		return 'pending';
 	}
@@ -935,9 +726,11 @@ export default class ObsWikiPlugin extends Plugin {
 	private compareProposalRecords(a: MemoryProposalRecord, b: MemoryProposalRecord): number {
 		const statusRank: Record<MemoryProposalStatus, number> = {
 			pending: 0,
+			revision_requested: 1,
 			approved: 2,
-			rejected: 3,
+			applied: 3,
 			deferred: 4,
+			rejected: 5,
 		};
 		const rankA = statusRank[a.approvalStatus] ?? 1;
 		const rankB = statusRank[b.approvalStatus] ?? 1;
@@ -1439,72 +1232,7 @@ class InitializeMemoryStructureModal extends Modal {
 	}
 }
 
-class SourceRequestModal extends Modal {
-	constructor(
-		app: App,
-		private options: {
-			title: string;
-			sourceKind: string;
-			sourceLabel: string;
-			sourcePlaceholder: string;
-			onConfirm: (payload: { source: string; purpose: string }) => Promise<void>;
-		}
-	) {
-		super(app);
-	}
-
-	onOpen(): void {
-		super.onOpen();
-		this.titleEl.setText(this.options.title);
-
-		const { contentEl } = this;
-		contentEl.empty();
-
-		let sourceInput: HTMLInputElement;
-		let purposeInput: HTMLInputElement;
-
-		const sourceRow = new Setting(contentEl)
-			.setName(this.options.sourceLabel)
-			.setDesc('Required.');
-		sourceInput = sourceRow.controlEl.createEl('input', {
-			type: 'text',
-			placeholder: this.options.sourcePlaceholder,
-			cls: 'text-input',
-		}) as HTMLInputElement;
-
-		const purposeRow = new Setting(contentEl)
-			.setName('Purpose')
-			.setDesc('Optional analysis purpose.');
-		purposeInput = purposeRow.controlEl.createEl('input', {
-			type: 'text',
-			placeholder: 'Why should the agent analyze this source?'
-		}) as HTMLInputElement;
-
-		const actions = contentEl.createDiv({ cls: 'modal-button-container' });
-		const cancel = actions.createEl('button', { text: 'Cancel', cls: 'mod-warning' });
-		cancel.addEventListener('click', () => this.close());
-
-		const confirm = actions.createEl('button', { text: 'Create Request', cls: 'mod-cta' });
-		confirm.addEventListener('click', async () => {
-			const source = sourceInput.value.trim();
-			if (!source) {
-				new Notice(`Please provide ${this.options.sourceLabel.toLowerCase()}.`);
-				return;
-			}
-			await this.options.onConfirm({
-				source,
-				purpose: purposeInput.value.trim(),
-			});
-			this.close();
-		});
-	}
-
-	onClose(): void {
-		super.onClose();
-	}
-}
-
-class ObsWikiSourceAnalysisView extends ItemView {
+class ObsWikiSourceStatusView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
 		private plugin: ObsWikiPlugin
@@ -1513,11 +1241,11 @@ class ObsWikiSourceAnalysisView extends ItemView {
 	}
 
 	getViewType() {
-		return OBS_WIKI_SOURCE_ANALYSIS_VIEW;
+		return OBS_WIKI_SOURCE_STATUS_VIEW;
 	}
 
 	getDisplayText() {
-		return 'Source Analysis';
+		return 'Source Status';
 	}
 
 	getViewData() {
@@ -1542,7 +1270,7 @@ class ObsWikiSourceAnalysisView extends ItemView {
 		contentEl.empty();
 		contentEl.addClass('obs-wiki-view-root');
 
-		contentEl.createEl('h2', { text: 'Source Analysis', cls: 'obs-wiki-view__title' });
+		contentEl.createEl('h2', { text: 'Source Status', cls: 'obs-wiki-view__title' });
 
 		const header = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
 		header.createEl('div', {
@@ -1562,7 +1290,7 @@ class ObsWikiSourceAnalysisView extends ItemView {
 
 		if (snapshot.missingRequestFolder) {
 			contentEl.createEl('p', {
-				text: 'No source analysis request folder found at 01_inbox/agent_requests. Run Initialize Memory Structure first.',
+				text: 'No agent source request folder found at 01_inbox/agent_requests. Agent-created requests will appear here after the memory structure exists.',
 				cls: 'obs-wiki-view__description',
 			});
 			return;
@@ -1570,7 +1298,7 @@ class ObsWikiSourceAnalysisView extends ItemView {
 
 		if (snapshot.requests.length === 0) {
 			contentEl.createEl('p', {
-				text: 'No pending source analysis requests yet.',
+				text: 'No pending agent-created source requests yet.',
 				cls: 'obs-wiki-view__description',
 			});
 			return;
@@ -1602,7 +1330,7 @@ class ObsWikiSourceAnalysisView extends ItemView {
 	}
 
 	async refresh(): Promise<void> {
-		const snapshot = await this.plugin.loadSourceAnalysisSnapshot();
+		const snapshot = await this.plugin.loadSourceStatusSnapshot();
 		await this.render(snapshot);
 	}
 }
@@ -1674,7 +1402,7 @@ class ObsWikiActivityView extends ItemView {
 		if (!snapshot.currentTask) {
 			currentSection.createEl('p', {
 				text: snapshot.missingTaskFolder
-					? 'No agent task folder found at 02_timeline/agent_tasks. Run Initialize Memory Structure.'
+					? 'No agent task folder found at 02_timeline/agent_tasks. Agent/runtime setup should create the memory structure.'
 					: 'No active or recent agent task found.',
 				cls: 'obs-wiki-view__description',
 			});
@@ -1841,7 +1569,7 @@ class ObsWikiReviewQueueView extends ItemView {
 
 		if (snapshot.missingReviewQueueFolder) {
 			contentEl.createEl('p', {
-				text: 'No review queue folder found at 01_inbox/review_queue. Run Initialize Memory Structure first.',
+				text: 'No review queue folder found at 01_inbox/review_queue. Agent/runtime setup should create the memory structure.',
 				cls: 'obs-wiki-view__description',
 			});
 			return;
@@ -1856,7 +1584,14 @@ class ObsWikiReviewQueueView extends ItemView {
 		}
 
 		const sections = this.groupByStatus(snapshot.proposals);
-		const orderedStatuses: MemoryProposalStatus[] = ['pending', 'approved', 'rejected', 'deferred'];
+		const orderedStatuses: MemoryProposalStatus[] = [
+			'pending',
+			'revision_requested',
+			'approved',
+			'applied',
+			'deferred',
+			'rejected',
+		];
 		const unknown = sections['unknown'] || [];
 
 		for (const status of orderedStatuses) {
@@ -1906,8 +1641,11 @@ class ObsWikiReviewQueueView extends ItemView {
 					const defer = actionRow.createEl('button', {
 						text: 'Defer',
 					});
+					const requestRevision = actionRow.createEl('button', {
+						text: 'Request Revision',
+					});
 
-					const actionButtons = [approve, reject, defer];
+					const actionButtons = [approve, reject, defer, requestRevision];
 					const updateStatus = async (status: MemoryProposalStatus) => {
 						for (const button of actionButtons) {
 							button.setAttribute('disabled', 'true');
@@ -1925,6 +1663,16 @@ class ObsWikiReviewQueueView extends ItemView {
 					approve.addEventListener('click', () => void updateStatus('approved'));
 					reject.addEventListener('click', () => void updateStatus('rejected'));
 					defer.addEventListener('click', () => void updateStatus('deferred'));
+					requestRevision.addEventListener('click', () => void updateStatus('revision_requested'));
+				} else if (proposal.approvalStatus === 'approved') {
+					const actionRow = card.createDiv({ cls: 'obs-wiki-view__actions' });
+					const apply = actionRow.createEl('button', {
+						text: 'Apply Approved Writeback',
+						cls: 'mod-cta',
+					});
+					apply.addEventListener('click', () => {
+						new Notice('Approved writeback must be applied by the Runtime. Runtime trigger wiring is planned for the next batch.');
+					});
 				}
 			}
 		}
@@ -1961,17 +1709,17 @@ class ObsWikiReviewQueueView extends ItemView {
 	}
 }
 
-class ObsWikiPermissionCenterView extends ItemView {
+class ObsWikiMemoryInspectorView extends ItemView {
 	constructor(leaf: WorkspaceLeaf) {
 		super(leaf);
 	}
 
 	getViewType() {
-		return OBS_WIKI_PERMISSION_CENTER_VIEW;
+		return OBS_WIKI_MEMORY_INSPECTOR_VIEW;
 	}
 
 	getDisplayText() {
-		return 'Permission Center';
+		return 'Memory Inspector';
 	}
 
 	getViewData() {
@@ -1996,9 +1744,141 @@ class ObsWikiPermissionCenterView extends ItemView {
 		contentEl.empty();
 		contentEl.addClass('obs-wiki-view-root');
 
-		contentEl.createEl('h2', { text: 'Permission Center', cls: 'obs-wiki-view__title' });
+		contentEl.createEl('h2', { text: 'Memory Inspector', cls: 'obs-wiki-view__title' });
 		contentEl.createEl('p', {
-			text: 'Scaffold placeholder: permission configuration UI will be added later.',
+			text: 'Scaffold placeholder: note source, claim, evidence, and agent usage inspection will be added later.',
+			cls: 'obs-wiki-view__description',
+		});
+	}
+}
+
+class ObsWikiAuditLogView extends ItemView {
+	constructor(
+		leaf: WorkspaceLeaf,
+		private plugin: ObsWikiPlugin
+	) {
+		super(leaf);
+	}
+
+	getViewType() {
+		return OBS_WIKI_AUDIT_LOG_VIEW;
+	}
+
+	getDisplayText() {
+		return 'Audit Log';
+	}
+
+	getViewData() {
+		return '';
+	}
+
+	setViewData(_data: string, _clear: boolean): void {
+		return;
+	}
+
+	clear(): void {
+		this.contentEl.empty();
+	}
+
+	async onOpen() {
+		await super.onOpen();
+		this.render();
+	}
+
+	private render() {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.addClass('obs-wiki-view-root');
+
+		contentEl.createEl('h2', { text: 'Audit Log', cls: 'obs-wiki-view__title' });
+		contentEl.createEl('p', {
+			text: 'Scaffold placeholder: detailed agent, runtime, plugin, and user audit timeline will be added later. Recent audit events are visible in Agent Activity.',
+			cls: 'obs-wiki-view__description',
+		});
+	}
+}
+
+class ObsWikiRuntimeStatusView extends ItemView {
+	constructor(leaf: WorkspaceLeaf) {
+		super(leaf);
+	}
+
+	getViewType() {
+		return OBS_WIKI_RUNTIME_STATUS_VIEW;
+	}
+
+	getDisplayText() {
+		return 'Runtime Status';
+	}
+
+	getViewData() {
+		return '';
+	}
+
+	setViewData(_data: string, _clear: boolean): void {
+		return;
+	}
+
+	clear(): void {
+		this.contentEl.empty();
+	}
+
+	async onOpen() {
+		await super.onOpen();
+		this.render();
+	}
+
+	private render() {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.addClass('obs-wiki-view-root');
+
+		contentEl.createEl('h2', { text: 'Runtime Status', cls: 'obs-wiki-view__title' });
+		contentEl.createEl('p', {
+			text: 'Scaffold placeholder: MCP server, runtime index, context pack, lint, and source-analysis status will be added later.',
+			cls: 'obs-wiki-view__description',
+		});
+	}
+}
+
+class ObsWikiPermissionPolicyView extends ItemView {
+	constructor(leaf: WorkspaceLeaf) {
+		super(leaf);
+	}
+
+	getViewType() {
+		return OBS_WIKI_PERMISSION_POLICY_VIEW;
+	}
+
+	getDisplayText() {
+		return 'Permission Policy';
+	}
+
+	getViewData() {
+		return '';
+	}
+
+	setViewData(_data: string, _clear: boolean): void {
+		return;
+	}
+
+	clear(): void {
+		this.contentEl.empty();
+	}
+
+	async onOpen() {
+		await super.onOpen();
+		this.render();
+	}
+
+	private render() {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.addClass('obs-wiki-view-root');
+
+		contentEl.createEl('h2', { text: 'Permission Policy', cls: 'obs-wiki-view__title' });
+		contentEl.createEl('p', {
+			text: 'Scaffold placeholder: policy display for Agent write allowlist, protected folders, and review requirements will be added later.',
 			cls: 'obs-wiki-view__description',
 		});
 

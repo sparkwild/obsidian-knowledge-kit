@@ -25,9 +25,12 @@ __export(main_exports, {
 module.exports = __toCommonJS(main_exports);
 var import_obsidian = require("obsidian");
 var OBS_WIKI_ACTIVITY_VIEW = "obs-wiki-activity";
-var OBS_WIKI_SOURCE_ANALYSIS_VIEW = "obs-wiki-source-analysis";
+var OBS_WIKI_SOURCE_STATUS_VIEW = "obs-wiki-source-status";
 var OBS_WIKI_REVIEW_QUEUE_VIEW = "obs-wiki-review-queue";
-var OBS_WIKI_PERMISSION_CENTER_VIEW = "obs-wiki-permission-center";
+var OBS_WIKI_MEMORY_INSPECTOR_VIEW = "obs-wiki-memory-inspector";
+var OBS_WIKI_AUDIT_LOG_VIEW = "obs-wiki-audit-log";
+var OBS_WIKI_RUNTIME_STATUS_VIEW = "obs-wiki-runtime-status";
+var OBS_WIKI_PERMISSION_POLICY_VIEW = "obs-wiki-permission-policy";
 var CONTROL_FILES = [
   {
     path: "00_control/system.md",
@@ -54,7 +57,7 @@ var AGENT_TASKS_PATH = "02_timeline/agent_tasks";
 var MAX_TASK_SNIPPET_LENGTH = 160;
 var MAX_TASK_ROWS = 6;
 var MAX_AUDIT_ROWS = 12;
-var MAX_SOURCE_REQUEST_ROWS = 20;
+var MAX_SOURCE_STATUS_ROWS = 20;
 var MAX_REVIEW_QUEUE_ROWS = 20;
 var MEMORY_STRUCTURE = [
   "01_inbox/agent_requests",
@@ -90,8 +93,8 @@ var ObsWikiPlugin = class extends import_obsidian.Plugin {
   async onload() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     this.registerView(
-      OBS_WIKI_SOURCE_ANALYSIS_VIEW,
-      (leaf) => new ObsWikiSourceAnalysisView(leaf, this)
+      OBS_WIKI_SOURCE_STATUS_VIEW,
+      (leaf) => new ObsWikiSourceStatusView(leaf, this)
     );
     this.registerView(
       OBS_WIKI_ACTIVITY_VIEW,
@@ -102,72 +105,23 @@ var ObsWikiPlugin = class extends import_obsidian.Plugin {
       (leaf) => new ObsWikiReviewQueueView(leaf, this)
     );
     this.registerView(
-      OBS_WIKI_PERMISSION_CENTER_VIEW,
-      (leaf) => new ObsWikiPermissionCenterView(leaf)
+      OBS_WIKI_MEMORY_INSPECTOR_VIEW,
+      (leaf) => new ObsWikiMemoryInspectorView(leaf)
+    );
+    this.registerView(
+      OBS_WIKI_AUDIT_LOG_VIEW,
+      (leaf) => new ObsWikiAuditLogView(leaf, this)
+    );
+    this.registerView(
+      OBS_WIKI_RUNTIME_STATUS_VIEW,
+      (leaf) => new ObsWikiRuntimeStatusView(leaf)
+    );
+    this.registerView(
+      OBS_WIKI_PERMISSION_POLICY_VIEW,
+      (leaf) => new ObsWikiPermissionPolicyView(leaf)
     );
     this.addRibbonIcon("layout-dashboard", "Open obs-wiki Activity", () => {
       this.openPluginView(OBS_WIKI_ACTIVITY_VIEW);
-    });
-    this.addCommand({
-      id: "open-source-analysis",
-      name: "Open Source Analysis",
-      callback: () => this.openPluginView(OBS_WIKI_SOURCE_ANALYSIS_VIEW)
-    });
-    this.addCommand({
-      id: "analyze-url-with-agent",
-      name: "Analyze URL with Agent",
-      callback: () => {
-        new SourceRequestModal(this.app, {
-          title: "Analyze URL with Agent",
-          sourceKind: "url",
-          sourceLabel: "Source URL",
-          sourcePlaceholder: "https://example.com/article",
-          onConfirm: async ({ source, purpose }) => {
-            await this.createAgentRequest({
-              source,
-              sourceKind: "url",
-              purpose,
-              relatedProject: "",
-              analysisMode: "default"
-            });
-          }
-        }).open();
-      }
-    });
-    this.addCommand({
-      id: "analyze-local-file-with-agent",
-      name: "Analyze Local File with Agent",
-      callback: () => {
-        new SourceRequestModal(this.app, {
-          title: "Analyze Local File with Agent",
-          sourceKind: "local_file",
-          sourceLabel: "Local File Path",
-          sourcePlaceholder: "path/to/file.md",
-          onConfirm: async ({ source, purpose }) => {
-            await this.createAgentRequest({
-              source,
-              sourceKind: "local_file",
-              purpose,
-              relatedProject: "",
-              analysisMode: "default"
-            });
-          }
-        }).open();
-      }
-    });
-    this.addCommand({
-      id: "analyze-current-note-with-agent",
-      name: "Analyze Current Note",
-      callback: () => {
-        void this.createRequestFromCurrentNote();
-      }
-    });
-    this.addCommand({
-      id: "analyze-current-selection-with-agent",
-      name: "Analyze Current Selection",
-      callback: () => {
-        void this.createRequestFromCurrentSelection();
-      }
     });
     this.addCommand({
       id: "open-agent-activity",
@@ -180,27 +134,30 @@ var ObsWikiPlugin = class extends import_obsidian.Plugin {
       callback: () => this.openPluginView(OBS_WIKI_REVIEW_QUEUE_VIEW)
     });
     this.addCommand({
-      id: "open-permission-center",
-      name: "Open Permission Center",
-      callback: () => this.openPluginView(OBS_WIKI_PERMISSION_CENTER_VIEW)
+      id: "open-memory-inspector",
+      name: "Open Memory Inspector",
+      callback: () => this.openPluginView(OBS_WIKI_MEMORY_INSPECTOR_VIEW)
     });
     this.addCommand({
-      id: "initialize-memory-structure",
-      name: "Initialize Memory Structure",
-      callback: () => this.promptInitializeMemoryStructure()
+      id: "open-audit-log",
+      name: "Open Audit Log",
+      callback: () => this.openPluginView(OBS_WIKI_AUDIT_LOG_VIEW)
     });
     this.addCommand({
-      id: "refresh-agent-activity",
-      name: "Refresh Agent Activity",
+      id: "open-runtime-status",
+      name: "Open Runtime Status",
+      callback: () => this.openPluginView(OBS_WIKI_RUNTIME_STATUS_VIEW)
+    });
+    this.addCommand({
+      id: "open-permission-policy",
+      name: "Open Permission Policy",
+      callback: () => this.openPluginView(OBS_WIKI_PERMISSION_POLICY_VIEW)
+    });
+    this.addCommand({
+      id: "refresh-views",
+      name: "Refresh Views",
       callback: () => {
-        void this.refreshActivityViews();
-      }
-    });
-    this.addCommand({
-      id: "refresh-review-queue",
-      name: "Refresh Review Queue",
-      callback: () => {
-        void this.refreshReviewQueueViews();
+        void this.refreshGovernanceViews();
       }
     });
     this.addSettingTab(new ObsWikiSettingTab(this.app, this));
@@ -394,99 +351,14 @@ timestamp: ${timestamp}
       }
     }
   }
-  async refreshSourceAnalysisViews() {
-    const sourceAnalysisLeaves = this.app.workspace.getLeavesOfType(OBS_WIKI_SOURCE_ANALYSIS_VIEW);
-    for (const leaf of sourceAnalysisLeaves) {
+  async refreshSourceStatusViews() {
+    const sourceStatusLeaves = this.app.workspace.getLeavesOfType(OBS_WIKI_SOURCE_STATUS_VIEW);
+    for (const leaf of sourceStatusLeaves) {
       const view = leaf.view;
-      if (view instanceof ObsWikiSourceAnalysisView) {
+      if (view instanceof ObsWikiSourceStatusView) {
         await view.refresh();
       }
     }
-  }
-  async createRequestFromCurrentNote() {
-    const file = this.app.workspace.getActiveFile();
-    if (!file) {
-      new import_obsidian.Notice("No active note found. Open a note and run this command again.");
-      return;
-    }
-    await this.createAgentRequest({
-      source: file.path,
-      sourceKind: "current_note",
-      purpose: "Analyze current note",
-      relatedProject: "",
-      analysisMode: "default"
-    });
-  }
-  async createRequestFromCurrentSelection() {
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian.MarkdownView);
-    if (!view) {
-      new import_obsidian.Notice("No active markdown note found.");
-      return;
-    }
-    const selection = view.editor.getSelection().trim();
-    if (!selection) {
-      new import_obsidian.Notice("No text is selected. Select text and run this command again.");
-      return;
-    }
-    await this.createAgentRequest(
-      {
-        source: this.trimText(selection, 320),
-        sourceKind: "selection",
-        purpose: "Analyze current selection",
-        relatedProject: "",
-        analysisMode: "default"
-      },
-      {
-        body: "## Selected Text\n\n" + selection.split("\n").map((line) => `> ${line}`).join("\n") + "\n"
-      }
-    );
-  }
-  async createAgentRequest(request, extra = {}) {
-    try {
-      await this.ensureFolderExists(SOURCE_REQUESTS_PATH);
-      const timestamp = (/* @__PURE__ */ new Date()).toISOString();
-      const safeSource = this.normalizeAgentRequestSource(request.source);
-      const filePath = await this.resolveUniqueRequestPath(request.sourceKind, safeSource);
-      const content = this.renderAgentRequestNote({
-        source: safeSource,
-        sourceKind: request.sourceKind,
-        purpose: request.purpose,
-        relatedProject: request.relatedProject,
-        analysisMode: request.analysisMode,
-        status: "pending",
-        created: timestamp,
-        extraBody: extra.body
-      });
-      await this.app.vault.create(filePath, content);
-      await this.appendSourceRequestAuditEvent(filePath, request.sourceKind, safeSource);
-      await this.refreshSourceAnalysisViews();
-      new import_obsidian.Notice(`Source analysis request created: ${filePath}`);
-    } catch (error) {
-      console.error("obs-wiki failed to create source request", error);
-      new import_obsidian.Notice("Failed to create source analysis request.");
-    }
-  }
-  normalizeAgentRequestSource(value) {
-    return this.trimText((value || "").replace(/\r/g, " ").replace(/\n/g, " ").trim(), 300);
-  }
-  async resolveUniqueRequestPath(sourceKind, source) {
-    const now = (/* @__PURE__ */ new Date()).toISOString().replace(/[.:]/g, "-").replace("T", "_").replace("Z", "");
-    const slug = this.slugify(source || sourceKind, 80);
-    const base = `${sourceKind}-${now}-${slug}`;
-    for (let index = 0; index < 10; index++) {
-      const suffix = index > 0 ? `-${index}` : "";
-      const name = `${base}${suffix}.md`;
-      const path = `${SOURCE_REQUESTS_PATH}/${name}`;
-      if (!this.app.vault.getAbstractFileByPath(path)) {
-        return path;
-      }
-    }
-    const fallback = `${sourceKind}-${Date.now()}`;
-    return `${SOURCE_REQUESTS_PATH}/${this.slugify(fallback, 140)}.md`;
-  }
-  slugify(value, maxLength = 80) {
-    const normalized = value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/-{2,}/g, "-").replace(/^-+|-+$/g, "");
-    return this.trimText(normalized || "request", maxLength);
   }
   quoteYamlString(value) {
     const trimmed = (value || "").trim().replace(/\r/g, "");
@@ -496,50 +368,12 @@ timestamp: ${timestamp}
     const escaped = trimmed.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
     return `"${escaped}"`;
   }
-  renderAgentRequestNote(payload) {
-    const frontmatter = `---
-type: "agent-request"
-source: ${this.quoteYamlString(payload.source)}
-source_kind: ${this.quoteYamlString(payload.sourceKind)}
-purpose: ${this.quoteYamlString(payload.purpose)}
-related_project: ${this.quoteYamlString(payload.relatedProject)}
-analysis_mode: ${this.quoteYamlString(payload.analysisMode)}
-status: ${this.quoteYamlString(payload.status)}
-created: ${payload.created}
----
-
-`;
-    const bodyLines = [
-      "# Source Analysis Request",
-      "",
-      `- source: ${payload.source}`,
-      `- source kind: ${payload.sourceKind}`,
-      `- analysis mode: ${payload.analysisMode}`,
-      `- related project: ${payload.relatedProject || "unset"}`,
-      `- purpose: ${payload.purpose || "unset"}`,
-      `- status: ${payload.status}`
-    ];
-    if (payload.extraBody) {
-      bodyLines.push("", payload.extraBody.trim());
-    }
-    return `${frontmatter}${bodyLines.join("\n")}
-`;
+  async refreshGovernanceViews() {
+    await this.refreshActivityViews();
+    await this.refreshReviewQueueViews();
+    await this.refreshSourceStatusViews();
   }
-  async appendSourceRequestAuditEvent(requestPath, sourceKind, sourceValue) {
-    const now = (/* @__PURE__ */ new Date()).toISOString();
-    const event = `## ${now}
-action: source.request.create
-actor: user
-target: ${requestPath}
-source_kind: ${sourceKind}
-source: ${this.quoteYamlString(sourceValue)}
-status: pending
-timestamp: ${now}
-
-`;
-    await this.appendToAuditLog(event);
-  }
-  async loadSourceAnalysisSnapshot() {
+  async loadSourceStatusSnapshot() {
     const folder = this.app.vault.getAbstractFileByPath(SOURCE_REQUESTS_PATH);
     if (!(folder instanceof import_obsidian.TFolder)) {
       return {
@@ -550,7 +384,7 @@ timestamp: ${now}
     }
     const files = this.collectMarkdownFiles(folder);
     const records = await Promise.all(files.map((file) => this.readSourceRequestFile(file)));
-    const requests = records.filter((record) => Boolean(record)).sort((a, b) => b.sortTimestamp - a.sortTimestamp).slice(0, MAX_SOURCE_REQUEST_ROWS);
+    const requests = records.filter((record) => Boolean(record)).sort((a, b) => b.sortTimestamp - a.sortTimestamp).slice(0, MAX_SOURCE_STATUS_ROWS);
     return {
       requests,
       missingRequestFolder: false,
@@ -691,8 +525,11 @@ timestamp: ${now}
   }
   normalizeProposalStatus(rawStatus) {
     const status = (rawStatus || "pending").toLowerCase().trim();
-    if (status === "approved" || status === "rejected" || status === "deferred") {
+    if (status === "approved" || status === "rejected" || status === "deferred" || status === "revision_requested" || status === "applied") {
       return status;
+    }
+    if (status === "pending_review") {
+      return "pending";
     }
     return "pending";
   }
@@ -700,9 +537,11 @@ timestamp: ${now}
     var _a, _b;
     const statusRank = {
       pending: 0,
+      revision_requested: 1,
       approved: 2,
-      rejected: 3,
-      deferred: 4
+      applied: 3,
+      deferred: 4,
+      rejected: 5
     };
     const rankA = (_a = statusRank[a.approvalStatus]) != null ? _a : 1;
     const rankB = (_b = statusRank[b.approvalStatus]) != null ? _b : 1;
@@ -1131,60 +970,16 @@ var InitializeMemoryStructureModal = class extends import_obsidian.Modal {
     super.onClose();
   }
 };
-var SourceRequestModal = class extends import_obsidian.Modal {
-  constructor(app, options) {
-    super(app);
-    this.options = options;
-  }
-  onOpen() {
-    super.onOpen();
-    this.titleEl.setText(this.options.title);
-    const { contentEl } = this;
-    contentEl.empty();
-    let sourceInput;
-    let purposeInput;
-    const sourceRow = new import_obsidian.Setting(contentEl).setName(this.options.sourceLabel).setDesc("Required.");
-    sourceInput = sourceRow.controlEl.createEl("input", {
-      type: "text",
-      placeholder: this.options.sourcePlaceholder,
-      cls: "text-input"
-    });
-    const purposeRow = new import_obsidian.Setting(contentEl).setName("Purpose").setDesc("Optional analysis purpose.");
-    purposeInput = purposeRow.controlEl.createEl("input", {
-      type: "text",
-      placeholder: "Why should the agent analyze this source?"
-    });
-    const actions = contentEl.createDiv({ cls: "modal-button-container" });
-    const cancel = actions.createEl("button", { text: "Cancel", cls: "mod-warning" });
-    cancel.addEventListener("click", () => this.close());
-    const confirm = actions.createEl("button", { text: "Create Request", cls: "mod-cta" });
-    confirm.addEventListener("click", async () => {
-      const source = sourceInput.value.trim();
-      if (!source) {
-        new import_obsidian.Notice(`Please provide ${this.options.sourceLabel.toLowerCase()}.`);
-        return;
-      }
-      await this.options.onConfirm({
-        source,
-        purpose: purposeInput.value.trim()
-      });
-      this.close();
-    });
-  }
-  onClose() {
-    super.onClose();
-  }
-};
-var ObsWikiSourceAnalysisView = class extends import_obsidian.ItemView {
+var ObsWikiSourceStatusView = class extends import_obsidian.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
   }
   getViewType() {
-    return OBS_WIKI_SOURCE_ANALYSIS_VIEW;
+    return OBS_WIKI_SOURCE_STATUS_VIEW;
   }
   getDisplayText() {
-    return "Source Analysis";
+    return "Source Status";
   }
   getViewData() {
     return "";
@@ -1203,7 +998,7 @@ var ObsWikiSourceAnalysisView = class extends import_obsidian.ItemView {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("obs-wiki-view-root");
-    contentEl.createEl("h2", { text: "Source Analysis", cls: "obs-wiki-view__title" });
+    contentEl.createEl("h2", { text: "Source Status", cls: "obs-wiki-view__title" });
     const header = contentEl.createDiv({ cls: "obs-wiki-view__section" });
     header.createEl("div", {
       text: `Last refreshed: ${this.plugin.formatDisplayTime(
@@ -1221,14 +1016,14 @@ var ObsWikiSourceAnalysisView = class extends import_obsidian.ItemView {
     });
     if (snapshot.missingRequestFolder) {
       contentEl.createEl("p", {
-        text: "No source analysis request folder found at 01_inbox/agent_requests. Run Initialize Memory Structure first.",
+        text: "No agent source request folder found at 01_inbox/agent_requests. Agent-created requests will appear here after the memory structure exists.",
         cls: "obs-wiki-view__description"
       });
       return;
     }
     if (snapshot.requests.length === 0) {
       contentEl.createEl("p", {
-        text: "No pending source analysis requests yet.",
+        text: "No pending agent-created source requests yet.",
         cls: "obs-wiki-view__description"
       });
       return;
@@ -1258,7 +1053,7 @@ var ObsWikiSourceAnalysisView = class extends import_obsidian.ItemView {
     }
   }
   async refresh() {
-    const snapshot = await this.plugin.loadSourceAnalysisSnapshot();
+    const snapshot = await this.plugin.loadSourceStatusSnapshot();
     await this.render(snapshot);
   }
 };
@@ -1314,7 +1109,7 @@ var ObsWikiActivityView = class extends import_obsidian.ItemView {
     currentSection.createEl("h3", { text: "Current Task" });
     if (!snapshot.currentTask) {
       currentSection.createEl("p", {
-        text: snapshot.missingTaskFolder ? "No agent task folder found at 02_timeline/agent_tasks. Run Initialize Memory Structure." : "No active or recent agent task found.",
+        text: snapshot.missingTaskFolder ? "No agent task folder found at 02_timeline/agent_tasks. Agent/runtime setup should create the memory structure." : "No active or recent agent task found.",
         cls: "obs-wiki-view__description"
       });
     } else {
@@ -1459,7 +1254,7 @@ var ObsWikiReviewQueueView = class extends import_obsidian.ItemView {
     });
     if (snapshot.missingReviewQueueFolder) {
       contentEl.createEl("p", {
-        text: "No review queue folder found at 01_inbox/review_queue. Run Initialize Memory Structure first.",
+        text: "No review queue folder found at 01_inbox/review_queue. Agent/runtime setup should create the memory structure.",
         cls: "obs-wiki-view__description"
       });
       return;
@@ -1472,7 +1267,14 @@ var ObsWikiReviewQueueView = class extends import_obsidian.ItemView {
       return;
     }
     const sections = this.groupByStatus(snapshot.proposals);
-    const orderedStatuses = ["pending", "approved", "rejected", "deferred"];
+    const orderedStatuses = [
+      "pending",
+      "revision_requested",
+      "approved",
+      "applied",
+      "deferred",
+      "rejected"
+    ];
     const unknown = sections["unknown"] || [];
     for (const status of orderedStatuses) {
       const proposals = sections[status] || [];
@@ -1517,7 +1319,10 @@ var ObsWikiReviewQueueView = class extends import_obsidian.ItemView {
           const defer = actionRow.createEl("button", {
             text: "Defer"
           });
-          const actionButtons = [approve, reject, defer];
+          const requestRevision = actionRow.createEl("button", {
+            text: "Request Revision"
+          });
+          const actionButtons = [approve, reject, defer, requestRevision];
           const updateStatus = async (status2) => {
             for (const button of actionButtons) {
               button.setAttribute("disabled", "true");
@@ -1534,6 +1339,16 @@ var ObsWikiReviewQueueView = class extends import_obsidian.ItemView {
           approve.addEventListener("click", () => void updateStatus("approved"));
           reject.addEventListener("click", () => void updateStatus("rejected"));
           defer.addEventListener("click", () => void updateStatus("deferred"));
+          requestRevision.addEventListener("click", () => void updateStatus("revision_requested"));
+        } else if (proposal.approvalStatus === "approved") {
+          const actionRow = card.createDiv({ cls: "obs-wiki-view__actions" });
+          const apply = actionRow.createEl("button", {
+            text: "Apply Approved Writeback",
+            cls: "mod-cta"
+          });
+          apply.addEventListener("click", () => {
+            new import_obsidian.Notice("Approved writeback must be applied by the Runtime. Runtime trigger wiring is planned for the next batch.");
+          });
         }
       }
     }
@@ -1566,15 +1381,15 @@ var ObsWikiReviewQueueView = class extends import_obsidian.ItemView {
     return grouped;
   }
 };
-var ObsWikiPermissionCenterView = class extends import_obsidian.ItemView {
+var ObsWikiMemoryInspectorView = class extends import_obsidian.ItemView {
   constructor(leaf) {
     super(leaf);
   }
   getViewType() {
-    return OBS_WIKI_PERMISSION_CENTER_VIEW;
+    return OBS_WIKI_MEMORY_INSPECTOR_VIEW;
   }
   getDisplayText() {
-    return "Permission Center";
+    return "Memory Inspector";
   }
   getViewData() {
     return "";
@@ -1593,9 +1408,112 @@ var ObsWikiPermissionCenterView = class extends import_obsidian.ItemView {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("obs-wiki-view-root");
-    contentEl.createEl("h2", { text: "Permission Center", cls: "obs-wiki-view__title" });
+    contentEl.createEl("h2", { text: "Memory Inspector", cls: "obs-wiki-view__title" });
     contentEl.createEl("p", {
-      text: "Scaffold placeholder: permission configuration UI will be added later.",
+      text: "Scaffold placeholder: note source, claim, evidence, and agent usage inspection will be added later.",
+      cls: "obs-wiki-view__description"
+    });
+  }
+};
+var ObsWikiAuditLogView = class extends import_obsidian.ItemView {
+  constructor(leaf, plugin) {
+    super(leaf);
+    this.plugin = plugin;
+  }
+  getViewType() {
+    return OBS_WIKI_AUDIT_LOG_VIEW;
+  }
+  getDisplayText() {
+    return "Audit Log";
+  }
+  getViewData() {
+    return "";
+  }
+  setViewData(_data, _clear) {
+    return;
+  }
+  clear() {
+    this.contentEl.empty();
+  }
+  async onOpen() {
+    await super.onOpen();
+    this.render();
+  }
+  render() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("obs-wiki-view-root");
+    contentEl.createEl("h2", { text: "Audit Log", cls: "obs-wiki-view__title" });
+    contentEl.createEl("p", {
+      text: "Scaffold placeholder: detailed agent, runtime, plugin, and user audit timeline will be added later. Recent audit events are visible in Agent Activity.",
+      cls: "obs-wiki-view__description"
+    });
+  }
+};
+var ObsWikiRuntimeStatusView = class extends import_obsidian.ItemView {
+  constructor(leaf) {
+    super(leaf);
+  }
+  getViewType() {
+    return OBS_WIKI_RUNTIME_STATUS_VIEW;
+  }
+  getDisplayText() {
+    return "Runtime Status";
+  }
+  getViewData() {
+    return "";
+  }
+  setViewData(_data, _clear) {
+    return;
+  }
+  clear() {
+    this.contentEl.empty();
+  }
+  async onOpen() {
+    await super.onOpen();
+    this.render();
+  }
+  render() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("obs-wiki-view-root");
+    contentEl.createEl("h2", { text: "Runtime Status", cls: "obs-wiki-view__title" });
+    contentEl.createEl("p", {
+      text: "Scaffold placeholder: MCP server, runtime index, context pack, lint, and source-analysis status will be added later.",
+      cls: "obs-wiki-view__description"
+    });
+  }
+};
+var ObsWikiPermissionPolicyView = class extends import_obsidian.ItemView {
+  constructor(leaf) {
+    super(leaf);
+  }
+  getViewType() {
+    return OBS_WIKI_PERMISSION_POLICY_VIEW;
+  }
+  getDisplayText() {
+    return "Permission Policy";
+  }
+  getViewData() {
+    return "";
+  }
+  setViewData(_data, _clear) {
+    return;
+  }
+  clear() {
+    this.contentEl.empty();
+  }
+  async onOpen() {
+    await super.onOpen();
+    this.render();
+  }
+  render() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("obs-wiki-view-root");
+    contentEl.createEl("h2", { text: "Permission Policy", cls: "obs-wiki-view__title" });
+    contentEl.createEl("p", {
+      text: "Scaffold placeholder: policy display for Agent write allowlist, protected folders, and review requirements will be added later.",
       cls: "obs-wiki-view__description"
     });
     const section = contentEl.createDiv({ cls: "obs-wiki-view__section" });

@@ -2,7 +2,7 @@
 
 ## 总体原则
 
-这是全新方向，不要求保留旧 Codex 插件方案。Codex 应该优先建立 Obsidian 原生插件 + Agent Memory API 的新主线。
+这是全新方向，不要求保留旧 Codex 插件方案。Codex 应该优先建立 Agent-first + Obsidian governance plugin + Agent Memory API 的新主线。
 
 建议先新建分支：
 
@@ -12,20 +12,23 @@ feat/obs-wiki-obsidian-plugin-reset
 
 ## Phase 0：方向重置与文档落地
 
-目标：明确放弃 Codex plugin-first，转为 Obsidian plugin-first + Agent memory-first。
+目标：明确放弃 Codex plugin-first，转为 Agent-first + Obsidian 审核治理。
 
 任务：
 
 1. 更新 README，明确新定位。
 2. 新增 docs：Product Vision、Architecture、Memory Model、Agent Memory API。
 3. 标记旧 Codex plugin 目录为 legacy 或 archive 候选。
-4. 不立即删除旧代码，除非用户明确确认；但不要再以旧结构作为产品主线。
+4. 明确 Agent 是 URL / 文件 / source analysis / context pack / lint / distill 的唯一操作入口。
+5. 明确 Obsidian 插件只提供审核、批准、拒绝、审计、状态和权限界面。
+6. 不立即删除旧代码，除非用户明确确认；但不要再以旧结构作为产品主线。
 
 验收：
 
 - README 中不再把 Codex plugin 作为主产品。
-- 新主线是 obs-wiki Obsidian plugin。
-- 明确 MCP 是 Agent 接口，Obsidian plugin 是审计/复核/权限 UI。
+- 新主线是 obs-wiki Agent-first memory system。
+- 明确 MCP 是 Agent 接口，Obsidian plugin 是审计/复核/权限/状态 UI。
+- 文档不再建议 Obsidian 插件提供 Analyze URL / File / Capture Source / Build Context Pack / Run Lint / Run Distill。
 
 ## Phase 1：Obsidian 插件 Scaffold
 
@@ -41,6 +44,14 @@ feat/obs-wiki-obsidian-plugin-reset
 6. 添加 command palette 命令。
 7. 添加 settings tab。
 8. 添加基础 ItemView。
+9. Command Palette 只保留观察和治理入口：
+   - Open Agent Activity
+   - Open Review Queue
+   - Open Memory Inspector
+   - Open Audit Log
+   - Open Runtime Status
+   - Open Permission Policy
+   - Refresh Views
 
 验收：
 
@@ -48,6 +59,7 @@ feat/obs-wiki-obsidian-plugin-reset
 - 插件可放入 `.obsidian/plugins/obs-wiki/` 加载。
 - Settings 可保存。
 - Ribbon / commands 可见。
+- 插件不包含 Analyze URL / File / Capture Source / Build Context Pack / Run Lint / Distill / Create Agent Request 命令。
 
 ## Phase 2：Vault Memory Structure 初始化
 
@@ -102,24 +114,23 @@ feat/obs-wiki-obsidian-plugin-reset
 - 操作不直接改长期知识，除非明确 approve commit。
 - 所有操作可审计。
 
-## Phase 5：Source Analysis Request
+## Phase 5：Agent Source Status
 
-目标：用户可手动指定 URL / 本地文件 / 当前笔记，让 Agent 后续分析。
+目标：用户在 Agent 中提交 URL / 文件 / 当前资料后，Obsidian 插件只展示 Agent 生成的 source status，不创建 request。
 
 任务：
 
-1. 新增 Analyze URL command。
-2. 新增 Analyze Local File command。
-3. 新增 Analyze Current Note command。
-4. 创建 agent-request note。
-5. request 中包含 source、purpose、project、analysis mode、status。
-6. 显示 Source Analysis Queue。
+1. 显示 Agent 创建的 pending / completed / failed source requests。
+2. 显示 source note、analysis report、linked proposals、audit trail。
+3. 明确 URL / 文件 / selection 提交入口只在 Agent 客户端中。
+4. 不创建 agent-request note。
+5. 不抓取 URL，不读取用户本地文件，不调用 Runtime 执行 source analysis。
 
 验收：
 
-- 用户输入 URL 后生成 request。
-- 用户选择文件后生成 request。
-- Agent / MCP 后续能读取 pending requests。
+- 用户能看到 Agent 生成的 source status。
+- Obsidian 插件没有 Analyze URL / Local File / Current Note / Selection 命令。
+- Source status 视图不产生 source note / proposal / analysis report。
 
 ## Phase 6：Memory Runtime v0
 

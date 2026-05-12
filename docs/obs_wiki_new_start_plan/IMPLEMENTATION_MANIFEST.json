@@ -1,30 +1,32 @@
 {
   "project": "obs-wiki",
   "version": "2026-05-12",
-  "direction": "Obsidian-native agent-first memory plugin",
+  "direction": "Agent-first memory system with Obsidian governance plugin",
   "product_name": "obs-wiki",
   "plugin_id": "obs-wiki",
   "mcp_tool_prefix": "obs_wiki",
   "core_principles": [
-    "Agent-first",
+    "Single Agent Operation Entry",
     "Obsidian vault is the only memory carrier",
     "MCP is the Agent interface",
-    "Obsidian plugin is review/audit/permission UI",
+    "Obsidian plugin is review/audit/status/permission UI",
     "Evidence-first memory governance",
     "Review-first writeback",
-    "Audit all critical actions"
+    "Audit all critical actions",
+    "No dual source submission"
   ],
   "phases": [
     {
       "id": 0,
       "name": "Direction reset and documentation",
       "deliverables": ["README update", "architecture docs", "memory model docs", "Agent Memory API docs"],
-      "do_not_do": ["large implementation", "old Codex plugin optimization"]
+      "do_not_do": ["large implementation", "old Codex plugin optimization", "Obsidian source submission entry"]
     },
     {
       "id": 1,
       "name": "Obsidian plugin scaffold",
-      "deliverables": ["apps/obsidian-plugin", "manifest.json", "main.ts", "settings", "basic views"]
+      "deliverables": ["apps/obsidian-plugin", "manifest.json", "main.ts", "settings", "governance views"],
+      "do_not_do": ["Analyze URL command", "Analyze Local File command", "Capture Source command", "Build Context Pack command", "Run Lint command", "Run Distill command"]
     },
     {
       "id": 2,
@@ -43,8 +45,9 @@
     },
     {
       "id": 5,
-      "name": "Source Analysis Request",
-      "deliverables": ["Analyze URL", "Analyze Local File", "Analyze Current Note", "agent-request schema"]
+      "name": "Agent Source Status",
+      "deliverables": ["Source status read-only view", "agent-request status display", "linked proposals display"],
+      "do_not_do": ["create agent-request from Obsidian", "fetch URL from Obsidian", "read local files from Obsidian"]
     },
     {
       "id": 6,
