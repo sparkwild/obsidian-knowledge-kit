@@ -25,6 +25,7 @@ __export(main_exports, {
 module.exports = __toCommonJS(main_exports);
 var import_obsidian = require("obsidian");
 var OBS_WIKI_ACTIVITY_VIEW = "obs-wiki-activity";
+var OBS_WIKI_SOURCE_ANALYSIS_VIEW = "obs-wiki-source-analysis";
 var OBS_WIKI_REVIEW_QUEUE_VIEW = "obs-wiki-review-queue";
 var OBS_WIKI_PERMISSION_CENTER_VIEW = "obs-wiki-permission-center";
 var CONTROL_FILES = [
@@ -47,11 +48,13 @@ var CONTROL_PATHS = {
   auditDir: "00_control/audit",
   dashboards: "00_control/dashboards"
 };
+var SOURCE_REQUESTS_PATH = "01_inbox/agent_requests";
 var REVIEW_QUEUE_PATH = "01_inbox/review_queue";
 var AGENT_TASKS_PATH = "02_timeline/agent_tasks";
 var MAX_TASK_SNIPPET_LENGTH = 160;
 var MAX_TASK_ROWS = 6;
 var MAX_AUDIT_ROWS = 12;
+var MAX_SOURCE_REQUEST_ROWS = 20;
 var MAX_REVIEW_QUEUE_ROWS = 20;
 var MEMORY_STRUCTURE = [
   "01_inbox/agent_requests",
@@ -87,6 +90,10 @@ var ObsWikiPlugin = class extends import_obsidian.Plugin {
   async onload() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     this.registerView(
+      OBS_WIKI_SOURCE_ANALYSIS_VIEW,
+      (leaf) => new ObsWikiSourceAnalysisView(leaf, this)
+    );
+    this.registerView(
       OBS_WIKI_ACTIVITY_VIEW,
       (leaf) => new ObsWikiActivityView(leaf, this)
     );
@@ -100,6 +107,67 @@ var ObsWikiPlugin = class extends import_obsidian.Plugin {
     );
     this.addRibbonIcon("layout-dashboard", "Open obs-wiki Activity", () => {
       this.openPluginView(OBS_WIKI_ACTIVITY_VIEW);
+    });
+    this.addCommand({
+      id: "open-source-analysis",
+      name: "Open Source Analysis",
+      callback: () => this.openPluginView(OBS_WIKI_SOURCE_ANALYSIS_VIEW)
+    });
+    this.addCommand({
+      id: "analyze-url-with-agent",
+      name: "Analyze URL with Agent",
+      callback: () => {
+        new SourceRequestModal(this.app, {
+          title: "Analyze URL with Agent",
+          sourceKind: "url",
+          sourceLabel: "Source URL",
+          sourcePlaceholder: "https://example.com/article",
+          onConfirm: async ({ source, purpose }) => {
+            await this.createAgentRequest({
+              source,
+              sourceKind: "url",
+              purpose,
+              relatedProject: "",
+              analysisMode: "default"
+            });
+          }
+        }).open();
+      }
+    });
+    this.addCommand({
+      id: "analyze-local-file-with-agent",
+      name: "Analyze Local File with Agent",
+      callback: () => {
+        new SourceRequestModal(this.app, {
+          title: "Analyze Local File with Agent",
+          sourceKind: "local_file",
+          sourceLabel: "Local File Path",
+          sourcePlaceholder: "path/to/file.md",
+          onConfirm: async ({ source, purpose }) => {
+            await this.createAgentRequest({
+              source,
+              sourceKind: "local_file",
+              purpose,
+              relatedProject: "",
+              analysisMode: "default"
+            });
+          }
+        }).open();
+      }
+    });
+    this.addCommand({
+      id: "analyze-current-note-with-agent",
+      name: "Analyze Current Note",
+      callback: () => {
+        void this.createRequestFromCurrentNote();
+      }
+    });
+    this.addCommand({
+      id: "analyze-current-selection-with-agent",
+      name: "Analyze Current Selection",
+      callback: () => {
+        void this.createRequestFromCurrentSelection();
+      }
     });
     this.addCommand({
       id: "open-agent-activity",
@@ -325,6 +393,205 @@ timestamp: ${timestamp}
         await view.refresh();
       }
     }
+  }
+  async refreshSourceAnalysisViews() {
+    const sourceAnalysisLeaves = this.app.workspace.getLeavesOfType(OBS_WIKI_SOURCE_ANALYSIS_VIEW);
+    for (const leaf of sourceAnalysisLeaves) {
+      const view = leaf.view;
+      if (view instanceof ObsWikiSourceAnalysisView) {
+        await view.refresh();
+      }
+    }
+  }
+  async createRequestFromCurrentNote() {
+    const file = this.app.workspace.getActiveFile();
+    if (!file) {
+      new import_obsidian.Notice("No active note found. Open a note and run this command again.");
+      return;
+    }
+    await this.createAgentRequest({
+      source: file.path,
+      sourceKind: "current_note",
+      purpose: "Analyze current note",
+      relatedProject: "",
+      analysisMode: "default"
+    });
+  }
+  async createRequestFromCurrentSelection() {
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian.MarkdownView);
+    if (!view) {
+      new import_obsidian.Notice("No active markdown note found.");
+      return;
+    }
+    const selection = view.editor.getSelection().trim();
+    if (!selection) {
+      new import_obsidian.Notice("No text is selected. Select text and run this command again.");
+      return;
+    }
+    await this.createAgentRequest(
+      {
+        source: this.trimText(selection, 320),
+        sourceKind: "selection",
+        purpose: "Analyze current selection",
+        relatedProject: "",
+        analysisMode: "default"
+      },
+      {
+        body: "## Selected Text\n\n" + selection.split("\n").map((line) => `> ${line}`).join("\n") + "\n"
+      }
+    );
+  }
+  async createAgentRequest(request, extra = {}) {
+    try {
+      await this.ensureFolderExists(SOURCE_REQUESTS_PATH);
+      const timestamp = (/* @__PURE__ */ new Date()).toISOString();
+      const safeSource = this.normalizeAgentRequestSource(request.source);
+      const filePath = await this.resolveUniqueRequestPath(request.sourceKind, safeSource);
+      const content = this.renderAgentRequestNote({
+        source: safeSource,
+        sourceKind: request.sourceKind,
+        purpose: request.purpose,
+        relatedProject: request.relatedProject,
+        analysisMode: request.analysisMode,
+        status: "pending",
+        created: timestamp,
+        extraBody: extra.body
+      });
+      await this.app.vault.create(filePath, content);
+      await this.appendSourceRequestAuditEvent(filePath, request.sourceKind, safeSource);
+      await this.refreshSourceAnalysisViews();
+      new import_obsidian.Notice(`Source analysis request created: ${filePath}`);
+    } catch (error) {
+      console.error("obs-wiki failed to create source request", error);
+      new import_obsidian.Notice("Failed to create source analysis request.");
+    }
+  }
+  normalizeAgentRequestSource(value) {
+    return this.trimText((value || "").replace(/\r/g, " ").replace(/\n/g, " ").trim(), 300);
+  }
+  async resolveUniqueRequestPath(sourceKind, source) {
+    const now = (/* @__PURE__ */ new Date()).toISOString().replace(/[.:]/g, "-").replace("T", "_").replace("Z", "");
+    const slug = this.slugify(source || sourceKind, 80);
+    const base = `${sourceKind}-${now}-${slug}`;
+    for (let index = 0; index < 10; index++) {
+      const suffix = index > 0 ? `-${index}` : "";
+      const name = `${base}${suffix}.md`;
+      const path = `${SOURCE_REQUESTS_PATH}/${name}`;
+      if (!this.app.vault.getAbstractFileByPath(path)) {
+        return path;
+      }
+    }
+    const fallback = `${sourceKind}-${Date.now()}`;
+    return `${SOURCE_REQUESTS_PATH}/${this.slugify(fallback, 140)}.md`;
+  }
+  slugify(value, maxLength = 80) {
+    const normalized = value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/-{2,}/g, "-").replace(/^-+|-+$/g, "");
+    return this.trimText(normalized || "request", maxLength);
+  }
+  quoteYamlString(value) {
+    const trimmed = (value || "").trim().replace(/\r/g, "");
+    if (!trimmed) {
+      return '""';
+    }
+    const escaped = trimmed.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return `"${escaped}"`;
+  }
+  renderAgentRequestNote(payload) {
+    const frontmatter = `---
+type: "agent-request"
+source: ${this.quoteYamlString(payload.source)}
+source_kind: ${this.quoteYamlString(payload.sourceKind)}
+purpose: ${this.quoteYamlString(payload.purpose)}
+related_project: ${this.quoteYamlString(payload.relatedProject)}
+analysis_mode: ${this.quoteYamlString(payload.analysisMode)}
+status: ${this.quoteYamlString(payload.status)}
+created: ${payload.created}
+---
+
+`;
+    const bodyLines = [
+      "# Source Analysis Request",
+      "",
+      `- source: ${payload.source}`,
+      `- source kind: ${payload.sourceKind}`,
+      `- analysis mode: ${payload.analysisMode}`,
+      `- related project: ${payload.relatedProject || "unset"}`,
+      `- purpose: ${payload.purpose || "unset"}`,
+      `- status: ${payload.status}`
+    ];
+    if (payload.extraBody) {
+      bodyLines.push("", payload.extraBody.trim());
+    }
+    return `${frontmatter}${bodyLines.join("\n")}
+`;
+  }
+  async appendSourceRequestAuditEvent(requestPath, sourceKind, sourceValue) {
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    const event = `## ${now}
+action: source.request.create
+actor: user
+target: ${requestPath}
+source_kind: ${sourceKind}
+source: ${this.quoteYamlString(sourceValue)}
+status: pending
+timestamp: ${now}
+
+`;
+    await this.appendToAuditLog(event);
+  }
+  async loadSourceAnalysisSnapshot() {
+    const folder = this.app.vault.getAbstractFileByPath(SOURCE_REQUESTS_PATH);
+    if (!(folder instanceof import_obsidian.TFolder)) {
+      return {
+        requests: [],
+        missingRequestFolder: true,
+        updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+      };
+    }
+    const files = this.collectMarkdownFiles(folder);
+    const records = await Promise.all(files.map((file) => this.readSourceRequestFile(file)));
+    const requests = records.filter((record) => Boolean(record)).sort((a, b) => b.sortTimestamp - a.sortTimestamp).slice(0, MAX_SOURCE_REQUEST_ROWS);
+    return {
+      requests,
+      missingRequestFolder: false,
+      updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  async readSourceRequestFile(file) {
+    var _a;
+    let content = "";
+    try {
+      content = await this.app.vault.cachedRead(file);
+    } catch (error) {
+      console.error(`obs-wiki failed to read source request: ${file.path}`, error);
+      content = "";
+    }
+    const parsed = this.readFrontmatter(content);
+    const data = parsed.fields;
+    const type = this.firstString(data, ["type"]);
+    if (!type.toLowerCase().includes("agent-request")) {
+      return null;
+    }
+    const source = this.firstString(data, ["source"]);
+    const status = this.firstString(data, ["status"]);
+    if (!source || status.toLowerCase() !== "pending") {
+      return null;
+    }
+    const created = this.firstString(data, ["created"]);
+    const sortTimestamp = this.parseTimestamp(created, (_a = file.stat) == null ? void 0 : _a.mtime);
+    return {
+      path: file.path,
+      type,
+      source,
+      sourceKind: this.firstString(data, ["source_kind", "sourceKind"]) || "unknown",
+      purpose: this.firstString(data, ["purpose"]) || "",
+      relatedProject: this.firstString(data, ["related_project", "relatedProject"]) || "",
+      analysisMode: this.firstString(data, ["analysis_mode", "analysisMode"]) || "default",
+      status,
+      created,
+      summary: this.snippetFromText(parsed.body, source),
+      sortTimestamp
+    };
   }
   async loadAgentActivitySnapshot() {
     const recentTasks = await this.readRecentAgentTasks(MAX_TASK_ROWS);
@@ -862,6 +1129,137 @@ var InitializeMemoryStructureModal = class extends import_obsidian.Modal {
   }
   onClose() {
     super.onClose();
+  }
+};
+var SourceRequestModal = class extends import_obsidian.Modal {
+  constructor(app, options) {
+    super(app);
+    this.options = options;
+  }
+  onOpen() {
+    super.onOpen();
+    this.titleEl.setText(this.options.title);
+    const { contentEl } = this;
+    contentEl.empty();
+    let sourceInput;
+    let purposeInput;
+    const sourceRow = new import_obsidian.Setting(contentEl).setName(this.options.sourceLabel).setDesc("Required.");
+    sourceInput = sourceRow.controlEl.createEl("input", {
+      type: "text",
+      placeholder: this.options.sourcePlaceholder,
+      cls: "text-input"
+    });
+    const purposeRow = new import_obsidian.Setting(contentEl).setName("Purpose").setDesc("Optional analysis purpose.");
+    purposeInput = purposeRow.controlEl.createEl("input", {
+      type: "text",
+      placeholder: "Why should the agent analyze this source?"
+    });
+    const actions = contentEl.createDiv({ cls: "modal-button-container" });
+    const cancel = actions.createEl("button", { text: "Cancel", cls: "mod-warning" });
+    cancel.addEventListener("click", () => this.close());
+    const confirm = actions.createEl("button", { text: "Create Request", cls: "mod-cta" });
+    confirm.addEventListener("click", async () => {
+      const source = sourceInput.value.trim();
+      if (!source) {
+        new import_obsidian.Notice(`Please provide ${this.options.sourceLabel.toLowerCase()}.`);
+        return;
+      }
+      await this.options.onConfirm({
+        source,
+        purpose: purposeInput.value.trim()
+      });
+      this.close();
+    });
+  }
+  onClose() {
+    super.onClose();
+  }
+};
+var ObsWikiSourceAnalysisView = class extends import_obsidian.ItemView {
+  constructor(leaf, plugin) {
+    super(leaf);
+    this.plugin = plugin;
+  }
+  getViewType() {
+    return OBS_WIKI_SOURCE_ANALYSIS_VIEW;
+  }
+  getDisplayText() {
+    return "Source Analysis";
+  }
+  getViewData() {
+    return "";
+  }
+  setViewData(_data, _clear) {
+    return;
+  }
+  clear() {
+    this.contentEl.empty();
+  }
+  async onOpen() {
+    await super.onOpen();
+    await this.refresh();
+  }
+  async render(snapshot) {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass("obs-wiki-view-root");
+    contentEl.createEl("h2", { text: "Source Analysis", cls: "obs-wiki-view__title" });
+    const header = contentEl.createDiv({ cls: "obs-wiki-view__section" });
+    header.createEl("div", {
+      text: `Last refreshed: ${this.plugin.formatDisplayTime(
+        Date.parse(snapshot.updatedAt)
+      )}`,
+      cls: "obs-wiki-view__description"
+    });
+    const actions = header.createDiv();
+    const refreshButton = actions.createEl("button", {
+      text: "Refresh",
+      cls: "mod-cta"
+    });
+    refreshButton.addEventListener("click", async () => {
+      await this.refresh();
+    });
+    if (snapshot.missingRequestFolder) {
+      contentEl.createEl("p", {
+        text: "No source analysis request folder found at 01_inbox/agent_requests. Run Initialize Memory Structure first.",
+        cls: "obs-wiki-view__description"
+      });
+      return;
+    }
+    if (snapshot.requests.length === 0) {
+      contentEl.createEl("p", {
+        text: "No pending source analysis requests yet.",
+        cls: "obs-wiki-view__description"
+      });
+      return;
+    }
+    const list = contentEl.createEl("ul", { cls: "obs-wiki-view__list" });
+    for (const request of snapshot.requests) {
+      const item = list.createEl("li", { cls: "obs-wiki-view__item" });
+      item.createEl("div", {
+        text: `${this.plugin.formatDisplayTime(request.sortTimestamp)} \u2022 ${request.sourceKind} \u2022 ${request.status}`
+      });
+      if (request.source) {
+        item.createEl("div", { text: `Source: ${this.plugin.trimText(request.source, 120)}` });
+      }
+      if (request.purpose) {
+        item.createEl("div", { text: `Purpose: ${request.purpose}` });
+      }
+      if (request.analysisMode) {
+        item.createEl("div", { text: `Analysis mode: ${request.analysisMode}` });
+      }
+      if (request.relatedProject) {
+        item.createEl("div", { text: `Related project: ${request.relatedProject}` });
+      }
+      if (request.summary) {
+        item.createEl("div", { text: this.plugin.trimText(request.summary, 140) });
+      }
+      item.createEl("small", { text: `file: ${request.path}` });
+    }
+  }
+  async refresh() {
+    const snapshot = await this.plugin.loadSourceAnalysisSnapshot();
+    await this.render(snapshot);
   }
 };
 var ObsWikiActivityView = class extends import_obsidian.ItemView {
