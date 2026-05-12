@@ -1,8 +1,65 @@
-import { App, ItemView, Plugin, PluginSettingTab, Setting, WorkspaceLeaf } from 'obsidian';
+import {
+	App,
+	ItemView,
+	Modal,
+	Notice,
+	Plugin,
+	PluginSettingTab,
+	Setting,
+	TFile,
+	TFolder,
+	WorkspaceLeaf,
+} from 'obsidian';
 
 const OBS_WIKI_ACTIVITY_VIEW = 'obs-wiki-activity';
 const OBS_WIKI_REVIEW_QUEUE_VIEW = 'obs-wiki-review-queue';
 const OBS_WIKI_PERMISSION_CENTER_VIEW = 'obs-wiki-permission-center';
+const CONTROL_FILES: Array<{ path: string; content: string }> = [
+	{
+		path: '00_control/system.md',
+		content: '# System Control\n\nObsidian-native memory system control defaults for obs-wiki.\n',
+	},
+	{
+		path: '00_control/memory_policy.md',
+		content: '# Memory Policy\n\n- Writing is permissioned.\n- Vault scope: vault-root only.\n',
+	},
+	{
+		path: '00_control/permissions.md',
+		content: '# Permissions\n\n- Default: read-only for automation.\n- User confirmation required for memory writes.\n',
+	},
+];
+const CONTROL_PATHS = {
+	root: '00_control',
+	auditLog: '00_control/audit_log.md',
+	dashboards: '00_control/dashboards',
+};
+const MEMORY_STRUCTURE: string[] = [
+	'01_inbox/agent_requests',
+	'01_inbox/review_queue',
+	'02_timeline/sessions',
+	'02_timeline/agent_tasks',
+	'03_sources/web',
+	'03_sources/files',
+	'03_sources/transcripts',
+	'03_sources/attachments',
+	'04_memory/concepts',
+	'04_memory/claims',
+	'04_memory/procedures',
+	'04_memory/preferences',
+	'04_memory/reflections',
+	'05_projects',
+	'06_outputs/context_packs',
+	'06_outputs/reports',
+	'06_outputs/source_analysis',
+	'06_outputs/summaries',
+	'07_archive',
+];
+
+interface MemoryInitializationPlan {
+	foldersToCreate: string[];
+	filesToCreate: string[];
+	missingAuditLog: boolean;
+}
 
 interface ObsWikiSettings {
 	showWelcomeMessage: boolean;
@@ -57,7 +114,175 @@ export default class ObsWikiPlugin extends Plugin {
 			callback: () => this.openPluginView(OBS_WIKI_PERMISSION_CENTER_VIEW),
 		});
 
+		this.addCommand({
+			id: 'initialize-memory-structure',
+			name: 'Initialize Memory Structure',
+			callback: () => this.promptInitializeMemoryStructure(),
+		});
+
 		this.addSettingTab(new ObsWikiSettingTab(this.app, this));
+	}
+
+	private async promptInitializeMemoryStructure(): Promise<void> {
+		const plan = this.buildInitializationPlan();
+		new InitializeMemoryStructureModal(this.app, {
+			plan,
+			onConfirm: async () => {
+				await this.initializeMemoryStructure(plan);
+			},
+		}).open();
+	}
+
+	private buildInitializationPlan(): MemoryInitializationPlan {
+		const foldersToCreate = this.getNormalizedFolderPlan();
+		const missingFolders = foldersToCreate.filter((path) => this.app.vault.getAbstractFileByPath(path) === null);
+
+		const missingAuditLog =
+			this.app.vault.getAbstractFileByPath(CONTROL_PATHS.auditLog) === null;
+
+		const filesToCreate: string[] = [];
+		for (const controlFile of CONTROL_FILES) {
+			if (!this.app.vault.getAbstractFileByPath(controlFile.path)) {
+				filesToCreate.push(controlFile.path);
+			}
+		}
+		if (missingAuditLog && !filesToCreate.includes(CONTROL_PATHS.auditLog)) {
+			filesToCreate.push(CONTROL_PATHS.auditLog);
+		}
+
+		return {
+			foldersToCreate: missingFolders,
+			filesToCreate,
+			missingAuditLog,
+		};
+	}
+
+	private getNormalizedFolderPlan(): string[] {
+		const foldersToCreate: string[] = [];
+		const seen = new Set<string>();
+
+		for (const path of [CONTROL_PATHS.root, CONTROL_PATHS.dashboards, ...MEMORY_STRUCTURE]) {
+			for (const folder of this.expandFolderHierarchy(path)) {
+				if (!seen.has(folder)) {
+					seen.add(folder);
+					foldersToCreate.push(folder);
+				}
+			}
+		}
+
+		return foldersToCreate;
+	}
+
+	private expandFolderHierarchy(path: string): string[] {
+		const normalized = this.normalizeVaultPath(path);
+		if (!normalized) {
+			return [];
+		}
+
+		const parts = normalized.split('/').filter(Boolean);
+		const folders: string[] = [];
+		let current = '';
+
+		for (const part of parts) {
+			current = current ? `${current}/${part}` : part;
+			folders.push(current);
+		}
+
+		return folders;
+	}
+
+	private normalizeVaultPath(path: string): string {
+		return path
+			.trim()
+			.replace(/\\+/g, '/')
+			.replace(/\/+$/g, '');
+	}
+
+	private async ensureFolderExists(folderPath: string): Promise<void> {
+		const normalized = this.normalizeVaultPath(folderPath);
+		if (!normalized) return;
+
+		let current = '';
+		for (const segment of normalized.split('/').filter(Boolean)) {
+			current = current ? `${current}/${segment}` : segment;
+			const existing = this.app.vault.getAbstractFileByPath(current);
+			if (!existing) {
+				await this.app.vault.createFolder(current);
+				continue;
+			}
+			if (!(existing instanceof TFolder)) {
+				throw new Error(`Cannot create folder: ${current} already exists as a file.`);
+			}
+		}
+	}
+
+	private async ensureFileDoesNotExist(path: string, content: string): Promise<void> {
+		const existing = this.app.vault.getAbstractFileByPath(this.normalizeVaultPath(path));
+		if (existing) {
+			if (!(existing instanceof TFile)) {
+				throw new Error(`Cannot create file: ${path} already exists as a folder.`);
+			}
+			return;
+		}
+		await this.app.vault.create(this.normalizeVaultPath(path), content);
+	}
+
+	private buildAuditLogPath(): string {
+		return this.normalizeVaultPath(CONTROL_PATHS.auditLog);
+	}
+
+	private async initializeMemoryStructure(plan: MemoryInitializationPlan): Promise<void> {
+		try {
+			for (const folder of plan.foldersToCreate) {
+				await this.ensureFolderExists(folder);
+			}
+
+			for (const controlFile of CONTROL_FILES.filter((file) =>
+				plan.filesToCreate.includes(file.path)
+			)) {
+				await this.ensureFileDoesNotExist(controlFile.path, controlFile.content);
+			}
+
+			if (plan.missingAuditLog) {
+				await this.ensureFileDoesNotExist(CONTROL_PATHS.auditLog, this.buildAuditLogHeader());
+			}
+
+			await this.appendAuditEvent(plan);
+			new Notice('obs-wiki memory structure initialized.');
+		} catch (error) {
+			console.error('obs-wiki failed to initialize memory structure', error);
+			new Notice('obs-wiki failed to initialize memory structure.');
+		}
+	}
+
+	private buildAuditLogHeader(): string {
+		return '# Audit Log\n\n';
+	}
+
+	private async appendAuditEvent(plan: MemoryInitializationPlan): Promise<void> {
+		const now = new Date().toISOString();
+		const event = this.renderAuditEvent(now, plan.foldersToCreate.length, plan.filesToCreate.length);
+
+		const auditPath = this.buildAuditLogPath();
+		const auditFile = this.app.vault.getAbstractFileByPath(auditPath);
+		if (!auditFile) {
+			await this.ensureFileDoesNotExist(auditPath, this.buildAuditLogHeader() + event);
+			return;
+		}
+
+		if (auditFile instanceof TFile) {
+			const current = await this.app.vault.read(auditFile);
+			const normalized = current.endsWith('\n') ? current : `${current}\n`;
+			const separator = normalized.length > 0 ? '\n' : '';
+			await this.app.vault.modify(auditFile, `${normalized}${separator}${event}`);
+			return;
+		}
+
+		throw new Error(`Cannot append audit log: ${auditPath} already exists as a folder.`);
+	}
+
+	private renderAuditEvent(timestamp: string, folderCount: number, fileCount: number): string {
+		return `## ${timestamp}\naction: memory.initialize\nactor: user\nfolders_created: ${folderCount}\nfiles_created: ${fileCount}\nresult: success\n\n`;
 	}
 
 	async saveSettings() {
@@ -78,6 +303,64 @@ export default class ObsWikiPlugin extends Plugin {
 			active: true,
 		});
 		this.app.workspace.revealLeaf(leaf);
+	}
+}
+
+class InitializeMemoryStructureModal extends Modal {
+	constructor(
+		app: App,
+		private options: {
+			plan: MemoryInitializationPlan;
+			onConfirm: () => Promise<void>;
+		}
+	) {
+		super(app);
+	}
+
+	onOpen(): void {
+		super.onOpen();
+		this.titleEl.setText('Initialize Memory Structure');
+
+		const { contentEl } = this;
+		contentEl.empty();
+
+		const { foldersToCreate, filesToCreate } = this.options.plan;
+		contentEl.createEl('p', {
+			text: 'The following obs-wiki structure will be created if missing in this vault.',
+		});
+
+		if (foldersToCreate.length === 0 && filesToCreate.length === 0) {
+			contentEl.createEl('p', {
+				text: 'Nothing is missing. No files or folders will be created.',
+			});
+		} else {
+			const section = contentEl.createDiv();
+			section.createEl('h3', { text: 'Folders' });
+			const folderList = section.createEl('ul');
+			for (const folder of foldersToCreate) {
+				folderList.createEl('li', { text: folder });
+			}
+
+			section.createEl('h3', { text: 'Files' });
+			const fileList = section.createEl('ul');
+			for (const file of filesToCreate) {
+				fileList.createEl('li', { text: file });
+			}
+		}
+
+		const actions = contentEl.createDiv({ cls: 'modal-button-container' });
+		const cancel = actions.createEl('button', { text: 'Cancel', cls: 'mod-warning' });
+		cancel.addEventListener('click', () => this.close());
+
+		const confirm = actions.createEl('button', { text: 'Initialize', cls: 'mod-cta' });
+		confirm.addEventListener('click', async () => {
+			await this.options.onConfirm();
+			this.close();
+		});
+	}
+
+	onClose(): void {
+		super.onClose();
 	}
 }
 
