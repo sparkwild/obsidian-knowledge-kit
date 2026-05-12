@@ -1,0 +1,75 @@
+{
+  "project": "obs-wiki",
+  "version": "2026-05-12",
+  "direction": "Obsidian-native agent-first memory plugin",
+  "product_name": "obs-wiki",
+  "plugin_id": "obs-wiki",
+  "mcp_tool_prefix": "obs_wiki",
+  "core_principles": [
+    "Agent-first",
+    "Obsidian vault is the only memory carrier",
+    "MCP is the Agent interface",
+    "Obsidian plugin is review/audit/permission UI",
+    "Evidence-first memory governance",
+    "Review-first writeback",
+    "Audit all critical actions"
+  ],
+  "phases": [
+    {
+      "id": 0,
+      "name": "Direction reset and documentation",
+      "deliverables": ["README update", "architecture docs", "memory model docs", "Agent Memory API docs"],
+      "do_not_do": ["large implementation", "old Codex plugin optimization"]
+    },
+    {
+      "id": 1,
+      "name": "Obsidian plugin scaffold",
+      "deliverables": ["apps/obsidian-plugin", "manifest.json", "main.ts", "settings", "basic views"]
+    },
+    {
+      "id": 2,
+      "name": "Vault memory structure initialization",
+      "deliverables": ["00_control", "01_inbox", "02_timeline", "03_sources", "04_memory", "05_projects", "06_outputs", "07_archive"]
+    },
+    {
+      "id": 3,
+      "name": "Agent Activity and Audit UI",
+      "deliverables": ["AgentActivityView", "audit-event schema", "agent-task schema"]
+    },
+    {
+      "id": 4,
+      "name": "Review Queue",
+      "deliverables": ["ReviewQueueView", "memory-proposal schema", "approve/reject/defer"]
+    },
+    {
+      "id": 5,
+      "name": "Source Analysis Request",
+      "deliverables": ["Analyze URL", "Analyze Local File", "Analyze Current Note", "agent-request schema"]
+    },
+    {
+      "id": 6,
+      "name": "Memory Runtime v0",
+      "deliverables": ["packages/core", "markdown parser", "recall", "context pack", "lint preview"]
+    },
+    {
+      "id": 7,
+      "name": "MCP read-only MVP",
+      "deliverables": ["apps/mcp-server", "obs_wiki.status", "obs_wiki.start_task", "obs_wiki.recall", "obs_wiki.read_note", "obs_wiki.list_review_queue"]
+    },
+    {
+      "id": 8,
+      "name": "Controlled write MCP",
+      "deliverables": ["write_context_pack", "write_session_note", "capture_source", "propose_memory", "audit"]
+    },
+    {
+      "id": 9,
+      "name": "Source Analysis MVP",
+      "deliverables": ["source note", "analysis report", "evidence scaffold", "claim scaffold", "memory proposals"]
+    },
+    {
+      "id": 10,
+      "name": "Packaging and tests",
+      "deliverables": ["plugin build", "MCP smoke test", "path safety tests", "release packaging"]
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+# 需要继续沟通的问题
+
+这些问题不阻塞 Phase 0 / Phase 1，但会影响后续设计。
+
+## 1. 旧代码处理方式
+
+选项：
+
+1. 归档旧 Codex plugin 目录到 `legacy/`。
+2. 直接删除旧 Codex plugin 目录。
+3. 保留一段时间，但 README 明确 legacy。
+
+建议：Phase 0 先归档，不立即删除；等 Obsidian 插件 MVP 能跑后再清理。
+
+## 2. 技术栈确认
+
+推荐：TypeScript monorepo。
+
+需要确认：
+
+- 是否接受 pnpm / npm workspace？
+- 是否接受 SQLite 作为本地索引？
+- 是否先不引入 Rust/Go？
+
+## 3. Obsidian 插件发布策略
+
+选项：
+
+1. 先 GitHub release 手动安装。
+2. 用 BRAT 测试。
+3. 后期提交 Obsidian Community Plugins。
+
+建议：MVP 用 GitHub release / BRAT，稳定后再社区发布。
+
+## 4. MCP 生命周期
+
+默认建议：Agent-session stdio。
+
+需要确认是否也要第一版支持 background daemon。
+
+建议：第一版不做 background daemon。
+
+## 5. Source Analysis 能力范围
+
+MVP 支持：
+
+- URL 登记。
+- Markdown / TXT 文件。
+- 当前 note。
+- 当前选区。
+
+需要确认 PDF 是否第一版支持。
+
+建议：PDF 放 Phase 9 或以后。
+
+## 6. 是否内置 LLM Provider
+
+选择：
+
+1. MVP 不内置 LLM，只做 Agent/MCP 接口。
+2. 插件内置 provider settings。
+3. Runtime 支持 OpenAI-compatible API。
+
+建议：MVP 不内置模型，只做 Agent-first MCP。
+
+## 7. 用户偏好记忆策略
+
+需要确认：是否任何 preference memory 都必须手动批准？
+
+建议：必须手动批准，且可过期、可撤销。
+
+## 8. 插件名称大小写
+
+推荐：
+
+- Display Name: `obs-wiki`
+- Plugin ID: `obs-wiki`
+- MCP Prefix: `obs_wiki`
+- CLI: `obs-wiki`
+
+需要确认是否要更品牌化大小写如 `ObsWiki`。
+
+## 9. 是否保留 Vaultwright 文档作为历史参考
+
+建议：保留在 `legacy/` 或 docs archive，不作为新主线。
+
+## 10. 第一版目标用户
+
+选择：
+
+1. 只服务用户自己的 Codex/Claude/Cursor Agent。
+2. 面向通用 Obsidian 用户。
+3. 先内部实验，再产品化。
+
+建议：先内部实验，服务 Agent-first 记忆需求。
