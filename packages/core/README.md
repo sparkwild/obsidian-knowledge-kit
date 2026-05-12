@@ -1,0 +1,32 @@
+# obs-wiki Core Runtime (Phase 6)
+
+This package implements a minimal, read-only TypeScript runtime for local Obsidian vault processing.
+
+## Features
+
+- Markdown / frontmatter parsing (`src/markdown.ts`)
+- Vault scanning over Markdown notes (`src/scan.ts`)
+- Block id, wikilink, claim/evidence callout extraction (`src/markdown.ts`)
+- Simple token recall/search (`src/recall.ts`)
+- Context pack construction (`src/context-pack.ts`)
+- Lint preview for:
+  - Broken wikilinks
+  - Claim blocks without source references
+- Vault-root safety helpers (`src/safety.ts`)
+
+## Usage
+
+```ts
+import { scanVault, recallNotes, buildContextPack, lintNotes } from './src/index';
+
+const scan = scanVault('/path/to/vault');
+const recall = recallNotes(scan.notes, 'project memory');
+const contextPack = buildContextPack('/path/to/vault', 'project memory');
+const lint = lintNotes(scan.vaultRoot, scan.notes);
+```
+
+## Security behavior
+
+- Scan and link resolution are read-only.
+- `/.obsidian/` directories are skipped.
+- Paths are checked to remain inside the configured vault root.

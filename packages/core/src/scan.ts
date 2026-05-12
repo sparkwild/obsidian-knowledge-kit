@@ -1,0 +1,148 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { isSafeDirectoryName, resolveVaultRoot, ensureInsideVaultRoot } from './safety';
+import { parseMarkdown } from './markdown';
+
+export interface ScannedNote {
+	absolutePath: string;
+	relativePath: string;
+	title: string;
+	size: number;
+	modifiedAt: string;
+	tokens: string;
+	frontmatter: Record<string, unknown>;
+	aliases: string[];
+	type?: string;
+	tags: string[];
+	headings: string[];
+	blockIds: string[];
+	wikilinks: ReturnType<typeof parseMarkdown>['wikilinks'];
+	claimBlocks: ReturnType<typeof parseMarkdown>['claimBlocks'];
+	evidenceBlocks: ReturnType<typeof parseMarkdown>['evidenceBlocks'];
+	content: string;
+}
+
+export interface ScanError {
+	path: string;
+	error: string;
+}
+
+export interface ScanResult {
+	vaultRoot: string;
+	scannedAt: string;
+	notes: ScannedNote[];
+	errors: ScanError[];
+}
+
+const NOTES_EXTENSIONS = new Set(['.md', '.markdown']);
+
+function getAliases(frontmatter: Record<string, unknown>): string[] {
+	const aliases: string[] = [];
+	const aliasesFromFrontmatter = frontmatter.aliases;
+
+	if (typeof aliasesFromFrontmatter === 'string') {
+		for (const alias of aliasesFromFrontmatter.split(',').map((item) => item.trim())) {
+			if (alias) {
+				aliases.push(alias);
+			}
+		}
+	} else if (Array.isArray(aliasesFromFrontmatter)) {
+		for (const alias of aliasesFromFrontmatter) {
+			if (typeof alias === 'string' && alias.trim()) {
+				aliases.push(alias.trim());
+			}
+		}
+	}
+
+	if (typeof frontmatter.title === 'string' && frontmatter.title.trim()) {
+		aliases.push(frontmatter.title.trim());
+	}
+	return [...new Set(aliases)];
+}
+
+function shouldSkipDirectory(entryName: string): boolean {
+	return !isSafeDirectoryName(entryName);
+}
+
+function isSkippableEntry(entry: fs.Dirent): boolean {
+	if (entry.isSymbolicLink()) {
+		return true;
+	}
+	return false;
+}
+
+function scanDirectory(vaultRoot: string, directory: string, notes: ScannedNote[], errors: ScanError[]): void {
+	const entries = fs.readdirSync(directory, { withFileTypes: true });
+	for (const entry of entries) {
+		if (shouldSkipDirectory(entry.name)) {
+			continue;
+		}
+		if (isSkippableEntry(entry)) {
+			continue;
+		}
+
+		const resolved = path.join(directory, entry.name);
+		const safePath = ensureInsideVaultRoot(vaultRoot, resolved);
+
+		if (entry.isDirectory()) {
+			scanDirectory(vaultRoot, safePath, notes, errors);
+			continue;
+		}
+
+		if (!entry.isFile()) {
+			continue;
+		}
+
+		const ext = path.extname(entry.name).toLowerCase();
+		if (!NOTES_EXTENSIONS.has(ext)) {
+			continue;
+		}
+
+		try {
+			const fileContent = fs.readFileSync(safePath, 'utf8');
+			const parsed = parseMarkdown(fileContent);
+			const stats = fs.statSync(safePath);
+			const relativePath = path.relative(vaultRoot, safePath).replace(/\\/g, '/');
+			const aliases = getAliases(parsed.frontmatter.fields);
+
+			notes.push({
+				absolutePath: safePath,
+				relativePath,
+				title: parsed.title || path.basename(entry.name, ext),
+				size: stats.size,
+				modifiedAt: stats.mtime.toISOString(),
+				tokens: parsed.searchText,
+				frontmatter: parsed.frontmatter.fields,
+				aliases,
+				type: typeof parsed.frontmatter.fields.type === 'string' ? parsed.frontmatter.fields.type : undefined,
+				tags: parsed.tags,
+				headings: parsed.headings,
+				blockIds: parsed.blockIds,
+				wikilinks: parsed.wikilinks,
+				claimBlocks: parsed.claimBlocks,
+				evidenceBlocks: parsed.evidenceBlocks,
+				content: parsed.body,
+			});
+		} catch (error) {
+			errors.push({
+				path: safePath,
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
+	}
+}
+
+export function scanVault(vaultRoot: string): ScanResult {
+	const resolvedRoot = resolveVaultRoot(vaultRoot);
+	const notes: ScannedNote[] = [];
+	const errors: ScanError[] = [];
+
+	scanDirectory(resolvedRoot, resolvedRoot, notes, errors);
+
+	return {
+		vaultRoot: resolvedRoot,
+		scannedAt: new Date().toISOString(),
+		notes,
+		errors,
+	};
+}
