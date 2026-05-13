@@ -9,6 +9,7 @@ import {
 	TFile,
 	TFolder,
 	WorkspaceLeaf,
+	getLanguage,
 } from 'obsidian';
 
 const OBS_WIKI_ACTIVITY_VIEW = 'obs-wiki-activity';
@@ -52,9 +53,16 @@ const MAX_ACTIVITY_CONTEXT_PACK_ROWS = 5;
 const MAX_ACTIVITY_SOURCE_CAPTURE_ROWS = 5;
 const MAX_ACTIVITY_PROPOSAL_ROWS = 5;
 const LEGACY_DEFAULT_STATUS_MESSAGE = 'Welcome to obs-wiki Agent Activity.';
-const DEFAULT_STATUS_MESSAGE =
+const LEGACY_BILINGUAL_DEFAULT_STATUS_MESSAGE =
 	'欢迎使用 obs-wiki Agent Activity。 / Welcome to obs-wiki Agent Activity.';
-const ui = (zh: string, en: string): string => `${zh} / ${en}`;
+const DEFAULT_STATUS_MESSAGE_ZH = '欢迎使用 obs-wiki Agent Activity。';
+const DEFAULT_STATUS_MESSAGE_EN = 'Welcome to obs-wiki Agent Activity.';
+const isChineseLanguage = (language: string): boolean => {
+	const normalized = language.toLowerCase();
+	return normalized === 'zh' || normalized.startsWith('zh-') || normalized.startsWith('zh_');
+};
+const ui = (zh: string, en: string): string => (isChineseLanguage(getLanguage()) ? zh : en);
+const defaultStatusMessage = (): string => ui(DEFAULT_STATUS_MESSAGE_ZH, DEFAULT_STATUS_MESSAGE_EN);
 const MEMORY_STRUCTURE: string[] = [
 	'01_inbox/agent_requests',
 	'01_inbox/review_queue',
@@ -163,13 +171,22 @@ type MemoryProposalStatus =
 	| 'revision_requested'
 	| 'applied';
 
-const MEMORY_PROPOSAL_STATUS_LABELS: Record<MemoryProposalStatus, string> = {
-	pending: ui('待审核', 'Pending'),
-	approved: ui('已批准', 'Approved'),
-	rejected: ui('已拒绝', 'Rejected'),
-	deferred: ui('已暂缓', 'Deferred'),
-	revision_requested: ui('需修订', 'Revision requested'),
-	applied: ui('已写回', 'Applied'),
+const memoryProposalStatusLabel = (status: MemoryProposalStatus): string => {
+	switch (status) {
+		case 'approved':
+			return ui('已批准', 'Approved');
+		case 'rejected':
+			return ui('已拒绝', 'Rejected');
+		case 'deferred':
+			return ui('已暂缓', 'Deferred');
+		case 'revision_requested':
+			return ui('需修订', 'Revision requested');
+		case 'applied':
+			return ui('已写回', 'Applied');
+		case 'pending':
+		default:
+			return ui('待审核', 'Pending');
+	}
 };
 
 interface AuditEventRecord {
@@ -227,7 +244,7 @@ interface ObsWikiSettings {
 const DEFAULT_SETTINGS: ObsWikiSettings = {
 	showWelcomeMessage: true,
 	defaultAgentScope: 'vault',
-	statusMessage: DEFAULT_STATUS_MESSAGE,
+	statusMessage: '',
 };
 
 export default class ObsWikiPlugin extends Plugin {
@@ -235,8 +252,16 @@ export default class ObsWikiPlugin extends Plugin {
 
 	async onload() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-		if (this.settings.statusMessage === LEGACY_DEFAULT_STATUS_MESSAGE) {
-			this.settings.statusMessage = DEFAULT_STATUS_MESSAGE;
+		if (typeof this.settings.statusMessage !== 'string') {
+			this.settings.statusMessage = '';
+		}
+		if (
+			this.settings.statusMessage === LEGACY_DEFAULT_STATUS_MESSAGE ||
+			this.settings.statusMessage === LEGACY_BILINGUAL_DEFAULT_STATUS_MESSAGE ||
+			this.settings.statusMessage === DEFAULT_STATUS_MESSAGE_ZH ||
+			this.settings.statusMessage === DEFAULT_STATUS_MESSAGE_EN
+		) {
+			this.settings.statusMessage = '';
 			await this.saveSettings();
 		}
 
@@ -1287,6 +1312,11 @@ export default class ObsWikiPlugin extends Plugin {
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
+
+	getStatusMessage(): string {
+		const customStatusMessage = (this.settings.statusMessage || '').trim();
+		return customStatusMessage.length > 0 ? customStatusMessage : defaultStatusMessage();
+	}
 }
 
 class InitializeMemoryStructureModal extends Modal {
@@ -1513,7 +1543,7 @@ class ObsWikiActivityView extends ItemView {
 
 		contentEl.createEl('p', {
 			text: this.plugin.settings.showWelcomeMessage
-				? this.plugin.settings.statusMessage
+				? this.plugin.getStatusMessage()
 				: ui(
 					'欢迎信息已关闭。活动数据以只读模式显示。',
 					'Welcome message is disabled. Activity data is shown in read-only mode.'
@@ -1626,7 +1656,7 @@ class ObsWikiActivityView extends ItemView {
 			for (const proposal of snapshot.recentProposals) {
 				const item = list.createEl('li', { cls: 'obs-wiki-view__item' });
 				item.createEl('div', {
-					text: `${proposal.proposalId} • ${MEMORY_PROPOSAL_STATUS_LABELS[proposal.approvalStatus]} • ${proposal.proposalKind}`,
+					text: `${proposal.proposalId} • ${memoryProposalStatusLabel(proposal.approvalStatus)} • ${proposal.proposalKind}`,
 				});
 				if (proposal.targetNote) {
 					item.createEl('div', { text: `${ui('目标笔记', 'Target note')}: ${proposal.targetNote}` });
@@ -1821,7 +1851,7 @@ class ObsWikiReviewQueueView extends ItemView {
 			}
 
 			const section = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-			section.createEl('h3', { text: `${MEMORY_PROPOSAL_STATUS_LABELS[status]} (${proposals.length})` });
+			section.createEl('h3', { text: `${memoryProposalStatusLabel(status)} (${proposals.length})` });
 
 			for (const proposal of proposals) {
 				const card = section.createDiv({ cls: 'obs-wiki-view__item' });
@@ -2239,10 +2269,10 @@ class ObsWikiSettingTab extends PluginSettingTab {
 			))
 			.addText((text) =>
 				text
-					.setPlaceholder(this.plugin.settings.statusMessage)
+					.setPlaceholder(defaultStatusMessage())
 					.setValue(this.plugin.settings.statusMessage)
 					.onChange(async (value) => {
-						this.plugin.settings.statusMessage = value || DEFAULT_STATUS_MESSAGE;
+						this.plugin.settings.statusMessage = value;
 						await this.plugin.saveSettings();
 					})
 			);
