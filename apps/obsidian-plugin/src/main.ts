@@ -52,16 +52,19 @@ const MAX_REVIEW_QUEUE_ROWS = 20;
 const MAX_ACTIVITY_CONTEXT_PACK_ROWS = 5;
 const MAX_ACTIVITY_SOURCE_CAPTURE_ROWS = 5;
 const MAX_ACTIVITY_PROPOSAL_ROWS = 5;
+const PLUGIN_DISPLAY_NAME_ZH = '知识库控制台';
+const PLUGIN_DISPLAY_NAME_EN = 'Wiki Console';
 const LEGACY_DEFAULT_STATUS_MESSAGE = 'Welcome to obs-wiki Agent Activity.';
 const LEGACY_BILINGUAL_DEFAULT_STATUS_MESSAGE =
 	'欢迎使用 obs-wiki Agent Activity。 / Welcome to obs-wiki Agent Activity.';
-const DEFAULT_STATUS_MESSAGE_ZH = '欢迎使用 obs-wiki Agent Activity。';
-const DEFAULT_STATUS_MESSAGE_EN = 'Welcome to obs-wiki Agent Activity.';
+const DEFAULT_STATUS_MESSAGE_ZH = '欢迎使用知识库控制台。';
+const DEFAULT_STATUS_MESSAGE_EN = 'Welcome to Wiki Console.';
 const isChineseLanguage = (language: string): boolean => {
 	const normalized = language.toLowerCase();
 	return normalized === 'zh' || normalized.startsWith('zh-') || normalized.startsWith('zh_');
 };
 const ui = (zh: string, en: string): string => (isChineseLanguage(getLanguage()) ? zh : en);
+const pluginDisplayName = (): string => ui(PLUGIN_DISPLAY_NAME_ZH, PLUGIN_DISPLAY_NAME_EN);
 const defaultStatusMessage = (): string => ui(DEFAULT_STATUS_MESSAGE_ZH, DEFAULT_STATUS_MESSAGE_EN);
 const MEMORY_STRUCTURE: string[] = [
 	'01_inbox/agent_requests',
@@ -294,7 +297,7 @@ export default class ObsWikiPlugin extends Plugin {
 			(leaf) => new ObsWikiPermissionPolicyView(leaf)
 		);
 
-		this.addRibbonIcon('brain-circuit', ui('打开 obs-wiki 活动', 'Open obs-wiki activity'), () => {
+		this.addRibbonIcon('brain-circuit', ui('打开知识库控制台', 'Open Wiki Console'), () => {
 			this.openPluginView(OBS_WIKI_ACTIVITY_VIEW);
 		});
 
@@ -1505,7 +1508,7 @@ class ObsWikiActivityView extends ItemView {
 	}
 
 	getDisplayText() {
-		return ui('obs-wiki 活动', 'obs-wiki activity');
+		return pluginDisplayName();
 	}
 
 	getViewData() {
@@ -2244,7 +2247,7 @@ class ObsWikiSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-		containerEl.createEl('h2', { text: 'obs-wiki' });
+		containerEl.createEl('h2', { text: pluginDisplayName() });
 
 		new Setting(containerEl)
 			.setName(ui('显示欢迎信息', 'Show welcome message'))

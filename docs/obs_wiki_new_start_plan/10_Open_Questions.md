@@ -59,16 +59,17 @@ MVP 支持：
 
 建议：必须手动批准，且可过期、可撤销。
 
-## 7. 插件名称大小写
+## 7. 插件显示名称
 
-推荐：
+已确定：
 
-- Display Name: `obs-wiki`
+- Display Name: `Wiki Console`
+- Chinese UI Name: `知识库控制台`
 - Plugin ID: `obs-wiki`
 - MCP Prefix: `obs_wiki`
 - CLI: `obs-wiki`
 
-需要确认是否要更品牌化大小写如 `ObsWiki`。
+说明：`obs-wiki` 保留为稳定 id、目录名、MCP/CLI 命名和仓库名；Obsidian 展示层使用 `Wiki Console` / `知识库控制台`。
 
 ## 8. 第一版目标用户
 

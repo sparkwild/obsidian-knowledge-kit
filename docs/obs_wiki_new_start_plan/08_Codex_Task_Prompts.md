@@ -64,7 +64,7 @@
 5. 写入 audit event。
 
 验收：
-- 命令 obs-wiki: Initialize Memory Structure 可用。
+- 命令 Wiki Console: Initialize Memory Structure 可用。
 - 重复执行不会破坏已有文件。
 ```
 

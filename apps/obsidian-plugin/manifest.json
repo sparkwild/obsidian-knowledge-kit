@@ -1,6 +1,6 @@
 {
   "id": "obs-wiki",
-  "name": "obs-wiki",
+  "name": "Wiki Console",
   "version": "0.1.3",
   "minAppVersion": "1.6.0",
   "description": "Review, audit, and govern Agent-first memory workflows in an Obsidian vault.",

@@ -6,7 +6,7 @@ This batch aligns the existing plan and Obsidian plugin scaffold with the Agent-
 
 ## Product Boundary
 
-- Product and plugin name remain `obs-wiki`.
+- Product and plugin id remain `obs-wiki`; Obsidian plugin display name is `Wiki Console` / `知识库控制台`.
 - Agent is the only operation entry for URL/file submission, source analysis, context packs, lint, distill, and proposal generation.
 - Obsidian plugin is the human governance surface for review, approval, rejection, revision requests, audit, status, and permission visibility.
 - Long-term memory, user preferences, important project decisions, high-confidence claims, delete/archive, and bulk migration must enter Review Queue first.
