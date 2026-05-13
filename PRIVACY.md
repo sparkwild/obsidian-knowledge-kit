@@ -1,15 +1,15 @@
 # Privacy Policy
 
-Obswiki is local-first. It is designed to work with an Obsidian vault on the user's machine.
+Wiki Weaver is local-first. It is designed to work with an Obsidian vault on the user's machine.
 
-## What Obswiki Does
+## What Wiki Weaver Does
 
 - Reads the active Obsidian vault through Obsidian plugin APIs and the local MCP runtime.
 - Writes vault notes only through explicit user actions or controlled MCP tools.
 - Keeps important long-term memory changes behind Review Queue approval.
 - Lets the user configure local AI-tool connection details.
 
-## What Obswiki Does Not Do By Default
+## What Wiki Weaver Does Not Do By Default
 
 - It does not run a hosted backend.
 - It does not upload vault content to a remote service.

@@ -1,14 +1,14 @@
 # Contributing
 
-Thanks for contributing to Obswiki.
+Thanks for contributing to Wiki Weaver.
 
 ## Scope
 
-This repository contains the Obsidian-native Obswiki monorepo:
+This repository contains the Obsidian-native Wiki Weaver monorepo:
 
 - `apps/obsidian-plugin/` for the Obsidian review and connection plugin.
 - `apps/mcp-server/` for the Agent-facing MCP server.
-- `packages/core/` for shared TypeScript memory and vault primitives.
+- `packages-weaver/core/` for shared TypeScript memory and vault primitives.
 - `docs/` for current product and architecture documentation.
 
 ## Setup

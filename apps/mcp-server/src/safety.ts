@@ -1,6 +1,6 @@
 import path from 'node:path';
 import fs from 'node:fs';
-import { ensureInsideVaultRoot, resolveVaultRoot, isSafeDirectoryName, VaultPathError } from '@obswiki/core';
+import { ensureInsideVaultRoot, resolveVaultRoot, isSafeDirectoryName, VaultPathError } from '@wiki-weaver/core';
 
 const FORBIDDEN_SEGMENTS = new Set(['.obsidian']);
 const TEXT_LIKE_EXTENSIONS = new Set(['.md', '.markdown', '.txt', '.text']);

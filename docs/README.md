@@ -1,6 +1,6 @@
-# Obswiki Documentation
+# Wiki Weaver Documentation
 
-This directory keeps the current Obswiki product documentation. Historical execution prompts, batch notes, and migration records have been removed so the docs describe the product as it exists now.
+This directory keeps the current Wiki Weaver product documentation. Historical execution prompts, batch notes, and migration records have been removed so the docs describe the product as it exists now.
 
 ## Current Docs
 
@@ -15,4 +15,4 @@ This directory keeps the current Obswiki product documentation. Historical execu
 - Agent clients start knowledge work.
 - Obsidian is the human review and governance surface.
 - The vault is the durable knowledge layer.
-- Client connection details use local Runtime defaults that users can change; Obswiki does not hardcode vault paths, repository paths, or developer machine paths.
+- Client connection details use local Runtime defaults that users can change; Wiki Weaver does not hardcode vault paths, repository paths, or developer machine paths.

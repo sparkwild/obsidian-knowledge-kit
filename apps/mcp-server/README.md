@@ -1,6 +1,6 @@
-# Obswiki MCP Server
+# Wiki Weaver MCP Server
 
-MCP server for Obswiki operations. It is read-only by default and exposes controlled write tooling only for low-risk working records.
+MCP server for Wiki Weaver operations. It is read-only by default and exposes controlled write tooling only for low-risk working records.
 
 ## JSON-RPC methods
 
@@ -14,24 +14,24 @@ MCP server for Obswiki operations. It is read-only by default and exposes contro
 
 `tools/list` returns:
 
-- `obswiki.status`
-- `obswiki.start_task`
-- `obswiki.recall`
-- `obswiki.read_note`
-- `obswiki.list_review_queue`
-- `obswiki.list_source_requests`
-- `obswiki.list_approved_writebacks`
-- `obswiki.audit_recent`
-- `obswiki.write_context_pack`
-- `obswiki.build_context_pack`
-- `obswiki.lint`
-- `obswiki.finish_task`
-- `obswiki.distill_session`
-- `obswiki.write_session_note`
-- `obswiki.capture_source`
-- `obswiki.propose_memory`
-- `obswiki.analyze_source_request`
-- `obswiki.apply_approved_writeback`
+- `wiki_weaver.status`
+- `wiki_weaver.start_task`
+- `wiki_weaver.recall`
+- `wiki_weaver.read_note`
+- `wiki_weaver.list_review_queue`
+- `wiki_weaver.list_source_requests`
+- `wiki_weaver.list_approved_writebacks`
+- `wiki_weaver.audit_recent`
+- `wiki_weaver.write_context_pack`
+- `wiki_weaver.build_context_pack`
+- `wiki_weaver.lint`
+- `wiki_weaver.finish_task`
+- `wiki_weaver.distill_session`
+- `wiki_weaver.write_session_note`
+- `wiki_weaver.capture_source`
+- `wiki_weaver.propose_memory`
+- `wiki_weaver.analyze_source_request`
+- `wiki_weaver.apply_approved_writeback`
 
 Permission policy:
 
@@ -68,7 +68,7 @@ Security constraints:
 
 ```bash
 cd <repo>/apps/mcp-server
-npm install --cache /private/tmp/obswiki-npm-cache
+npm install --cache /private/tmp/wiki-weaver-npm-cache
 npm run typecheck
 npm run build
 npm run test

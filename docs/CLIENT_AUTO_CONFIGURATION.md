@@ -1,6 +1,6 @@
 # Client Auto-Configuration
 
-The Agent Connections view helps users connect AI tools to Obswiki without exposing repository checkout paths or developer machine details.
+The Agent Connections view helps users connect AI tools to Wiki Weaver without exposing repository checkout paths or developer machine details.
 
 ## Principles
 
@@ -25,17 +25,17 @@ The Agent Connections view helps users connect AI tools to Obswiki without expos
 ## Safe Write Flow
 
 1. Detect whether a supported client config file exists.
-2. Generate only the `obswiki` MCP server block.
+2. Generate only the `wiki-weaver` MCP server block.
 3. Show target file and config preview.
 4. Wait for user confirmation.
 5. Create a backup.
-6. Merge or replace only the `obswiki` block.
+6. Merge or replace only the `wiki-weaver` block.
 7. Leave all other MCP servers untouched.
 8. Record an audit event.
 
 ## Removal Flow
 
-Removal uses the same confirmation and backup flow. It deletes only the `obswiki` MCP server block and never deletes the whole client config file.
+Removal uses the same confirmation and backup flow. It deletes only the `wiki-weaver` MCP server block and never deletes the whole client config file.
 
 ## Mobile Behavior
 

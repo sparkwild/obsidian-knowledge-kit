@@ -1,4 +1,4 @@
-# Obswiki Core Runtime
+# Wiki Weaver Core Runtime
 
 This package implements the shared TypeScript runtime for local Obsidian vault processing.
 

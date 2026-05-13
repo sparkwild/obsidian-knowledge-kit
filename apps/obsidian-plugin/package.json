@@ -1,7 +1,7 @@
 {
-  "name": "obsidian-obswiki-plugin",
+  "name": "wiki-weaver-plugin",
   "version": "0.1.0",
-  "description": "连接 AI 助手与 Obsidian 知识库，把重要建议先放进审核队列，再沉淀为长期记忆。",
+  "description": "Compile raw notes, sources, and AI conversations into a linked Markdown wiki with reviewable updates.",
   "private": true,
   "main": "main.js",
   "scripts": {

@@ -8,35 +8,35 @@ const SERVER_VERSION = '0.1.0';
 const DEFAULT_TRANSPORT = 'stdio';
 const RESOURCES = [
     {
-        uri: 'obswiki://system',
+        uri: 'wiki-weaver://system',
         name: 'system',
         title: 'System note',
         description: 'Core system note path if present.',
         mimeType: 'text/markdown',
     },
     {
-        uri: 'obswiki://active-context',
+        uri: 'wiki-weaver://active-context',
         name: 'active-context',
         title: 'Active context',
         description: 'Active-context note for current memory state.',
         mimeType: 'text/markdown',
     },
     {
-        uri: 'obswiki://review-queue',
+        uri: 'wiki-weaver://review-queue',
         name: 'review-queue',
         title: 'Review queue',
         description: 'Pending proposal queue snapshots.',
         mimeType: 'text/markdown',
     },
     {
-        uri: 'obswiki://agent-activity',
+        uri: 'wiki-weaver://agent-activity',
         name: 'agent-activity',
         title: 'Agent activity',
         description: 'Recent agent-task and review traces.',
         mimeType: 'text/markdown',
     },
     {
-        uri: 'obswiki://audit/recent',
+        uri: 'wiki-weaver://audit/recent',
         name: 'audit-recent',
         title: 'Recent audit',
         description: 'Recent audit log entries.',
@@ -140,8 +140,8 @@ class StdioMcpServer {
                         prompts: { listChanged: false },
                     },
                     serverInfo: {
-                        name: 'obswiki-mcp-server',
-                        title: 'Obswiki MCP Server (read-only default + controlled write + review-gated apply)',
+                        name: 'wiki-weaver-mcp-server',
+                        title: 'Wiki Weaver MCP Server (read-only default + controlled write + review-gated apply)',
                         version: this.runtimeVersion,
                     },
                     instructions: 'This MCP server is read-only-by-default; controlled write tools are allowed for bounded working records, and review-gated apply requires approved proposals before protected writeback. All reads and writes are vault-local only, reject vault-outside or .obsidian access, and sensitive payloads are never persisted in audit events.',

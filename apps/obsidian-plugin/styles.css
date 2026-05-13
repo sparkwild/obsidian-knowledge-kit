@@ -1,22 +1,22 @@
-.obswiki-view-root {
+.wiki-weaver-view-root {
 	padding: 12px 16px 24px;
 	font-size: 13px;
 	line-height: 1.5;
 	color: var(--text-normal);
 }
 
-.obswiki-view__title {
+.wiki-weaver-view__title {
 	margin: 0 0 4px;
 	font-size: 18px;
 	line-height: 1.3;
 }
 
-.obswiki-view__description {
+.wiki-weaver-view__description {
 	margin: 0 0 8px;
 	color: var(--text-muted);
 }
 
-.obswiki-shell-header {
+.wiki-weaver-shell-header {
 	display: flex;
 	align-items: flex-start;
 	justify-content: space-between;
@@ -26,43 +26,43 @@
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.obswiki-status-bar,
-.obswiki-metric-grid,
-.obswiki-config-grid,
-.obswiki-detail-grid {
+.wiki-weaver-status-bar,
+.wiki-weaver-metric-grid,
+.wiki-weaver-config-grid,
+.wiki-weaver-detail-grid {
 	display: grid;
 	gap: 8px;
 	margin: 10px 0;
 }
 
-.obswiki-status-bar {
+.wiki-weaver-status-bar {
 	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
-.obswiki-metric-grid {
+.wiki-weaver-metric-grid {
 	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
-.obswiki-config-grid {
+.wiki-weaver-config-grid {
 	display: grid;
 	gap: 8px;
 	margin: 10px 0;
 }
 
-.obswiki-detail-grid {
+.wiki-weaver-detail-grid {
 	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
-.obswiki-status-pill,
-.obswiki-metric-card,
-.obswiki-card,
-.obswiki-empty-state {
+.wiki-weaver-status-pill,
+.wiki-weaver-metric-card,
+.wiki-weaver-card,
+.wiki-weaver-empty-state {
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 6px;
 	background: var(--background-secondary);
 }
 
-.obswiki-status-pill {
+.wiki-weaver-status-pill {
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
@@ -70,71 +70,71 @@
 	min-width: 0;
 }
 
-.obswiki-status-pill span,
-.obswiki-metric-card__label,
-.obswiki-detail span {
+.wiki-weaver-status-pill span,
+.wiki-weaver-metric-card__label,
+.wiki-weaver-detail span {
 	color: var(--text-muted);
 	font-size: 12px;
 }
 
-.obswiki-status-pill strong,
-.obswiki-detail strong {
+.wiki-weaver-status-pill strong,
+.wiki-weaver-detail strong {
 	overflow-wrap: anywhere;
 }
 
-.obswiki-detail--description strong {
+.wiki-weaver-detail--description strong {
 	color: var(--text-normal);
 	font-size: 13px;
 	font-weight: 500;
 	line-height: 1.45;
 }
 
-.obswiki-metric-card,
-.obswiki-card {
+.wiki-weaver-metric-card,
+.wiki-weaver-card {
 	padding: 10px;
 }
 
-.obswiki-metric-card__value {
+.wiki-weaver-metric-card__value {
 	display: block;
 	margin: 2px 0;
 	font-size: 20px;
 	line-height: 1.2;
 }
 
-.obswiki-card {
+.wiki-weaver-card {
 	margin-top: 12px;
 }
 
-.obswiki-connection-panel {
+.wiki-weaver-connection-panel {
 	display: grid;
 	gap: 12px;
 }
 
-.obswiki-connection-panel > h3,
-.obswiki-connection-check h4,
-.obswiki-connection-section h4 {
+.wiki-weaver-connection-panel > h3,
+.wiki-weaver-connection-check h4,
+.wiki-weaver-connection-section h4 {
 	margin: 0;
 }
 
-.obswiki-connection-check {
+.wiki-weaver-connection-check {
 	padding-bottom: 12px;
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.obswiki-connection-detail-grid {
+.wiki-weaver-connection-detail-grid {
 	margin-bottom: 0;
 }
 
-.obswiki-connection-section {
+.wiki-weaver-connection-section {
 	display: grid;
 	gap: 8px;
 }
 
-.obswiki-connection-section .obswiki-config-grid {
+.wiki-weaver-connection-section .wiki-weaver-config-grid {
 	margin: 0;
 }
 
-.obswiki-config-row {
+.wiki-weaver-config-row {
 	display: grid;
 	grid-template-columns: minmax(120px, 1fr) auto;
 	gap: 10px;
@@ -146,32 +146,32 @@
 	background: var(--background-primary);
 }
 
-.obswiki-config-row__client {
+.wiki-weaver-config-row__client {
 	min-width: 0;
 }
 
-.obswiki-config-row__client strong {
+.wiki-weaver-config-row__client strong {
 	display: block;
 	overflow-wrap: anywhere;
 }
 
-.obswiki-config-row__actions {
+.wiki-weaver-config-row__actions {
 	justify-content: flex-end;
 	min-width: fit-content;
 }
 
-.obswiki-detail__value-row {
+.wiki-weaver-detail__value-row {
 	display: flex;
 	align-items: center;
 	gap: 6px;
 	min-width: 0;
 }
 
-.obswiki-detail__value-row strong {
+.wiki-weaver-detail__value-row strong {
 	min-width: 0;
 }
 
-.obswiki-copy-icon-button {
+.wiki-weaver-copy-icon-button {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -182,7 +182,7 @@
 	border-radius: 6px;
 }
 
-.obswiki-card__header {
+.wiki-weaver-card__header {
 	display: flex;
 	align-items: flex-start;
 	justify-content: space-between;
@@ -190,15 +190,15 @@
 	margin-bottom: 8px;
 }
 
-.obswiki-badge-row,
-.obswiki-action-row,
-.obswiki-filter-tabs {
+.wiki-weaver-badge-row,
+.wiki-weaver-action-row,
+.wiki-weaver-filter-tabs {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 6px;
 }
 
-.obswiki-badge {
+.wiki-weaver-badge {
 	display: inline-flex;
 	align-items: center;
 	width: fit-content;
@@ -212,65 +212,65 @@
 	overflow-wrap: anywhere;
 }
 
-.obswiki-badge--risk-high,
-.obswiki-badge--risk-critical {
+.wiki-weaver-badge--risk-high,
+.wiki-weaver-badge--risk-critical {
 	border-color: var(--text-error);
 	color: var(--text-error);
 }
 
-.obswiki-badge--risk-medium {
+.wiki-weaver-badge--risk-medium {
 	border-color: var(--text-warning);
 	color: var(--text-warning);
 }
 
-.obswiki-filter-tabs {
+.wiki-weaver-filter-tabs {
 	margin: 10px 0;
 }
 
-.obswiki-filter-tabs button.is-active {
+.wiki-weaver-filter-tabs button.is-active {
 	background: var(--interactive-accent);
 	color: var(--text-on-accent);
 }
 
-.obswiki-proposal-grid {
+.wiki-weaver-proposal-grid {
 	display: grid;
 	gap: 10px;
 }
 
-.obswiki-proposal-card {
+.wiki-weaver-proposal-card {
 	margin-top: 0;
 }
 
-.obswiki-detail {
+.wiki-weaver-detail {
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
 	min-width: 0;
 }
 
-.obswiki-detail-panel {
+.wiki-weaver-detail-panel {
 	margin-top: 8px;
 	padding: 8px;
 	border-left: 3px solid var(--interactive-accent);
 	background: var(--background-primary);
 }
 
-.obswiki-empty-state {
+.wiki-weaver-empty-state {
 	padding: 12px;
 	color: var(--text-muted);
 }
 
-.obswiki-empty-state p {
+.wiki-weaver-empty-state p {
 	margin: 4px 0 0;
 }
 
-.obswiki-timeline {
+.wiki-weaver-timeline {
 	display: grid;
 	gap: 8px;
 	margin-top: 8px;
 }
 
-.obswiki-timeline__item {
+.wiki-weaver-timeline__item {
 	display: grid;
 	grid-template-columns: auto minmax(0, 1fr);
 	gap: 8px;
@@ -279,21 +279,21 @@
 	border-top: 1px solid var(--background-modifier-border);
 }
 
-.obswiki-timeline__item:first-child {
+.wiki-weaver-timeline__item:first-child {
 	border-top: 0;
 }
 
-.obswiki-timeline__body {
+.wiki-weaver-timeline__body {
 	min-width: 0;
 }
 
-.obswiki-table-list {
+.wiki-weaver-table-list {
 	display: grid;
 	gap: 8px;
 	margin-top: 8px;
 }
 
-.obswiki-table-row {
+.wiki-weaver-table-row {
 	display: grid;
 	grid-template-columns: minmax(120px, 1.2fr) minmax(80px, 0.6fr) minmax(140px, 1fr) minmax(140px, 1fr);
 	gap: 8px;
@@ -304,12 +304,12 @@
 	background: var(--background-primary);
 }
 
-.obswiki-table-row small {
+.wiki-weaver-table-row small {
 	grid-column: 1 / -1;
 	color: var(--text-muted);
 }
 
-.obswiki-code-block {
+.wiki-weaver-code-block {
 	display: block;
 	width: 100%;
 	box-sizing: border-box;
@@ -324,7 +324,7 @@
 	overflow-wrap: anywhere;
 }
 
-.obswiki-view__section {
+.wiki-weaver-view__section {
 	margin-top: 12px;
 	padding: 10px;
 	border: 1px solid var(--background-modifier-border);
@@ -332,20 +332,20 @@
 	background: var(--background-secondary);
 }
 
-.obswiki-view__list {
+.wiki-weaver-view__list {
 	margin: 8px 0 0 0;
 	padding-left: 18px;
 }
 
-.obswiki-view__item {
+.wiki-weaver-view__item {
 	margin: 6px 0;
 }
 
-.obswiki-advanced-details {
+.wiki-weaver-advanced-details {
 	margin-top: 8px;
 }
 
-.obswiki-advanced-summary {
+.wiki-weaver-advanced-summary {
 	display: inline-flex;
 	align-items: center;
 	cursor: pointer;
@@ -353,13 +353,13 @@
 	font-size: 12px;
 }
 
-.obswiki-advanced-list {
+.wiki-weaver-advanced-list {
 	display: grid;
 	gap: 8px;
 	margin-top: 8px;
 }
 
-.obswiki-advanced-config-row {
+.wiki-weaver-advanced-config-row {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto;
 	gap: 8px;
@@ -370,46 +370,46 @@
 	background: var(--background-primary);
 }
 
-.obswiki-advanced-config-row__info {
+.wiki-weaver-advanced-config-row__info {
 	display: flex;
 	flex-direction: column;
 	min-width: 0;
 }
 
-.obswiki-advanced-config-row__info strong {
+.wiki-weaver-advanced-config-row__info strong {
 	display: block;
 	overflow-wrap: anywhere;
 }
 
-.obswiki-advanced-config-row__info small {
+.wiki-weaver-advanced-config-row__info small {
 	color: var(--text-muted);
 	font-size: 12px;
 }
 
 @media (max-width: 520px) {
-	.obswiki-shell-header,
-	.obswiki-card__header {
+	.wiki-weaver-shell-header,
+	.wiki-weaver-card__header {
 		flex-direction: column;
 	}
 
-	.obswiki-config-row {
+	.wiki-weaver-config-row {
 		grid-template-columns: 1fr;
 		align-items: start;
 	}
 
-	.obswiki-config-row__actions {
+	.wiki-weaver-config-row__actions {
 		justify-content: flex-start;
 	}
 
-	.obswiki-table-row {
+	.wiki-weaver-table-row {
 		grid-template-columns: 1fr;
 	}
 
-	.obswiki-advanced-config-row {
+	.wiki-weaver-advanced-config-row {
 		grid-template-columns: 1fr;
 	}
 
-	.obswiki-advanced-config-row__info {
+	.wiki-weaver-advanced-config-row__info {
 		min-width: 0;
 	}
 }

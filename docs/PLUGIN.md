@@ -2,8 +2,8 @@
 
 ## Identity
 
-- Plugin id: `obswiki`
-- Display name: `Obswiki`
+- Plugin id: `wiki-weaver`
+- Display name: `Wiki Weaver`
 - Chinese in-plugin display: `知识库`
 - Version: `0.1.0`
 - Mobile declaration: `isDesktopOnly: false`
@@ -55,7 +55,7 @@ npm run package
 Copy the generated package into:
 
 ```text
-<vault>/.obsidian/plugins/obswiki/
+<vault>/.obsidian/plugins/wiki-weaver/
 ```
 
 Required files:
@@ -69,7 +69,25 @@ styles.css
 Validate in Obsidian:
 
 ```bash
-obsidian plugin id=obswiki
-obsidian plugin:reload id=obswiki
+obsidian plugin id=wiki-weaver
+obsidian plugin:reload id=wiki-weaver
 obsidian dev:errors
 ```
+
+## Community Release
+
+Run the community metadata check before opening a submission PR:
+
+```bash
+npm run community:check
+```
+
+For each public release, the GitHub release tag must exactly match `manifest.json` version. The release assets must include:
+
+```text
+main.js
+manifest.json
+styles.css
+```
+
+The release workflow builds and packages these files from `apps/obsidian-plugin/plugin/`.

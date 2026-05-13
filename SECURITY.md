@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-Obswiki is currently maintained on the `main` branch.
+Wiki Weaver is currently maintained on the `main` branch.
 
 ## Reporting A Vulnerability
 

@@ -9,6 +9,7 @@ run_root_script() {
   (cd "$ROOT" && npm run "$script")
 }
 
+run_root_script community:check
 run_root_script typecheck
 run_root_script build
 run_root_script test
@@ -19,4 +20,4 @@ if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   git -C "$ROOT" diff --check
 fi
 
-printf '\nObswiki verification finished.\n'
+printf '\nWiki Weaver verification finished.\n'

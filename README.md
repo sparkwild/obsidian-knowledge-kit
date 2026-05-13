@@ -1,20 +1,20 @@
-# obsidian-obswiki
+# obsidian-wiki-weaver
 
 [简体中文说明](./README.zh-CN.md)
 
-Obswiki connects AI assistants with an Obsidian vault. Agents use the MCP server to read, organize, and prepare memory work; the Obsidian plugin gives the user a local review surface for activity, proposals, permissions, connection setup, and approved writeback.
+Wiki Weaver connects AI assistants with an Obsidian vault. Agents use the MCP server to read, organize, and prepare memory work; the Obsidian plugin gives the user a local review surface for activity, proposals, permissions, connection setup, and approved writeback.
 
 The vault remains the durable knowledge layer. The plugin does not submit URLs, analyze files, run lint, distill sessions, or capture sources directly; those actions start from an AI assistant through MCP.
 
 ## Names
 
-- Product: `Obswiki`
-- Repository: `obsidian-obswiki`
-- Obsidian plugin id: `obswiki`
-- Obsidian plugin display name: `Obswiki`
+- Product: `Wiki Weaver`
+- Repository: `obsidian-wiki-weaver`
+- Obsidian plugin id: `wiki-weaver`
+- Obsidian plugin display name: `Wiki Weaver`
 - Chinese in-plugin display: `知识库`
-- MCP server id/config key: `obswiki`
-- MCP tool prefix: `obswiki.*`
+- MCP server id/config key: `wiki-weaver`
+- MCP tool prefix: `wiki_weaver.*`
 - Initial version: `0.1.0`
 
 ## Verify
@@ -35,7 +35,7 @@ npm run package
 
 ## Install The Obsidian Plugin
 
-This project is currently private and is not intended for official Obsidian community listing yet.
+This project is being prepared for the official community plugin directory. Until it is accepted, install it manually from a packaged build.
 
 ### Manual Install
 
@@ -49,7 +49,7 @@ npm run package
 2. Copy the generated files into the vault plugin folder:
 
 ```text
-<vault>/.obsidian/plugins/obswiki/
+<vault>/.obsidian/plugins/wiki-weaver/
 ```
 
 Required files:
@@ -61,26 +61,26 @@ apps/obsidian-plugin/plugin/styles.css
 ```
 
 3. Restart Obsidian or reload community plugins.
-4. Enable `Obswiki` in `Settings -> Community plugins`.
+4. Enable `Wiki Weaver` in `Settings -> Community plugins`.
 5. Validate the installed plugin:
 
 ```bash
-obsidian plugin id=obswiki
-obsidian plugin:reload id=obswiki
+obsidian plugin id=wiki-weaver
+obsidian plugin:reload id=wiki-weaver
 obsidian dev:errors
 ```
 
-The installed plugin should report id `obswiki`, name `Obswiki`, version `0.1.0`, and no developer console errors after reload.
+The installed plugin should report id `wiki-weaver`, name `Wiki Weaver`, version `0.1.0`, and no developer console errors after reload.
 
 ## Connection Model
 
-Obswiki does not hardcode a vault path, repository checkout path, or developer machine path. It does ship with local Runtime defaults for the loopback connection.
+Wiki Weaver does not hardcode a vault path, repository checkout path, or developer machine path. It does ship with local Runtime defaults for the loopback connection.
 
 - Vault path: read from the current Obsidian vault at runtime.
 - MCP URL: defaults to `http://127.0.0.1:58437/mcp` and can be changed in plugin settings.
 - SSE URL: defaults to `http://127.0.0.1:58437/sse` for older clients and can be changed in plugin settings.
-- stdio command: configurable, default command name is `obswiki-mcp`.
-- Client config writeback: user-confirmed only, with backup, and only for the `obswiki` MCP server block.
+- stdio command: configurable, default command name is `wiki-weaver-mcp`.
+- Client config writeback: user-confirmed only, with backup, and only for the `wiki-weaver` MCP server block.
 
 Keep the default loopback URL unless your local Runtime is configured to use a different address or port. Settings provide restore-default controls for custom text and connection values.
 
@@ -95,7 +95,7 @@ Keep the default loopback URL unless your local Runtime is configured to use a d
 ## Repository Layout
 
 ```text
-obsidian-obswiki/
+obsidian-wiki-weaver/
 ├─ apps/
 │  ├─ obsidian-plugin/
 │  └─ mcp-server/
@@ -114,6 +114,25 @@ obsidian-obswiki/
 - [MCP and permissions](./docs/MCP.md)
 - [Client auto-configuration](./docs/CLIENT_AUTO_CONFIGURATION.md)
 - [Roadmap](./docs/ROADMAP.md)
+
+## Community Release
+
+Before submitting to the community directory:
+
+- Run `npm run verify`.
+- Create a GitHub release whose tag exactly matches `manifest.json` version.
+- Upload `main.js`, `manifest.json`, and `styles.css` as individual release assets.
+- Use this community entry:
+
+```json
+{
+	"id": "wiki-weaver",
+	"name": "Wiki Weaver",
+	"author": "sparkwild",
+	"description": "Compile raw notes, sources, and AI conversations into a linked Markdown wiki with reviewable updates.",
+	"repo": "sparkwild/obsidian-wiki-weaver"
+}
+```
 
 ## License
 

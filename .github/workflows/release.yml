@@ -1,0 +1,76 @@
+name: Release Plugin
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate semver tag
+        id: semver
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if ! echo "$REF_NAME" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Tag '$REF_NAME' is not strict semver."
+            exit 1
+          fi
+          echo "version=$REF_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify manifest version
+        env:
+          VERSION: ${{ steps.semver.outputs.version }}
+        run: |
+          MANIFEST_VERSION=$(node -p "require('./manifest.json').version")
+          if [ "$VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "Version mismatch: tag=$VERSION manifest=$MANIFEST_VERSION"
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify and package
+        run: npm run verify
+
+      - name: Check existing release
+        id: existing
+        env:
+          VERSION: ${{ steps.semver.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create GitHub release
+        if: steps.existing.outputs.exists != 'true'
+        env:
+          VERSION: ${{ steps.semver.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$VERSION" \
+            --target "$GITHUB_SHA" \
+            --title "$VERSION" \
+            --notes "Release $VERSION" \
+            apps/obsidian-plugin/plugin/main.js \
+            apps/obsidian-plugin/plugin/manifest.json \
+            apps/obsidian-plugin/plugin/styles.css

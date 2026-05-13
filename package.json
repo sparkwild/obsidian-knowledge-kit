@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-obswiki",
+	"name": "obsidian-wiki-weaver",
 	"version": "0.1.0",
-	"description": "Obsidian-native memory workspace for the Obswiki plugin.",
+	"description": "Compile raw notes, sources, and AI conversations into a linked Markdown wiki with reviewable updates.",
 	"private": true,
 	"workspaces": [
 		"packages/core",
@@ -9,11 +9,13 @@
 		"apps/obsidian-plugin"
 	],
 	"scripts": {
+		"community:check": "node ./scripts/check_community_plugin.mjs",
 		"typecheck": "npm run typecheck --workspaces --if-present",
 		"build": "npm run build --workspaces --if-present",
 		"test": "npm run test --workspaces --if-present",
 		"package": "npm run package --workspace apps/obsidian-plugin",
-		"verify": "bash ./scripts/verify.sh"
+		"verify": "bash ./scripts/verify.sh",
+		"version": "node ./version-bump.mjs && git add manifest.json versions.json package.json package-lock.json apps/obsidian-plugin/manifest.json apps/obsidian-plugin/package.json apps/obsidian-plugin/package-lock.json apps/mcp-server/package.json apps/mcp-server/package-lock.json packages/core/package.json packages/core/package-lock.json"
 	},
 	"license": "MIT"
 }

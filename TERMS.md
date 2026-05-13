@@ -1,6 +1,6 @@
 # Terms of Use
 
-Obswiki is provided under the MIT License.
+Wiki Weaver is provided under the MIT License.
 
 ## Use At Your Own Risk
 

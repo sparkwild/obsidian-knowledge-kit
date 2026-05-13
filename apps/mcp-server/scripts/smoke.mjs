@@ -167,7 +167,7 @@ function ensureToolNames(result, names) {
 }
 
 async function main() {
-	const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'obswiki-mcp-smoke-'));
+	const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'wiki-weaver-mcp-smoke-'));
 	const vaultRoot = path.join(tempRoot, 'vault');
 	const fixturePath = path.join(vaultRoot, '01_inbox', 'agent_requests', 'local-source-request.md');
 	const lintFixturePath = path.join(vaultRoot, '04_projects', 'demo', 'smoke-lint-fixture.md');
@@ -230,7 +230,7 @@ async function main() {
 			protocolVersion: '2025-06-18',
 			capabilities: {},
 			clientInfo: {
-				name: 'obswiki-smoke',
+				name: 'wiki-weaver-smoke',
 				version: '0.1.0',
 			},
 		});
@@ -242,23 +242,23 @@ async function main() {
 
 		const tools = await client.call('tools/list');
 		ensureToolNames(tools, [
-			'obswiki.status',
-			'obswiki.start_task',
-			'obswiki.recall',
-			'obswiki.read_note',
-			'obswiki.list_review_queue',
-			'obswiki.list_approved_writebacks',
-			'obswiki.audit_recent',
-			'obswiki.write_context_pack',
-			'obswiki.build_context_pack',
-			'obswiki.lint',
-			'obswiki.finish_task',
-			'obswiki.distill_session',
-			'obswiki.write_session_note',
-			'obswiki.capture_source',
-			'obswiki.propose_memory',
-			'obswiki.analyze_source_request',
-			'obswiki.apply_approved_writeback',
+			'wiki_weaver.status',
+			'wiki_weaver.start_task',
+			'wiki_weaver.recall',
+			'wiki_weaver.read_note',
+			'wiki_weaver.list_review_queue',
+			'wiki_weaver.list_approved_writebacks',
+			'wiki_weaver.audit_recent',
+			'wiki_weaver.write_context_pack',
+			'wiki_weaver.build_context_pack',
+			'wiki_weaver.lint',
+			'wiki_weaver.finish_task',
+			'wiki_weaver.distill_session',
+			'wiki_weaver.write_session_note',
+			'wiki_weaver.capture_source',
+			'wiki_weaver.propose_memory',
+			'wiki_weaver.analyze_source_request',
+			'wiki_weaver.apply_approved_writeback',
 		]);
 
 		const resources = await client.call('resources/list');
@@ -268,24 +268,24 @@ async function main() {
 		assert.ok((buildStructured(prompts).prompts || []).length > 0, 'prompts/list should return prompts');
 
 		const status = buildStructured(await client.call('tools/call', {
-			name: 'obswiki.status',
+			name: 'wiki_weaver.status',
 			arguments: {},
 		}));
 		assert.equal(status.ok, true);
 		assert.equal(typeof status.counts.notes === 'number', true);
 
 		const readNote = buildStructured(await client.call('tools/call', {
-			name: 'obswiki.read_note',
+			name: 'wiki_weaver.read_note',
 			arguments: { path: '00_control/system.md' },
 		}));
 		assert.equal(readNote.ok, true);
 		assert.equal(readNote.path, '00_control/system.md');
 		const afterReadAudit = readAuditLog(vaultRoot);
-		assertToolCallEvent(afterReadAudit, 'obswiki.read_note', 'success');
+		assertToolCallEvent(afterReadAudit, 'wiki_weaver.read_note', 'success');
 
 		const sensitiveText = 'SENSITIVE_TOKEN_123ABC456DEF';
 		await client.call('tools/call', {
-			name: 'obswiki.start_task',
+			name: 'wiki_weaver.start_task',
 			arguments: {
 				goal: 'Smoke sensitive summary',
 				client: 'agent-smoke',
@@ -299,7 +299,7 @@ async function main() {
 		});
 
 		const afterSensitiveAudit = readAuditLog(vaultRoot);
-		assertToolCallEvent(afterSensitiveAudit, 'obswiki.start_task', 'success');
+		assertToolCallEvent(afterSensitiveAudit, 'wiki_weaver.start_task', 'success');
 		assertContainsNoSensitiveText(afterSensitiveAudit, [
 			sensitiveText,
 			`secret_${sensitiveText}`,
@@ -308,12 +308,12 @@ async function main() {
 			`token_${sensitiveText}`,
 		]);
 		assert.ok(
-			hasToolCallSection(afterSensitiveAudit, 'obswiki.start_task', 'success', ['- args_summary:']),
+			hasToolCallSection(afterSensitiveAudit, 'wiki_weaver.start_task', 'success', ['- args_summary:']),
 			'tool-call should include args summary field'
 		);
 
 		const writeContext = buildStructured(await client.call('tools/call', {
-			name: 'obswiki.write_context_pack',
+			name: 'wiki_weaver.write_context_pack',
 			arguments: {
 				filename: 'smoke-context-pack',
 				content: '# Context Pack\n\nSmoke content',
@@ -324,7 +324,7 @@ async function main() {
 		assert.ok(fs.existsSync(path.join(vaultRoot, writeContext.path)));
 
 		const buildContextRead = buildStructured(await client.call('tools/call', {
-			name: 'obswiki.build_context_pack',
+			name: 'wiki_weaver.build_context_pack',
 			arguments: {
 				query: 'smoke',
 				candidate_limit: 5,
@@ -338,7 +338,7 @@ async function main() {
 		assert.equal(Array.isArray(buildContextRead.context_pack.relevantNotes), true);
 
 		const buildContextWrite = buildStructured(await client.call('tools/call', {
-			name: 'obswiki.build_context_pack',
+			name: 'wiki_weaver.build_context_pack',
 			arguments: {
 				query: 'smoke',
 				write: true,
@@ -353,7 +353,7 @@ async function main() {
 		assert.ok(buildContextWrite.artifact.path.endsWith('.md'));
 
 		const lintResult = buildStructured(await client.call('tools/call', {
-			name: 'obswiki.lint',
+			name: 'wiki_weaver.lint',
 			arguments: {
 				max_items: 20,
 			},
@@ -365,7 +365,7 @@ async function main() {
 		assert.ok(Array.isArray(lintResult.fix_plan_summary));
 
 		const finishTask = buildStructured(await client.call('tools/call', {
-			name: 'obswiki.finish_task',
+			name: 'wiki_weaver.finish_task',
 			arguments: {
 				task_id: 'task-smoke-finish',
 				summary: 'Smoke task finish session.',
@@ -378,7 +378,7 @@ async function main() {
 		assert.ok(fs.existsSync(path.join(vaultRoot, finishTask.path)));
 
 		const distillSession = buildStructured(await client.call('tools/call', {
-			name: 'obswiki.distill_session',
+			name: 'wiki_weaver.distill_session',
 			arguments: {
 				task_id: 'task-smoke-distill',
 				summary: 'Smoke distill session.',
@@ -398,7 +398,7 @@ async function main() {
 		}
 
 		const writeSession = buildStructured(await client.call('tools/call', {
-			name: 'obswiki.write_session_note',
+			name: 'wiki_weaver.write_session_note',
 			arguments: {
 				filename: 'smoke-session',
 				content: '# Session\n\nSmoke session note',
@@ -408,7 +408,7 @@ async function main() {
 		assert.ok(fs.existsSync(path.join(vaultRoot, writeSession.path)));
 
 		await client.call('tools/call', {
-			name: 'obswiki.capture_source',
+			name: 'wiki_weaver.capture_source',
 			arguments: {
 				source: '03_sources/local-source.md',
 				mode: 'local_copy',
@@ -419,7 +419,7 @@ async function main() {
 		await assert.rejects(
 			() =>
 				client.call('tools/call', {
-					name: 'obswiki.write_context_pack',
+					name: 'wiki_weaver.write_context_pack',
 					arguments: {
 						filename: '../outside',
 						content: '# Reject',
@@ -429,10 +429,10 @@ async function main() {
 			'should reject writes outside vault'
 		);
 		const afterFailureAudit = readAuditLog(vaultRoot);
-		assertToolCallEvent(afterFailureAudit, 'obswiki.write_context_pack', 'failed');
+		assertToolCallEvent(afterFailureAudit, 'wiki_weaver.write_context_pack', 'failed');
 
 		const analyze = buildStructured(await client.call('tools/call', {
-			name: 'obswiki.analyze_source_request',
+			name: 'wiki_weaver.analyze_source_request',
 			arguments: { request_path: '01_inbox/agent_requests/local-source-request.md' },
 		}));
 		assert.equal(analyze.ok, true);
@@ -444,7 +444,7 @@ async function main() {
 		assert.ok(fs.readFileSync(fixturePath, 'utf8').includes('status: completed'));
 
 		const approvedWritebacks = buildStructured(await client.call('tools/call', {
-			name: 'obswiki.list_approved_writebacks',
+			name: 'wiki_weaver.list_approved_writebacks',
 			arguments: {},
 		}));
 		assert.equal(approvedWritebacks.ok, true);
@@ -452,7 +452,7 @@ async function main() {
 		assert.equal(approvedWritebacks.entries[0].ready_to_apply, true);
 
 		const dryRunApply = buildStructured(await client.call('tools/call', {
-			name: 'obswiki.apply_approved_writeback',
+			name: 'wiki_weaver.apply_approved_writeback',
 			arguments: {
 				proposal_id: 'prop_smoke_apply',
 				dry_run: true,
@@ -463,7 +463,7 @@ async function main() {
 		assert.equal(dryRunApply.target_note, '04_projects/demo/project_overview.md');
 
 		const applied = buildStructured(await client.call('tools/call', {
-			name: 'obswiki.apply_approved_writeback',
+			name: 'wiki_weaver.apply_approved_writeback',
 			arguments: {
 				proposal_id: 'prop_smoke_apply',
 			},
@@ -497,7 +497,7 @@ async function main() {
 		await assert.rejects(
 			() =>
 				client.call('tools/call', {
-					name: 'obswiki.apply_approved_writeback',
+					name: 'wiki_weaver.apply_approved_writeback',
 					arguments: {
 						proposal_id: 'prop_secret_apply',
 					},

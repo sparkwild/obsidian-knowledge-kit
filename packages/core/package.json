@@ -1,7 +1,7 @@
 {
-	"name": "@obswiki/core",
+	"name": "@wiki-weaver/core",
 	"version": "0.1.0",
-	"description": "Shared local Obsidian memory runtime for Obswiki.",
+	"description": "Shared local wiki compilation runtime for Wiki Weaver.",
 	"private": true,
 	"type": "commonjs",
 	"main": "dist/index.js",

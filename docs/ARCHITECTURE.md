@@ -1,11 +1,11 @@
 # Architecture
 
-Obswiki turns an Obsidian vault into a local memory and knowledge layer for AI assistants.
+Wiki Weaver turns an Obsidian vault into a local memory and knowledge layer for AI assistants.
 
 ```text
 AI assistant
   -> MCP client connection
-  -> Obswiki MCP server
+  -> Wiki Weaver MCP server
   -> shared vault/runtime logic
   -> Obsidian vault files
   -> Obsidian plugin review surface
@@ -25,8 +25,8 @@ AI assistant
 
 - The Obsidian plugin is not a source submission UI.
 - The plugin does not run maintenance actions such as Analyze URL, Analyze File, Capture Source, Build Context Pack, Run Lint, or Run Distill.
-- Obswiki does not require a hosted backend.
-- Obswiki ships with a default loopback Runtime port, but does not assume a fixed vault path or repository checkout path.
+- Wiki Weaver does not require a hosted backend.
+- Wiki Weaver ships with a default loopback Runtime port, but does not assume a fixed vault path or repository checkout path.
 
 ## Vault Scope
 
