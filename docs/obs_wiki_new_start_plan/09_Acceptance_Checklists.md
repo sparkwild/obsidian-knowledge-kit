@@ -41,9 +41,9 @@
 ## Agent Activity
 
 - [x] 可显示 agent-task notes。
-- [ ] 可显示 recent context packs。
-- [ ] 可显示 recent source captures。
-- [ ] 可显示 recent proposals。
+- [x] 可显示 recent context packs。
+- [x] 可显示 recent source captures。
+- [x] 可显示 recent proposals。
 - [x] 可显示 audit events。
 - [x] 空状态有引导。
 

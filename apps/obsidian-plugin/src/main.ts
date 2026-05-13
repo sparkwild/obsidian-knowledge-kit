@@ -41,11 +41,16 @@ const CONTROL_PATHS = {
 const SOURCE_REQUESTS_PATH = '01_inbox/agent_requests';
 const REVIEW_QUEUE_PATH = '01_inbox/review_queue';
 const AGENT_TASKS_PATH = '02_timeline/agent_tasks';
+const CONTEXT_PACKS_PATH = '06_outputs/context_packs';
+const SOURCES_PATH = '03_sources';
 const MAX_TASK_SNIPPET_LENGTH = 160;
 const MAX_TASK_ROWS = 6;
 const MAX_AUDIT_ROWS = 12;
 const MAX_SOURCE_STATUS_ROWS = 20;
 const MAX_REVIEW_QUEUE_ROWS = 20;
+const MAX_ACTIVITY_CONTEXT_PACK_ROWS = 5;
+const MAX_ACTIVITY_SOURCE_CAPTURE_ROWS = 5;
+const MAX_ACTIVITY_PROPOSAL_ROWS = 5;
 const LEGACY_DEFAULT_STATUS_MESSAGE = 'Welcome to obs-wiki Agent Activity.';
 const DEFAULT_STATUS_MESSAGE =
 	'欢迎使用 obs-wiki Agent Activity。 / Welcome to obs-wiki Agent Activity.';
@@ -104,6 +109,28 @@ interface AgentTaskRecord {
 	memoryWrites: string[];
 	sourceCaptures: string[];
 	proposals: string[];
+	snippet: string;
+	sortTimestamp: number;
+}
+
+interface ContextPackRecord {
+	path: string;
+	title: string;
+	taskId: string;
+	createdAt: string;
+	snippet: string;
+	sortTimestamp: number;
+}
+
+interface SourceCaptureRecord {
+	path: string;
+	type: string;
+	title: string;
+	source: string;
+	sourceKind: string;
+	mode: string;
+	taskId: string;
+	createdAt: string;
 	snippet: string;
 	sortTimestamp: number;
 }
@@ -182,6 +209,9 @@ interface MemoryReviewQueueSnapshot {
 interface AgentActivitySnapshot {
 	currentTask: AgentTaskRecord | null;
 	recentTasks: AgentTaskRecord[];
+	recentContextPacks: ContextPackRecord[];
+	recentSourceCaptures: SourceCaptureRecord[];
+	recentProposals: MemoryProposalRecord[];
 	recentAuditEvents: AuditEventRecord[];
 	missingTaskFolder: boolean;
 	missingAuditSources: boolean;
@@ -611,9 +641,20 @@ export default class ObsWikiPlugin extends Plugin {
 	}
 
 	async loadAgentActivitySnapshot(): Promise<AgentActivitySnapshot> {
-		const recentTasks = await this.readRecentAgentTasks(MAX_TASK_ROWS);
+		const [
+			recentTasks,
+			recentContextPacks,
+			recentSourceCaptures,
+			recentProposals,
+			recentAuditEvents,
+		] = await Promise.all([
+			this.readRecentAgentTasks(MAX_TASK_ROWS),
+			this.readRecentContextPacks(MAX_ACTIVITY_CONTEXT_PACK_ROWS),
+			this.readRecentSourceCaptures(MAX_ACTIVITY_SOURCE_CAPTURE_ROWS),
+			this.readRecentMemoryProposals(MAX_ACTIVITY_PROPOSAL_ROWS),
+			this.readRecentAuditEvents(MAX_AUDIT_ROWS),
+		]);
 		const currentTask = this.pickCurrentTask(recentTasks);
-		const recentAuditEvents = await this.readRecentAuditEvents(MAX_AUDIT_ROWS);
 		const taskFolderMissing =
 			this.app.vault.getAbstractFileByPath(AGENT_TASKS_PATH) === null;
 		const auditLogMissing =
@@ -624,6 +665,9 @@ export default class ObsWikiPlugin extends Plugin {
 		return {
 			currentTask,
 			recentTasks,
+			recentContextPacks,
+			recentSourceCaptures,
+			recentProposals,
 			recentAuditEvents,
 			missingTaskFolder: taskFolderMissing,
 			missingAuditSources: auditLogMissing && auditDirMissing,
@@ -769,6 +813,102 @@ export default class ObsWikiPlugin extends Plugin {
 		);
 		return records
 			.filter((record): record is AgentTaskRecord => Boolean(record))
+			.sort((a, b) => b.sortTimestamp - a.sortTimestamp)
+			.slice(0, limit);
+	}
+
+	private async readRecentContextPacks(limit: number): Promise<ContextPackRecord[]> {
+		const folder = this.app.vault.getAbstractFileByPath(CONTEXT_PACKS_PATH);
+		if (!(folder instanceof TFolder)) {
+			return [];
+		}
+
+		const files = this.collectMarkdownFiles(folder);
+		const records = await Promise.all(files.map((file) => this.readContextPackFile(file)));
+		return records
+			.filter((record): record is ContextPackRecord => Boolean(record))
+			.sort((a, b) => b.sortTimestamp - a.sortTimestamp)
+			.slice(0, limit);
+	}
+
+	private async readContextPackFile(file: TFile): Promise<ContextPackRecord | null> {
+		let content = '';
+		try {
+			content = await this.app.vault.cachedRead(file);
+		} catch (error) {
+			console.error(`obs-wiki failed to read context pack: ${file.path}`, error);
+			return null;
+		}
+
+		const parsed = this.readFrontmatter(content);
+		const data = parsed.fields;
+		const createdAt = this.firstString(data, ['created_at', 'createdAt', 'created']);
+		const title = this.firstString(data, ['title']) || file.basename;
+
+		return {
+			path: file.path,
+			title,
+			taskId: this.firstString(data, ['task_id', 'taskId']),
+			createdAt,
+			snippet: this.snippetFromText(parsed.body, title),
+			sortTimestamp: this.parseTimestamp(createdAt, file.stat?.mtime),
+		};
+	}
+
+	private async readRecentSourceCaptures(limit: number): Promise<SourceCaptureRecord[]> {
+		const folder = this.app.vault.getAbstractFileByPath(SOURCES_PATH);
+		if (!(folder instanceof TFolder)) {
+			return [];
+		}
+
+		const files = this.collectMarkdownFiles(folder);
+		const records = await Promise.all(files.map((file) => this.readSourceCaptureFile(file)));
+		return records
+			.filter((record): record is SourceCaptureRecord => Boolean(record))
+			.sort((a, b) => b.sortTimestamp - a.sortTimestamp)
+			.slice(0, limit);
+	}
+
+	private async readSourceCaptureFile(file: TFile): Promise<SourceCaptureRecord | null> {
+		let content = '';
+		try {
+			content = await this.app.vault.cachedRead(file);
+		} catch (error) {
+			console.error(`obs-wiki failed to read source capture: ${file.path}`, error);
+			return null;
+		}
+
+		const parsed = this.readFrontmatter(content);
+		const data = parsed.fields;
+		const type = this.firstString(data, ['type']) || 'source';
+		const createdAt = this.firstString(data, ['created_at', 'createdAt', 'created']);
+		const source = this.firstString(data, ['source']) || file.basename;
+		const title = this.firstString(data, ['title']) || source;
+
+		return {
+			path: file.path,
+			type,
+			title,
+			source,
+			sourceKind: this.firstString(data, ['source_kind', 'sourceKind']) || 'unknown',
+			mode: this.firstString(data, ['mode']) || '',
+			taskId: this.firstString(data, ['task_id', 'taskId']),
+			createdAt,
+			snippet: this.snippetFromText(parsed.body, source),
+			sortTimestamp: this.parseTimestamp(createdAt, file.stat?.mtime),
+		};
+	}
+
+	private async readRecentMemoryProposals(limit: number): Promise<MemoryProposalRecord[]> {
+		const folder = this.app.vault.getAbstractFileByPath(REVIEW_QUEUE_PATH);
+		if (!(folder instanceof TFolder)) {
+			return [];
+		}
+
+		const files = this.collectMarkdownFiles(folder);
+		const records = await Promise.all(files.map((file) => this.readMemoryProposalFile(file)));
+		return records
+			.filter((record): record is MemoryProposalRecord => Boolean(record))
 			.sort((a, b) => b.sortTimestamp - a.sortTimestamp)
 			.slice(0, limit);
 	}
@@ -1420,6 +1560,81 @@ class ObsWikiActivityView extends ItemView {
 			for (const task of snapshot.recentTasks) {
 				const item = list.createEl('li', { cls: 'obs-wiki-view__item' });
 				this.renderTaskSummary(item, task);
+			}
+		}
+
+		const contextPackSection = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
+		contextPackSection.createEl('h3', { text: ui('最近 Context Packs', 'Recent context packs') });
+		if (snapshot.recentContextPacks.length === 0) {
+			contextPackSection.createEl('p', {
+				text: ui('还没有 context pack 输出。', 'No context pack outputs found yet.'),
+				cls: 'obs-wiki-view__description',
+			});
+		} else {
+			const list = contextPackSection.createEl('ul', { cls: 'obs-wiki-view__list' });
+			for (const contextPack of snapshot.recentContextPacks) {
+				const item = list.createEl('li', { cls: 'obs-wiki-view__item' });
+				item.createEl('div', {
+					text: `${contextPack.title} • ${this.plugin.formatDisplayTime(contextPack.sortTimestamp)}`,
+				});
+				if (contextPack.taskId) {
+					item.createEl('div', { text: `${ui('任务', 'Task')}: ${contextPack.taskId}` });
+				}
+				if (contextPack.snippet) {
+					item.createEl('div', { text: this.plugin.trimText(contextPack.snippet, 140) });
+				}
+				item.createEl('small', { text: `${ui('文件', 'File')}: ${contextPack.path}` });
+			}
+		}
+
+		const sourceCaptureSection = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
+		sourceCaptureSection.createEl('h3', { text: ui('最近来源捕获', 'Recent source captures') });
+		if (snapshot.recentSourceCaptures.length === 0) {
+			sourceCaptureSection.createEl('p', {
+				text: ui('还没有 source capture 笔记。', 'No source capture notes found yet.'),
+				cls: 'obs-wiki-view__description',
+			});
+		} else {
+			const list = sourceCaptureSection.createEl('ul', { cls: 'obs-wiki-view__list' });
+			for (const sourceCapture of snapshot.recentSourceCaptures) {
+				const item = list.createEl('li', { cls: 'obs-wiki-view__item' });
+				item.createEl('div', {
+					text: `${sourceCapture.sourceKind} • ${sourceCapture.mode || sourceCapture.type} • ${this.plugin.formatDisplayTime(sourceCapture.sortTimestamp)}`,
+				});
+				item.createEl('div', {
+					text: `${ui('来源', 'Source')}: ${this.plugin.trimText(sourceCapture.source, 120)}`,
+				});
+				if (sourceCapture.taskId) {
+					item.createEl('div', { text: `${ui('任务', 'Task')}: ${sourceCapture.taskId}` });
+				}
+				if (sourceCapture.snippet) {
+					item.createEl('div', { text: this.plugin.trimText(sourceCapture.snippet, 140) });
+				}
+				item.createEl('small', { text: `${ui('文件', 'File')}: ${sourceCapture.path}` });
+			}
+		}
+
+		const proposalSection = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
+		proposalSection.createEl('h3', { text: ui('最近记忆提案', 'Recent proposals') });
+		if (snapshot.recentProposals.length === 0) {
+			proposalSection.createEl('p', {
+				text: ui('还没有 memory proposal。', 'No memory proposals found yet.'),
+				cls: 'obs-wiki-view__description',
+			});
+		} else {
+			const list = proposalSection.createEl('ul', { cls: 'obs-wiki-view__list' });
+			for (const proposal of snapshot.recentProposals) {
+				const item = list.createEl('li', { cls: 'obs-wiki-view__item' });
+				item.createEl('div', {
+					text: `${proposal.proposalId} • ${MEMORY_PROPOSAL_STATUS_LABELS[proposal.approvalStatus]} • ${proposal.proposalKind}`,
+				});
+				if (proposal.targetNote) {
+					item.createEl('div', { text: `${ui('目标笔记', 'Target note')}: ${proposal.targetNote}` });
+				}
+				if (proposal.snippet) {
+					item.createEl('div', { text: this.plugin.trimText(proposal.snippet, 140) });
+				}
+				item.createEl('small', { text: `${ui('文件', 'File')}: ${proposal.path}` });
 			}
 		}
 
