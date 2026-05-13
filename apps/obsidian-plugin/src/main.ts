@@ -60,9 +60,6 @@ const PLUGIN_DISPLAY_NAME_EN = 'obs-wiki';
 const DEFAULT_MCP_HTTP_ENDPOINT = 'http://127.0.0.1:37241/mcp';
 const DEFAULT_MCP_SSE_ENDPOINT = 'http://127.0.0.1:37241/sse';
 const DEFAULT_MCP_STDIO_COMMAND = 'obs-wiki-mcp';
-const LEGACY_DEFAULT_STATUS_MESSAGE = 'Welcome to obs-wiki Agent Activity.';
-const LEGACY_BILINGUAL_DEFAULT_STATUS_MESSAGE =
-	'欢迎使用 obs-wiki Agent Activity。 / Welcome to obs-wiki Agent Activity.';
 const DEFAULT_STATUS_MESSAGE_ZH = '欢迎使用 obs-wiki。';
 const DEFAULT_STATUS_MESSAGE_EN = 'Welcome to obs-wiki.';
 const isChineseLanguage = (language: string): boolean => {
@@ -341,12 +338,12 @@ export default class ObsWikiPlugin extends Plugin {
 		if (typeof this.settings.mcpStdioCommand !== 'string' || !this.settings.mcpStdioCommand.trim()) {
 			this.settings.mcpStdioCommand = DEFAULT_MCP_STDIO_COMMAND;
 		}
-		if (
-			this.settings.statusMessage === LEGACY_DEFAULT_STATUS_MESSAGE ||
-			this.settings.statusMessage === LEGACY_BILINGUAL_DEFAULT_STATUS_MESSAGE ||
-			this.settings.statusMessage === DEFAULT_STATUS_MESSAGE_ZH ||
-			this.settings.statusMessage === DEFAULT_STATUS_MESSAGE_EN
-		) {
+		const savedStatusMessage = this.settings.statusMessage.trim();
+		const isSavedDefaultMessage =
+			savedStatusMessage === DEFAULT_STATUS_MESSAGE_ZH ||
+			savedStatusMessage === DEFAULT_STATUS_MESSAGE_EN ||
+			['obs-wiki', 'Agent', 'Activity'].every((part) => savedStatusMessage.includes(part));
+		if (isSavedDefaultMessage) {
 			this.settings.statusMessage = '';
 			await this.saveSettings();
 		}
@@ -390,7 +387,7 @@ export default class ObsWikiPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'open-agent-activity',
-			name: ui('打开 Agent 活动', 'Open agent activity'),
+			name: ui('打开 AI 助手活动', 'Open AI assistant activity'),
 			callback: () => this.openPluginView(OBS_WIKI_ACTIVITY_VIEW),
 		});
 
@@ -402,31 +399,31 @@ export default class ObsWikiPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'open-memory-inspector',
-			name: ui('打开记忆检查器', 'Open memory inspector'),
+			name: ui('打开记忆查看', 'Open memory view'),
 			callback: () => this.openPluginView(OBS_WIKI_MEMORY_INSPECTOR_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-audit-log',
-			name: ui('打开审计日志', 'Open audit log'),
+			name: ui('打开操作记录', 'Open activity log'),
 			callback: () => this.openPluginView(OBS_WIKI_AUDIT_LOG_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-runtime-status',
-			name: ui('打开运行状态', 'Open runtime status'),
+			name: ui('打开连接状态', 'Open connection status'),
 			callback: () => this.openPluginView(OBS_WIKI_RUNTIME_STATUS_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-permission-policy',
-			name: ui('打开权限策略', 'Open permission policy'),
+			name: ui('打开权限说明', 'Open permission guide'),
 			callback: () => this.openPluginView(OBS_WIKI_PERMISSION_POLICY_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-agent-connections',
-			name: ui('打开 Agent 连接中心', 'Open agent connections'),
+			name: ui('打开 AI 助手连接', 'Open AI assistant connections'),
 			callback: () => this.openPluginView(OBS_WIKI_AGENT_CONNECTIONS_VIEW),
 		});
 
@@ -844,7 +841,7 @@ export default class ObsWikiPlugin extends Plugin {
 
 	private getVaultRoot(): string {
 		const adapter = this.app.vault.adapter as unknown as { basePath?: string };
-		return adapter.basePath || ui('当前 vault 路径不可用', 'Current vault path unavailable');
+		return adapter.basePath || ui('当前知识库路径不可用', 'Current knowledge base path unavailable');
 	}
 
 	private buildMcpStdioCommand(vaultRoot: string): string {
@@ -1638,6 +1635,63 @@ export default class ObsWikiPlugin extends Plugin {
 		const customStatusMessage = (this.settings.statusMessage || '').trim();
 		return customStatusMessage.length > 0 ? customStatusMessage : defaultStatusMessage();
 	}
+
+	formatToolDisplayName(toolName: string): string {
+		const normalized = toolName.replace(/^obs_wiki[._]/, '').trim();
+		const labels: Record<string, string> = {
+			status: ui('查看状态', 'Check status'),
+			start_task: ui('开始任务记录', 'Start task record'),
+			recall: ui('查找相关笔记', 'Find related notes'),
+			read_note: ui('读取笔记', 'Read note'),
+			list_review_queue: ui('查看待审核内容', 'Review pending items'),
+			list_source_requests: ui('查看资料请求', 'Review material requests'),
+			list_approved_writebacks: ui('查看已批准写回', 'Review approved writebacks'),
+			audit_recent: ui('查看最近记录', 'Review recent activity'),
+			build_context_pack: ui('整理上下文材料', 'Prepare context material'),
+			lint: ui('检查笔记结构', 'Check note structure'),
+			finish_task: ui('记录任务结果', 'Record task results'),
+			distill_session: ui('沉淀会话摘要', 'Summarize a session'),
+			capture_source: ui('保存来源资料', 'Save source material'),
+			propose_memory: ui('提出记忆更新', 'Propose memory updates'),
+			analyze_source_request: ui('处理资料请求', 'Process material request'),
+			apply_approved_writeback: ui('应用已批准写回', 'Apply approved writeback'),
+		};
+		return labels[normalized] || normalized.replace(/_/g, ' ') || ui('未知操作', 'Unknown action');
+	}
+
+	formatResultLabel(status: string): string {
+		switch (status) {
+			case 'success':
+			case 'written':
+			case 'applied':
+				return ui('成功', 'Succeeded');
+			case 'failed':
+			case 'error':
+				return ui('失败', 'Failed');
+			case 'skipped':
+				return ui('已跳过', 'Skipped');
+			case 'connected':
+			case 'active':
+				return ui('已连接', 'Connected');
+			case 'warning':
+				return ui('需检查', 'Needs attention');
+			default:
+				return status ? this.trimText(status, 40) : ui('未知', 'Unknown');
+		}
+	}
+
+	formatRiskLabel(riskLevel: string): string {
+		switch (riskLevel) {
+			case 'read-only':
+				return ui('只读', 'Read-only');
+			case 'low-risk write':
+				return ui('保存工作记录', 'Saves work records');
+			case 'review-gated apply':
+				return ui('先审核再写入', 'Review before writing');
+			default:
+				return riskLevel ? this.trimText(riskLevel, 40) : ui('未标记', 'Unmarked');
+		}
+	}
 }
 
 class InitializeMemoryStructureModal extends Modal {
@@ -1763,8 +1817,8 @@ class ObsWikiSourceStatusView extends ItemView {
 		if (snapshot.missingRequestFolder) {
 			contentEl.createEl('p', {
 				text: ui(
-					'未找到 Agent 来源请求文件夹 01_inbox/agent_requests。记忆结构创建后，Agent 生成的请求会显示在这里。',
-					'No agent source request folder found at 01_inbox/agent_requests. Agent-created requests will appear here after the memory structure exists.'
+					'还没有来源请求记录。初始化 obs-wiki 后，AI 助手提交的资料处理请求会显示在这里。',
+					'No source request records yet. After obs-wiki is initialized, material processing requests from your AI assistant will appear here.'
 				),
 				cls: 'obs-wiki-view__description',
 			});
@@ -1774,8 +1828,8 @@ class ObsWikiSourceStatusView extends ItemView {
 		if (snapshot.requests.length === 0) {
 			contentEl.createEl('p', {
 				text: ui(
-					'当前没有待处理的 Agent 来源请求。',
-					'No pending agent-created source requests yet.'
+					'当前没有待处理的资料请求。',
+					'No pending material requests yet.'
 				),
 				cls: 'obs-wiki-view__description',
 			});
@@ -1853,7 +1907,7 @@ class ObsWikiActivityView extends ItemView {
 
 		const header = contentEl.createDiv({ cls: 'obs-wiki-shell-header' });
 		const heading = header.createDiv();
-		heading.createEl('h2', { text: ui('Agent 活动', 'Agent activity'), cls: 'obs-wiki-view__title' });
+		heading.createEl('h2', { text: ui('AI 助手活动', 'AI assistant activity'), cls: 'obs-wiki-view__title' });
 		heading.createEl('p', {
 			text: this.plugin.settings.showWelcomeMessage
 				? this.plugin.getStatusMessage()
@@ -1872,30 +1926,30 @@ class ObsWikiActivityView extends ItemView {
 			await this.refresh();
 		});
 		const reviewButton = actions.createEl('button', {
-			text: ui('打开审核队列', 'Open Review Queue'),
+			text: ui('打开审核列表', 'Open review list'),
 		});
 		reviewButton.addEventListener('click', () => {
 			void this.plugin.openPluginView(OBS_WIKI_REVIEW_QUEUE_VIEW);
 		});
 		const connectionsButton = actions.createEl('button', {
-			text: ui('打开 Agent 连接', 'Open Agent Connections'),
+			text: ui('打开 AI 助手连接', 'Open AI assistant connections'),
 		});
 		connectionsButton.addEventListener('click', () => {
 			void this.plugin.openPluginView(OBS_WIKI_AGENT_CONNECTIONS_VIEW);
 		});
 
 		const statusBar = contentEl.createDiv({ cls: 'obs-wiki-status-bar' });
-		this.renderStatusItem(statusBar, 'MCP', snapshot.recentAuditEvents.some((event) => event.toolName) ? ui('已看到调用', 'Tool calls seen') : ui('等待连接', 'Waiting'));
-		this.renderStatusItem(statusBar, 'Runtime', snapshot.missingTaskFolder ? ui('待初始化', 'Setup needed') : ui('可读取', 'Readable'));
-		this.renderStatusItem(statusBar, 'Vault', snapshot.missingTaskFolder ? ui('结构缺失', 'Missing structure') : ui('已初始化', 'Initialized'));
-		this.renderStatusItem(statusBar, 'Mode', ui('只读默认 + 受控写入', 'Read-only default + controlled write'));
+		this.renderStatusItem(statusBar, ui('连接', 'Connection'), snapshot.recentAuditEvents.some((event) => event.toolName) ? ui('已有活动', 'Activity seen') : ui('等待连接', 'Waiting'));
+		this.renderStatusItem(statusBar, ui('记录', 'Records'), snapshot.missingTaskFolder ? ui('待初始化', 'Setup needed') : ui('可读取', 'Readable'));
+		this.renderStatusItem(statusBar, ui('知识库', 'Knowledge base'), snapshot.missingTaskFolder ? ui('结构缺失', 'Missing structure') : ui('已初始化', 'Initialized'));
+		this.renderStatusItem(statusBar, ui('权限', 'Permission'), ui('先审核再写入', 'Review before writing'));
 		this.renderStatusItem(statusBar, ui('刷新', 'Refresh'), this.plugin.formatDisplayTime(Date.parse(snapshot.updatedAt)));
 
 		const metrics = contentEl.createDiv({ cls: 'obs-wiki-metric-grid' });
-		this.renderMetricCard(metrics, ui('当前任务', 'Active task'), snapshot.currentTask ? snapshot.currentTask.status : ui('无', 'None'), snapshot.currentTask?.taskId || ui('等待 Agent 调用 obs_wiki.start_task', 'Waiting for obs_wiki.start_task'));
-		this.renderMetricCard(metrics, ui('待审核', 'Pending review'), String(snapshot.recentProposals.filter((proposal) => proposal.approvalStatus === 'pending').length), ui('最近提案中的待处理项', 'Pending items among recent proposals'));
+		this.renderMetricCard(metrics, ui('当前任务', 'Active task'), snapshot.currentTask ? snapshot.currentTask.status : ui('无', 'None'), snapshot.currentTask?.taskId || ui('等待 AI 助手开始记录任务', 'Waiting for the AI assistant to start a task'));
+		this.renderMetricCard(metrics, ui('待审核', 'Pending review'), String(snapshot.recentProposals.filter((proposal) => proposal.approvalStatus === 'pending').length), ui('需要你确认的记忆更新', 'Memory updates waiting for your review'));
 		this.renderMetricCard(metrics, ui('来源请求', 'Source requests'), String(snapshot.recentSourceCaptures.length), ui('最近来源捕获记录', 'Recent source capture records'));
-		this.renderMetricCard(metrics, ui('工具调用', 'Tool calls'), String(snapshot.recentAuditEvents.filter((event) => event.toolName).length), ui('最近 MCP tool-call 审计', 'Recent MCP tool-call audit'));
+		this.renderMetricCard(metrics, ui('工具使用', 'Tool usage'), String(snapshot.recentAuditEvents.filter((event) => event.toolName).length), ui('最近连接操作记录', 'Recent connection activity'));
 
 		const currentSection = contentEl.createDiv({ cls: 'obs-wiki-card' });
 		currentSection.createEl('h3', { text: ui('当前任务', 'Current task') });
@@ -1903,11 +1957,11 @@ class ObsWikiActivityView extends ItemView {
 			this.renderEmptyState(
 				currentSection,
 				snapshot.missingTaskFolder
-					? ui('Agent 任务文件夹缺失。', 'Agent task folder is missing.')
-					: ui('还没有 Agent 活动。', 'No Agent activity yet.'),
+					? ui('还没有任务记录。', 'No task records yet.')
+					: ui('还没有 AI 助手活动。', 'No AI assistant activity yet.'),
 				snapshot.missingTaskFolder
-					? ui('Runtime 或初始化流程应创建 02_timeline/agent_tasks。', 'The runtime or initialization flow should create 02_timeline/agent_tasks.')
-					: ui('请从 Agent 客户端开始，并让它使用 obs-wiki 记忆。建议第一个工具：obs_wiki.start_task。', 'Start from your Agent client and ask it to use obs-wiki memory. Suggested first tool: obs_wiki.start_task.')
+					? ui('请先初始化 obs-wiki 文件结构，之后 AI 助手的任务记录会显示在这里。', 'Initialize the obs-wiki file structure first; task records will appear here afterward.')
+					: ui('从 AI 助手开始一次任务后，这里会显示目标、来源和最近动作。', 'Start a task from your AI assistant to show goals, sources, and recent actions here.')
 			);
 		} else {
 			this.renderTaskEntry(currentSection, snapshot.currentTask, true);
@@ -1948,10 +2002,10 @@ class ObsWikiActivityView extends ItemView {
 			})),
 			...snapshot.recentAuditEvents.map((event) => ({
 				time: event.sortTimestamp,
-				type: event.toolName ? ui('工具调用', 'Tool call') : ui('审计', 'Audit'),
-				title: event.toolName || event.action,
-				meta: event.resultStatus || event.actor,
-				body: event.reason || event.argsSummary || event.snippet,
+				type: event.toolName ? ui('工具使用', 'Tool usage') : ui('记录', 'Record'),
+				title: event.toolName ? this.plugin.formatToolDisplayName(event.toolName) : event.action,
+				meta: event.resultStatus ? this.plugin.formatResultLabel(event.resultStatus) : event.actor,
+				body: event.reason || event.snippet,
 				path: event.target || event.path,
 			})),
 		].sort((a, b) => b.time - a.time).slice(0, 18);
@@ -1962,7 +2016,7 @@ class ObsWikiActivityView extends ItemView {
 			this.renderEmptyState(
 				timeline,
 				ui('还没有可展示的活动。', 'No activity to display yet.'),
-				ui('让 Agent 通过 MCP 调用 obs_wiki.start_task、obs_wiki.recall 或其他 obs-wiki 工具后，这里会显示时间线。', 'Ask an Agent to call obs_wiki.start_task, obs_wiki.recall, or other obs-wiki tools through MCP to populate this timeline.')
+				ui('从 AI 助手开始一次任务后，这里会按时间显示任务、来源、审核和写回记录。', 'Start a task from your AI assistant to show task, source, review, and writeback records here over time.')
 			);
 		} else {
 			const list = timeline.createDiv({ cls: 'obs-wiki-timeline' });
@@ -2024,7 +2078,7 @@ class ObsWikiActivityView extends ItemView {
 			summary.push(`${ui('读取', 'Reads')} ${task.memoryReads.length}`);
 			summary.push(`${ui('写入', 'Writes')} ${task.memoryWrites.length}`);
 			summary.push(`${ui('捕获', 'Captures')} ${task.sourceCaptures.length}`);
-			summary.push(`${ui('提案', 'Proposals')} ${task.proposals.length}`);
+			summary.push(`${ui('记忆更新', 'Memory updates')} ${task.proposals.length}`);
 			item.createEl('div', { text: summary.join(' • ') });
 		}
 		item.createEl('small', { text: `${ui('文件', 'File')}: ${task.path}` });
@@ -2111,8 +2165,8 @@ class ObsWikiReviewQueueView extends ItemView {
 		if (snapshot.missingReviewQueueFolder) {
 			contentEl.createEl('p', {
 				text: ui(
-					'未找到审核队列文件夹 01_inbox/review_queue。Agent/runtime 初始化应创建该记忆结构。',
-					'No review queue folder found at 01_inbox/review_queue. Agent/runtime setup should create the memory structure.'
+					'还没有审核队列。请先初始化 obs-wiki 文件结构，之后 AI 助手提出的记忆更新会出现在这里。',
+					'No review queue yet. Initialize the obs-wiki file structure first; proposed memory updates will appear here afterward.'
 				),
 				cls: 'obs-wiki-view__description',
 			});
@@ -2122,8 +2176,8 @@ class ObsWikiReviewQueueView extends ItemView {
 		if (snapshot.proposals.length === 0) {
 			this.renderEmptyState(
 				contentEl,
-				ui('审核队列中还没有记忆提案。', 'No memory proposals in the review queue yet.'),
-				ui('长期记忆、用户偏好和重要决策必须先由 Agent 创建 proposal，再由你在这里审核。', 'Long-term memory, preferences, and important decisions must be proposed by an Agent first, then reviewed here.')
+				ui('还没有待审核的记忆更新。', 'No memory updates waiting for review yet.'),
+				ui('长期记忆、用户偏好和重要决定会先进入审核队列，由你确认后才会写入。', 'Long-term memory, preferences, and important decisions appear here for your review before they are saved.')
 			);
 			return;
 		}
@@ -2150,8 +2204,8 @@ class ObsWikiReviewQueueView extends ItemView {
 		if (visibleProposals.length === 0) {
 			this.renderEmptyState(
 				grid,
-				ui('当前筛选下没有提案。', 'No proposals for the current filter.'),
-				ui('切换筛选或等待 Agent 生成新的 Review Queue proposal。', 'Switch filters or wait for an Agent to create new Review Queue proposals.')
+				ui('当前筛选下没有内容。', 'No items match this filter.'),
+				ui('切换筛选，或等待 AI 助手提出新的记忆更新。', 'Switch filters or wait for your AI assistant to propose a new memory update.')
 			);
 			return;
 		}
@@ -2196,10 +2250,10 @@ class ObsWikiReviewQueueView extends ItemView {
 	private renderProposalCard(container: HTMLElement, proposal: MemoryProposalRecord): void {
 		const card = container.createDiv({ cls: 'obs-wiki-card obs-wiki-proposal-card' });
 		const header = card.createDiv({ cls: 'obs-wiki-card__header' });
-		header.createEl('strong', { text: proposal.proposalId || ui('未命名提案', 'Untitled proposal') });
+		header.createEl('strong', { text: proposal.proposalId || ui('未命名记忆更新', 'Untitled memory update') });
 		const badges = header.createDiv({ cls: 'obs-wiki-badge-row' });
 		badges.createEl('span', { text: proposal.proposalKind, cls: 'obs-wiki-badge' });
-		badges.createEl('span', { text: proposal.riskLevel, cls: `obs-wiki-badge obs-wiki-badge--risk-${proposal.riskLevel.toLowerCase()}` });
+		badges.createEl('span', { text: this.plugin.formatRiskLabel(proposal.riskLevel), cls: `obs-wiki-badge obs-wiki-badge--risk-${proposal.riskLevel.toLowerCase()}` });
 		badges.createEl('span', { text: memoryProposalStatusLabel(proposal.approvalStatus), cls: 'obs-wiki-badge' });
 
 		const facts = card.createDiv({ cls: 'obs-wiki-detail-grid' });
@@ -2207,7 +2261,7 @@ class ObsWikiReviewQueueView extends ItemView {
 		this.renderDetail(facts, ui('证据数量', 'Evidence count'), String(proposal.evidence.length));
 		this.renderDetail(facts, ui('任务', 'Task'), proposal.taskId || ui('无', 'None'));
 		this.renderDetail(facts, ui('创建时间', 'Created'), proposal.created || ui('未知', 'Unknown'));
-		this.renderDetail(facts, ui('提议者', 'Proposed by'), proposal.proposedBy || 'unknown');
+		this.renderDetail(facts, ui('提出来源', 'Proposed by'), proposal.proposedBy || 'unknown');
 		if (proposal.snippet) {
 			card.createEl('p', { text: this.plugin.trimText(proposal.snippet, 180), cls: 'obs-wiki-view__description' });
 		}
@@ -2273,8 +2327,8 @@ class ObsWikiReviewQueueView extends ItemView {
 			});
 			apply.addEventListener('click', () => {
 				new Notice(ui(
-					'已批准写回由 Runtime 通过 obs_wiki.apply_approved_writeback 执行，插件不会直接写入受保护记忆。',
-					'Approved writeback is applied by Runtime through obs_wiki.apply_approved_writeback. The plugin does not write protected memory directly.'
+					'这条内容已批准。请让 AI 助手应用已批准的写回；插件不会直接改写受保护记忆。',
+					'This item is approved. Ask your AI assistant to apply the approved writeback; the plugin will not directly edit protected memory.'
 				));
 			});
 		}
@@ -2300,7 +2354,7 @@ class ObsWikiAgentConnectionsView extends ItemView {
 	}
 
 	getDisplayText() {
-		return ui('Agent 连接中心', 'Agent connections');
+		return ui('AI 助手连接', 'AI assistant connections');
 	}
 
 	getViewData() {
@@ -2332,11 +2386,11 @@ class ObsWikiAgentConnectionsView extends ItemView {
 
 		const header = contentEl.createDiv({ cls: 'obs-wiki-shell-header' });
 		const heading = header.createDiv();
-		heading.createEl('h2', { text: ui('Agent 连接中心', 'Agent Connection Center'), cls: 'obs-wiki-view__title' });
+		heading.createEl('h2', { text: ui('AI 助手连接', 'AI Assistant Connections'), cls: 'obs-wiki-view__title' });
 		heading.createEl('p', {
 			text: ui(
-				'生成 MCP 配置、查看已连接 Agent，并追踪最近工具调用。',
-				'Generate MCP config, inspect recently seen agents, and track recent tool calls.'
+				'复制常用 AI 工具的连接信息，并查看最近的连接和使用记录。',
+				'Copy connection details for common AI tools and review recent connection activity.'
 			),
 			cls: 'obs-wiki-view__description',
 		});
@@ -2345,36 +2399,36 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		refreshButton.addEventListener('click', async () => this.refresh());
 
 		const statusBar = contentEl.createDiv({ cls: 'obs-wiki-status-bar' });
-		this.renderStatusItem(statusBar, ui('运行模式', 'Runtime mode'), ui('本机服务优先', 'Local service first'));
-		this.renderStatusItem(statusBar, ui('当前 Vault', 'Current vault'), snapshot.vaultRoot);
-		this.renderStatusItem(statusBar, ui('最近 Agent', 'Recent agents'), String(snapshot.recentAgents.length));
-		this.renderStatusItem(statusBar, ui('工具调用', 'Tool calls'), String(snapshot.recentToolCalls.length));
+		this.renderStatusItem(statusBar, ui('连接方式', 'Connection'), ui('本机连接', 'Local connection'));
+		this.renderStatusItem(statusBar, ui('当前知识库', 'Current knowledge base'), snapshot.vaultRoot);
+		this.renderStatusItem(statusBar, ui('最近连接', 'Recent connections'), String(snapshot.recentAgents.length));
+		this.renderStatusItem(statusBar, ui('使用记录', 'Usage records'), String(snapshot.recentToolCalls.length));
 
 		const runtime = contentEl.createDiv({ cls: 'obs-wiki-card' });
-		runtime.createEl('h3', { text: ui('本机 Runtime 连接', 'Local runtime connection') });
+		runtime.createEl('h3', { text: ui('本机连接服务', 'Local connection service') });
 		runtime.createEl('p', {
 			text: ui(
-				'客户端应连接到本机 obs-wiki Runtime/Gateway；插件不再生成指向项目源码目录的配置。',
-				'Clients should connect to the local obs-wiki Runtime/Gateway; the plugin no longer generates source-tree paths.'
+				'让 AI 工具通过本机地址访问 obs-wiki。连接只在这台电脑上进行，速度更快，也便于控制权限。',
+				'Let AI tools access obs-wiki through a local address on this computer for faster, permission-controlled use.'
 			),
 			cls: 'obs-wiki-view__description',
 		});
 		const endpointGrid = runtime.createDiv({ cls: 'obs-wiki-detail-grid' });
-		this.renderDetail(endpointGrid, ui('Streamable HTTP', 'Streamable HTTP'), snapshot.httpEndpoint);
-		this.renderDetail(endpointGrid, ui('SSE 兼容', 'SSE fallback'), snapshot.sseEndpoint);
-		this.renderDetail(endpointGrid, ui('stdio fallback', 'stdio fallback'), snapshot.stdioCommand);
+		this.renderDetail(endpointGrid, ui('推荐连接地址', 'Recommended address'), snapshot.httpEndpoint);
+		this.renderDetail(endpointGrid, ui('兼容连接地址', 'Compatibility address'), snapshot.sseEndpoint);
+		this.renderDetail(endpointGrid, ui('本机命令（可选）', 'Local command (optional)'), snapshot.stdioCommand);
 		const commandAction = runtime.createDiv({ cls: 'obs-wiki-action-row' });
-		const copyHttp = commandAction.createEl('button', { text: ui('复制 HTTP URL', 'Copy HTTP URL') });
+		const copyHttp = commandAction.createEl('button', { text: ui('复制推荐地址', 'Copy recommended address') });
 		copyHttp.addEventListener('click', () => {
-			void this.plugin.copyToClipboard(snapshot.httpEndpoint, ui('已复制 HTTP MCP URL。', 'HTTP MCP URL copied.'));
+			void this.plugin.copyToClipboard(snapshot.httpEndpoint, ui('已复制推荐连接地址。', 'Recommended address copied.'));
 		});
-		const copySse = commandAction.createEl('button', { text: ui('复制 SSE URL', 'Copy SSE URL') });
+		const copySse = commandAction.createEl('button', { text: ui('复制兼容地址', 'Copy compatibility address') });
 		copySse.addEventListener('click', () => {
-			void this.plugin.copyToClipboard(snapshot.sseEndpoint, ui('已复制 SSE MCP URL。', 'SSE MCP URL copied.'));
+			void this.plugin.copyToClipboard(snapshot.sseEndpoint, ui('已复制兼容连接地址。', 'Compatibility address copied.'));
 		});
-		const copyStdio = commandAction.createEl('button', { text: ui('复制 stdio 命令', 'Copy stdio command') });
+		const copyStdio = commandAction.createEl('button', { text: ui('复制本机命令', 'Copy local command') });
 		copyStdio.addEventListener('click', () => {
-			void this.plugin.copyToClipboard(snapshot.stdioCommand, ui('已复制 stdio 命令。', 'stdio command copied.'));
+			void this.plugin.copyToClipboard(snapshot.stdioCommand, ui('已复制本机命令。', 'Local command copied.'));
 		});
 
 		const configGrid = contentEl.createDiv({ cls: 'obs-wiki-config-grid' });
@@ -2382,125 +2436,128 @@ class ObsWikiAgentConnectionsView extends ItemView {
 			configGrid,
 			'Codex',
 			snapshot.codexConfig,
-			ui('写入 ~/.codex/config.toml，使用本机 HTTP endpoint。', 'Add to ~/.codex/config.toml using the local HTTP endpoint.')
+			ui('将下面内容加入 Codex 配置文件，然后重启 Codex。', 'Add this to your Codex config file, then restart Codex.')
 		);
 		this.renderConfigCard(
 			configGrid,
 			'Claude Code',
 			snapshot.claudeConfig,
-			ui('通过 Claude CLI 添加 user scope 本机 HTTP server。', 'Add a user-scoped local HTTP server through the Claude CLI.')
+			ui('在终端执行下面命令，为 Claude Code 添加 obs-wiki 连接。', 'Run this command in a terminal to add the obs-wiki connection to Claude Code.')
 		);
 		this.renderConfigCard(
 			configGrid,
 			'Cursor',
 			snapshot.cursorConfig,
-			ui('写入 ~/.cursor/mcp.json 或项目 MCP 配置。', 'Add to ~/.cursor/mcp.json or a project MCP config.')
+			ui('将下面内容加入 Cursor 的连接配置，然后重启 Cursor。', 'Add this to Cursor connection settings, then restart Cursor.')
 		);
 		this.renderConfigCard(
 			configGrid,
-			ui('自定义 HTTP', 'Custom HTTP'),
+			ui('其他工具', 'Other tools'),
 			snapshot.customConfig,
-			ui('适用于支持 url 字段的 MCP 客户端。', 'For MCP clients that support the url field.')
+			ui('如果你的 AI 工具支持通过地址连接，可使用这份配置。', 'Use this config when your AI tool supports connecting by URL.')
 		);
 		this.renderConfigCard(
 			configGrid,
-			ui('已安装 stdio runtime', 'Installed stdio runtime'),
+			ui('本机命令方式', 'Local command mode'),
 			snapshot.stdioConfig,
-			ui('仅用于已安装 obs-wiki runtime 命令的本机 fallback。', 'Local fallback only when the obs-wiki runtime command is installed.')
+			ui('如果你的 AI 工具只能启动本机命令，可使用这份配置。', 'Use this config when your AI tool needs to start a local command.')
 		);
 
 		const exposedTools = contentEl.createDiv({ cls: 'obs-wiki-card' });
-		exposedTools.createEl('h3', { text: ui('暴露工具', 'Exposed tools') });
+		exposedTools.createEl('h3', { text: ui('可用能力', 'Available capabilities') });
 		exposedTools.createEl('p', {
 			text: ui(
-				'这些是 Agent 侧 MCP 工具分组；Obsidian 插件仍只提供审核、治理和连接状态入口。',
-				'These are Agent-side MCP tool groups; the Obsidian plugin still only exposes review, governance, and connection status entry points.'
+				'连接成功后，AI 助手可以使用这些能力。需要写入长期记忆的内容仍会先进入审核。',
+				'After connecting, your AI assistant can use these capabilities. Anything that updates long-term memory still goes through review first.'
 			),
 			cls: 'obs-wiki-view__description',
 		});
 		const toolGrid = exposedTools.createDiv({ cls: 'obs-wiki-detail-grid' });
 		this.renderToolset(toolGrid, ui('只读', 'Read-only'), [
-			'status',
-			'recall',
-			'read_note',
-			'list_review_queue',
-			'audit_recent',
-			'lint',
+			ui('查看连接和资料状态', 'Check connection and knowledge base status'),
+			ui('查找相关笔记', 'Find related notes'),
+			ui('读取指定笔记', 'Read a selected note'),
+			ui('查看待审核内容', 'Review pending items'),
+			ui('查看最近记录', 'Review recent activity'),
+			ui('检查笔记结构', 'Check note structure'),
 		]);
-		this.renderToolset(toolGrid, ui('受控写入', 'Controlled write'), [
-			'build_context_pack',
-			'finish_task',
-			'distill_session',
-			'capture_source',
-			'propose_memory',
+		this.renderToolset(toolGrid, ui('保存工作记录', 'Save work records'), [
+			ui('整理上下文材料', 'Prepare context material'),
+			ui('记录任务结果', 'Record task results'),
+			ui('沉淀会话摘要', 'Summarize a session'),
+			ui('保存来源资料', 'Save source material'),
+			ui('提出记忆更新', 'Propose memory updates'),
 		]);
-		this.renderToolset(toolGrid, ui('审核门控', 'Review gated'), [
-			'apply_approved_writeback',
+		this.renderToolset(toolGrid, ui('需要审核', 'Needs review'), [
+			ui('应用已批准的写回', 'Apply approved writebacks'),
 		]);
-		this.renderToolset(toolGrid, ui('禁止暴露', 'Forbidden'), [
-			'shell',
-			'vault-outside-write',
-			'.obsidian-write',
-			'bulk-delete',
+		this.renderToolset(toolGrid, ui('不会执行', 'Never allowed'), [
+			ui('运行系统命令', 'Run system commands'),
+			ui('访问当前知识库以外的文件', 'Access files outside the current knowledge base'),
+			ui('修改 Obsidian 配置目录', 'Modify Obsidian settings folders'),
+			ui('批量删除或重写内容', 'Delete or rewrite content in bulk'),
 		]);
 
 		const agents = contentEl.createDiv({ cls: 'obs-wiki-card' });
-		agents.createEl('h3', { text: ui('最近出现的 Agent', 'Recently seen agents') });
+		agents.createEl('h3', { text: ui('最近连接的 AI 工具', 'Recently connected AI tools') });
 		if (snapshot.recentAgents.length === 0) {
 			this.renderEmptyState(
 				agents,
-				ui('还没有 Agent 连接记录。', 'No Agent connection records yet.'),
+				ui('还没有连接记录。', 'No connection records yet.'),
 				snapshot.missingAuditSources
-					? ui('未找到审计日志。Agent 连接 MCP 后，Runtime 会在 00_control/audit_log.md 写入连接事件。', 'No audit log found. Runtime writes connection events to 00_control/audit_log.md after an Agent connects.')
-					: ui('启动本机 obs-wiki Runtime 后，复制上方配置到 Codex、Claude、Cursor 或自定义 Agent。', 'Start the local obs-wiki Runtime, then copy a config above into Codex, Claude, Cursor, or a custom Agent.')
+					? ui('还没有记录文件。初始化 obs-wiki 后，连接和操作记录会显示在这里。', 'No activity file yet. After obs-wiki is initialized, connection and usage records will appear here.')
+					: ui('启动 obs-wiki 本机连接服务后，复制上方配置到你的 AI 工具。', 'Start the obs-wiki local connection service, then copy one of the configs above into your AI tool.')
 			);
 		} else {
 			const list = agents.createDiv({ cls: 'obs-wiki-table-list' });
 			for (const agent of snapshot.recentAgents) {
 				const row = list.createDiv({ cls: 'obs-wiki-table-row' });
 				row.createEl('strong', { text: agent.clientName || agent.agentId });
-				row.createEl('span', { text: agent.status });
+				row.createEl('span', { text: this.plugin.formatResultLabel(agent.status) });
 				row.createEl('span', { text: `${ui('最后出现', 'Last seen')}: ${this.plugin.formatDisplayTime(agent.sortTimestamp)}` });
-				row.createEl('span', { text: `${ui('最近工具', 'Last tool')}: ${agent.lastToolCall || ui('无', 'None')}` });
-				row.createEl('small', { text: `${agent.transport} • ${agent.permissionProfile}` });
+				row.createEl('span', { text: `${ui('最近使用', 'Last used')}: ${agent.lastToolCall ? this.plugin.formatToolDisplayName(agent.lastToolCall) : ui('无', 'None')}` });
+				row.createEl('small', { text: ui('本机连接；重要写入需要先审核。', 'Local connection; important writes require review first.') });
 			}
 		}
 
 		const calls = contentEl.createDiv({ cls: 'obs-wiki-card' });
-		calls.createEl('h3', { text: ui('最近工具调用', 'Recent tool calls') });
+		calls.createEl('h3', { text: ui('最近使用记录', 'Recent usage') });
 		if (snapshot.recentToolCalls.length === 0) {
 			this.renderEmptyState(
 				calls,
-				ui('还没有工具调用记录。', 'No tool calls recorded yet.'),
-				ui('Agent 调用 obs_wiki.* 工具后，这里会显示工具名、结果、风险等级和目标路径。', 'After an Agent calls obs_wiki.* tools, this panel shows tool name, result, risk level, and target paths.')
+				ui('还没有使用记录。', 'No usage records yet.'),
+				ui('AI 助手使用 obs-wiki 后，这里会显示使用时间、结果和相关笔记。', 'After your AI assistant uses obs-wiki, this panel shows time, result, and related notes.')
 			);
 		} else {
 			const timeline = calls.createDiv({ cls: 'obs-wiki-timeline' });
 			for (const call of snapshot.recentToolCalls) {
 				const row = timeline.createDiv({ cls: 'obs-wiki-timeline__item' });
-				row.createEl('div', { text: call.resultStatus, cls: 'obs-wiki-badge' });
+				row.createEl('div', { text: this.plugin.formatResultLabel(call.resultStatus), cls: 'obs-wiki-badge' });
 				const body = row.createDiv({ cls: 'obs-wiki-timeline__body' });
-				body.createEl('strong', { text: `${call.toolName} • ${this.plugin.formatDisplayTime(call.sortTimestamp)}` });
+				body.createEl('strong', { text: `${this.plugin.formatToolDisplayName(call.toolName)} • ${this.plugin.formatDisplayTime(call.sortTimestamp)}` });
 				body.createEl('div', {
-					text: `${call.clientName || call.agentId} • ${ui('风险', 'Risk')}: ${call.riskLevel} • ${call.durationMs || '0'}ms`,
+					text: `${call.clientName || call.agentId} • ${ui('权限', 'Permission')}: ${this.plugin.formatRiskLabel(call.riskLevel)}`,
 					cls: 'obs-wiki-view__description',
 				});
 				if (call.targetPaths.length > 0) {
 					body.createEl('small', { text: call.targetPaths.join(', ') });
 				}
 				if (call.argsSummary) {
-					body.createEl('div', { text: this.plugin.trimText(call.argsSummary, 180) });
+					body.createEl('div', {
+						text: ui('本次使用包含输入参数，详细内容已按安全规则记录。', 'This use included input details, recorded under the safety rules.'),
+						cls: 'obs-wiki-view__description',
+					});
 				}
 			}
 		}
 
 		const policy = contentEl.createDiv({ cls: 'obs-wiki-card' });
-		policy.createEl('h3', { text: ui('权限矩阵摘要', 'Permission matrix summary') });
+		policy.createEl('h3', { text: ui('权限说明', 'Permission guide') });
 		const matrix = policy.createDiv({ cls: 'obs-wiki-detail-grid' });
 		this.renderDetail(matrix, ui('默认', 'Default'), ui('只读', 'Read-only'));
-		this.renderDetail(matrix, ui('工作记录', 'Working records'), ui('受控写入', 'Controlled write'));
-		this.renderDetail(matrix, ui('长期记忆', 'Long-term memory'), ui('审核门控写回', 'Review-gated apply'));
-		this.renderDetail(matrix, ui('禁止', 'Forbidden'), ui('shell、vault 外路径、.obsidian、删除/批量重写', 'shell, vault-outside paths, .obsidian, delete/bulk rewrite'));
+		this.renderDetail(matrix, ui('工作记录', 'Working records'), ui('保存前检查', 'Checked before saving'));
+		this.renderDetail(matrix, ui('长期记忆', 'Long-term memory'), ui('先审核再写入', 'Review before writing'));
+		this.renderDetail(matrix, ui('不会执行', 'Never allowed'), ui('系统命令、知识库外文件、Obsidian 配置目录、删除或批量重写', 'System commands, files outside the knowledge base, Obsidian settings folders, delete or bulk rewrite'));
 	}
 
 	private renderConfigCard(container: HTMLElement, title: string, config: string, detail?: string): void {
@@ -2509,7 +2566,7 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		header.createEl('strong', { text: title });
 		const copy = header.createEl('button', { text: ui('复制配置', 'Copy config') });
 		copy.addEventListener('click', () => {
-			void this.plugin.copyToClipboard(config, ui('已复制 MCP 配置。', 'MCP config copied.'));
+			void this.plugin.copyToClipboard(config, ui('已复制连接配置。', 'Connection config copied.'));
 		});
 		if (detail) {
 			card.createEl('p', { text: detail, cls: 'obs-wiki-view__description' });
@@ -2555,7 +2612,7 @@ class ObsWikiMemoryInspectorView extends ItemView {
 	}
 
 	getDisplayText() {
-		return ui('记忆检查器', 'Memory inspector');
+		return ui('记忆查看', 'Memory view');
 	}
 
 	getViewData() {
@@ -2580,11 +2637,11 @@ class ObsWikiMemoryInspectorView extends ItemView {
 		contentEl.empty();
 		contentEl.addClass('obs-wiki-view-root');
 
-		contentEl.createEl('h2', { text: ui('记忆检查器', 'Memory inspector'), cls: 'obs-wiki-view__title' });
+		contentEl.createEl('h2', { text: ui('记忆查看', 'Memory view'), cls: 'obs-wiki-view__title' });
 		contentEl.createEl('p', {
 			text: ui(
-				'脚手架占位：后续会加入笔记来源、claim、证据和 Agent 使用情况检查。',
-				'Scaffold placeholder: note source, claim, evidence, and agent usage inspection will be added later.'
+				'这里用于查看已保存的记忆、来源证据和最近使用情况。完成一次审核或记录后，相关内容会逐步出现在这里。',
+				'Use this page to review saved memories, source evidence, and recent usage. Related details appear here after review or recording activity.'
 			),
 			cls: 'obs-wiki-view__description',
 		});
@@ -2604,7 +2661,7 @@ class ObsWikiAuditLogView extends ItemView {
 	}
 
 	getDisplayText() {
-		return ui('审计日志', 'Audit log');
+		return ui('操作记录', 'Activity log');
 	}
 
 	getViewData() {
@@ -2629,11 +2686,11 @@ class ObsWikiAuditLogView extends ItemView {
 		contentEl.empty();
 		contentEl.addClass('obs-wiki-view-root');
 
-		contentEl.createEl('h2', { text: ui('审计日志', 'Audit log'), cls: 'obs-wiki-view__title' });
+		contentEl.createEl('h2', { text: ui('操作记录', 'Activity log'), cls: 'obs-wiki-view__title' });
 		contentEl.createEl('p', {
 			text: ui(
-				'脚手架占位：后续会加入 Agent、Runtime、插件和用户的详细审计时间线。最近审计事件已在 Agent 活动中展示。',
-				'Scaffold placeholder: detailed agent, runtime, plugin, and user audit timeline will be added later. Recent audit events are visible in Agent Activity.'
+				'连接、审核和写回操作会形成记录，便于你追溯谁在什么时候改了什么。最近活动也会显示在活动页中。',
+				'Connection, review, and writeback actions are recorded so you can trace what changed and when. Recent activity is also shown on the activity page.'
 			),
 			cls: 'obs-wiki-view__description',
 		});
@@ -2650,7 +2707,7 @@ class ObsWikiRuntimeStatusView extends ItemView {
 	}
 
 	getDisplayText() {
-		return ui('运行状态', 'Runtime status');
+		return ui('连接状态', 'Connection status');
 	}
 
 	getViewData() {
@@ -2675,11 +2732,11 @@ class ObsWikiRuntimeStatusView extends ItemView {
 		contentEl.empty();
 		contentEl.addClass('obs-wiki-view-root');
 
-		contentEl.createEl('h2', { text: ui('运行状态', 'Runtime status'), cls: 'obs-wiki-view__title' });
+		contentEl.createEl('h2', { text: ui('连接状态', 'Connection status'), cls: 'obs-wiki-view__title' });
 		contentEl.createEl('p', {
 			text: ui(
-				'脚手架占位：后续会加入 MCP Server、Runtime 索引、context pack、lint 和来源分析状态。',
-				'Scaffold placeholder: MCP server, runtime index, context pack, lint, and source-analysis status will be added later.'
+				'这里用于确认本机连接服务、资料索引和资料处理是否正常。若连接中心没有记录，请先确认你的 AI 工具已使用 obs-wiki 连接。',
+				'Use this page to check the local connection service, knowledge base index, and material processing status. If no records appear, confirm that your AI tool is using the obs-wiki connection.'
 			),
 			cls: 'obs-wiki-view__description',
 		});
@@ -2696,7 +2753,7 @@ class ObsWikiPermissionPolicyView extends ItemView {
 	}
 
 	getDisplayText() {
-		return ui('权限策略', 'Permission policy');
+		return ui('权限说明', 'Permission guide');
 	}
 
 	getViewData() {
@@ -2721,83 +2778,65 @@ class ObsWikiPermissionPolicyView extends ItemView {
 		contentEl.empty();
 		contentEl.addClass('obs-wiki-view-root');
 
-		contentEl.createEl('h2', { text: ui('权限策略', 'Permission policy'), cls: 'obs-wiki-view__title' });
+		contentEl.createEl('h2', { text: ui('权限说明', 'Permission guide'), cls: 'obs-wiki-view__title' });
 		contentEl.createEl('p', {
 			text: ui(
-				'Runtime 策略默认只读；工作记录使用受控写入，受保护记忆写回必须经过审核批准。',
-				'Runtime policy is read-only by default, with controlled writes for working records and review-gated apply for protected memory writeback.'
+				'obs-wiki 默认先读取和整理资料；任何会影响长期记忆的重要写入，都必须先经过你审核。',
+				'obs-wiki reads and organizes material by default; important writes that affect long-term memory must be reviewed by you first.'
 			),
 			cls: 'obs-wiki-view__description',
 		});
 
 		const sections = [
 			{
-				title: ui('只读工具', 'Read-only tools'),
+				title: ui('可直接读取', 'Read directly'),
 				items: [
-					'obs_wiki.status',
-					'obs_wiki.start_task',
-					'obs_wiki.recall',
-					'obs_wiki.read_note',
-					'obs_wiki.list_review_queue',
-					'obs_wiki.list_source_requests',
-					'obs_wiki.list_approved_writebacks',
-					'obs_wiki.audit_recent',
-					'obs_wiki.build_context_pack (write=false)',
-					'obs_wiki.lint',
+					ui('查看连接和资料状态', 'Check connection and knowledge base status'),
+					ui('查找相关笔记', 'Find related notes'),
+					ui('读取指定笔记', 'Read a selected note'),
+					ui('查看审核队列和最近记录', 'Review queue and recent activity'),
+					ui('检查笔记结构', 'Check note structure'),
 				],
 			},
 			{
-				title: ui('低风险写入工具', 'Low-risk write tools'),
+				title: ui('可保存工作记录', 'Save work records'),
 				items: [
-					'obs_wiki.write_context_pack -> 06_outputs/context_packs/',
-					'obs_wiki.build_context_pack (write=true) -> 06_outputs/context_packs/',
-					'obs_wiki.write_session_note -> 02_timeline/sessions/',
-					'obs_wiki.finish_task -> 02_timeline/sessions/',
-					'obs_wiki.distill_session -> 02_timeline/sessions/ + 01_inbox/review_queue/',
-					'obs_wiki.capture_source -> 03_sources/',
-					'obs_wiki.propose_memory -> 01_inbox/review_queue/',
-					'obs_wiki.analyze_source_request -> source, analysis, proposal, request status, audit',
+					ui('保存来源资料和分析结果', 'Save source material and analysis results'),
+					ui('整理上下文材料', 'Prepare context material'),
+					ui('记录任务结果和会话摘要', 'Record task results and session summaries'),
+					ui('提出长期记忆更新，等待你审核', 'Propose long-term memory updates for your review'),
 				],
 			},
 			{
-				title: ui('审核门控应用', 'Review-gated apply'),
+				title: ui('必须先审核', 'Needs review first'),
 				items: [
-					ui(
-						'obs_wiki.apply_approved_writeback 要求 approval_status=approved',
-						'obs_wiki.apply_approved_writeback requires approval_status=approved'
-					),
-					ui(
-						'Runtime 会向现有目标笔记追加明确的 ## Writeback content 内容',
-						'Runtime appends explicit ## Writeback content to an existing target note'
-					),
-					ui(
-						'提案状态会变为 applied，并写入审计事件',
-						'Proposal status becomes applied and an audit event is written'
-					),
+					ui('长期记忆写入前必须先批准', 'Long-term memory writes must be approved first'),
+					ui('用户偏好和重要决定会先进入审核队列', 'Preferences and important decisions enter the review queue first'),
+					ui('批准后的写入会留下记录，方便追溯', 'Approved writes leave records for traceability'),
 				],
 			},
 			{
-				title: ui('禁止动作', 'Forbidden actions'),
+				title: ui('不会执行', 'Never allowed'),
 				items: [
 					ui(
-						'禁止通过 MCP 执行 shell 或安装包',
-						'No shell execution or package installation through MCP'
+						'不会替你运行系统命令或安装软件',
+						'Will not run system commands or install software for you'
 					),
 					ui(
-						'禁止访问 vault 外部或 .obsidian',
-						'No vault-outside or .obsidian access'
+						'不会访问当前知识库之外的文件',
+						'Will not access files outside the current knowledge base'
 					),
 					ui(
-						'禁止删除、重命名、移动或批量重写工具',
-						'No delete, rename, move, or bulk rewrite tools'
+						'不会修改 Obsidian 配置目录',
+						'Will not modify Obsidian settings folders'
 					),
 					ui(
-						'未通过审核队列批准时，禁止直接写入受保护记忆',
-						'No direct protected memory write without Review Queue approval'
+						'不会删除、移动或批量重写你的笔记',
+						'Will not delete, move, or bulk rewrite your notes'
 					),
 					ui(
-						'Obsidian 插件不提供来源提交或维护动作入口',
-						'No Obsidian plugin entry for source submission or maintenance actions'
+						'未经审核不会直接写入受保护记忆',
+						'Will not write protected memory without review'
 					),
 				],
 			},
@@ -2813,9 +2852,12 @@ class ObsWikiPermissionPolicyView extends ItemView {
 		}
 
 		const source = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-		source.createEl('h3', { text: ui('策略来源', 'Policy source') });
+		source.createEl('h3', { text: ui('使用提示', 'Tip') });
 		source.createEl('p', {
-			text: 'docs/MCP_Tool_Permission_Matrix.md',
+			text: ui(
+				'如果不确定某条记忆是否应该保存，请选择“要求修订”或“暂缓”，不要直接批准。',
+				'If you are unsure whether a memory should be saved, choose request revision or defer instead of approving it.'
+			),
 			cls: 'obs-wiki-view__description',
 		});
 	}
@@ -2837,8 +2879,8 @@ class ObsWikiSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName(ui('显示欢迎信息', 'Show welcome message'))
 			.setDesc(ui(
-				'在 Agent Activity 视图中显示欢迎或状态文本。',
-				'Display a welcome/status line in the Agent Activity view.'
+				'在活动页顶部显示一条说明文字。',
+				'Show a short message at the top of the activity page.'
 			))
 			.addToggle((toggle) =>
 				toggle
@@ -2852,8 +2894,8 @@ class ObsWikiSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName(ui('状态文本', 'Status message'))
 			.setDesc(ui(
-				'启用欢迎信息时，在 Agent Activity 中显示的文本。',
-				'Text shown in Agent Activity when welcome messages are enabled.'
+				'开启欢迎信息后显示在活动页顶部；留空则使用默认文案。',
+				'Shown at the top of the activity page when welcome messages are enabled. Leave empty to use the default message.'
 			))
 			.addText((text) =>
 				text
@@ -2866,10 +2908,10 @@ class ObsWikiSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName(ui('本机 MCP HTTP URL', 'Local MCP HTTP URL'))
+			.setName(ui('推荐连接地址', 'Recommended connection address'))
 			.setDesc(ui(
-				'Agent 连接中心默认生成的本机 Streamable HTTP endpoint。',
-				'Local Streamable HTTP endpoint generated by Agent Connection Center.'
+				'常用 AI 工具优先使用这个本机地址连接 obs-wiki；不确定时保持默认。',
+				'Most AI tools should use this local address to connect to obs-wiki. Keep the default if unsure.'
 			))
 			.addText((text) =>
 				text
@@ -2883,10 +2925,10 @@ class ObsWikiSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName(ui('本机 MCP SSE URL', 'Local MCP SSE URL'))
+			.setName(ui('兼容连接地址', 'Compatibility connection address'))
 			.setDesc(ui(
-				'仅用于兼容旧 MCP 客户端的 SSE endpoint。',
-				'SSE endpoint for legacy MCP clients only.'
+				'少数旧版 AI 工具需要这个地址；不确定时保持默认。',
+				'Some older AI tools need this address. Keep the default if unsure.'
 			))
 			.addText((text) =>
 				text
@@ -2900,10 +2942,10 @@ class ObsWikiSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName(ui('stdio Runtime 命令', 'stdio runtime command'))
+			.setName(ui('本机命令（可选）', 'Local command (optional)'))
 			.setDesc(ui(
-				'仅用于已安装 obs-wiki Runtime 的本机 fallback，不应指向项目源码目录。',
-				'Local fallback for an installed obs-wiki Runtime. It should not point to the project source tree.'
+				'当 AI 工具不支持连接地址、只能启动本机命令时使用。',
+				'Use this only when an AI tool cannot connect by address and must start a local command.'
 			))
 			.addText((text) =>
 				text
@@ -2915,16 +2957,5 @@ class ObsWikiSettingTab extends PluginSettingTab {
 						await this.plugin.refreshGovernanceViews();
 					})
 			);
-
-		new Setting(containerEl)
-			.setName(ui('默认 Agent 范围', 'Default agent scope'))
-			.setDesc(ui(
-				'预留给后续权限控制接入使用。',
-				'Reserved for later use while wiring permission controls.'
-			))
-			.setDisabled(true)
-			.addText((text) => {
-				text.setValue(this.plugin.settings.defaultAgentScope);
-			});
 	}
 }
