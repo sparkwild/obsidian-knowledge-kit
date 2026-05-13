@@ -52,10 +52,12 @@ The MCP server must not expose tools that:
 The default local MCP URL is:
 
 ```text
-http://127.0.0.1:37241/mcp
+http://127.0.0.1:58437/mcp
 ```
 
-The legacy SSE URL is `http://127.0.0.1:37241/sse`. Change these only when the local Runtime is configured for a different address or port.
+The legacy SSE URL is `http://127.0.0.1:58437/sse`. Change these only when the local Runtime is configured for a different address or port.
+
+Port `58437` is in the Dynamic/Private range and is selected to avoid common local development service ports.
 
 Use stdio only when a client requires command/args configuration:
 

@@ -60,8 +60,11 @@ const MAX_AGENT_CONNECTION_ROWS = 8;
 const MAX_AGENT_TOOL_CALL_ROWS = 12;
 const PLUGIN_DISPLAY_NAME_ZH = '知识库';
 const PLUGIN_DISPLAY_NAME_EN = 'Obswiki';
-const DEFAULT_MCP_HTTP_ENDPOINT = 'http://127.0.0.1:37241/mcp';
-const DEFAULT_MCP_SSE_ENDPOINT = 'http://127.0.0.1:37241/sse';
+const DEFAULT_MCP_PORT = 58437;
+const DEFAULT_MCP_HTTP_ENDPOINT = `http://127.0.0.1:${DEFAULT_MCP_PORT}/mcp`;
+const DEFAULT_MCP_SSE_ENDPOINT = `http://127.0.0.1:${DEFAULT_MCP_PORT}/sse`;
+const LEGACY_DEFAULT_MCP_HTTP_ENDPOINTS = ['http://127.0.0.1:37241/mcp'];
+const LEGACY_DEFAULT_MCP_SSE_ENDPOINTS = ['http://127.0.0.1:37241/sse'];
 const DEFAULT_MCP_STDIO_COMMAND = 'obswiki-mcp';
 const DEFAULT_STATUS_MESSAGE_ZH = '欢迎使用知识库。';
 const DEFAULT_STATUS_MESSAGE_EN = 'Welcome to Obswiki.';
@@ -390,10 +393,18 @@ export default class ObswikiPlugin extends Plugin {
 		if (typeof this.settings.statusMessage !== 'string') {
 			this.settings.statusMessage = '';
 		}
-		if (typeof this.settings.mcpHttpEndpoint !== 'string' || !this.settings.mcpHttpEndpoint.trim()) {
+		if (
+			typeof this.settings.mcpHttpEndpoint !== 'string' ||
+			!this.settings.mcpHttpEndpoint.trim() ||
+			LEGACY_DEFAULT_MCP_HTTP_ENDPOINTS.includes(this.settings.mcpHttpEndpoint.trim())
+		) {
 			this.settings.mcpHttpEndpoint = DEFAULT_MCP_HTTP_ENDPOINT;
 		}
-		if (typeof this.settings.mcpSseEndpoint !== 'string' || !this.settings.mcpSseEndpoint.trim()) {
+		if (
+			typeof this.settings.mcpSseEndpoint !== 'string' ||
+			!this.settings.mcpSseEndpoint.trim() ||
+			LEGACY_DEFAULT_MCP_SSE_ENDPOINTS.includes(this.settings.mcpSseEndpoint.trim())
+		) {
 			this.settings.mcpSseEndpoint = DEFAULT_MCP_SSE_ENDPOINT;
 		}
 		if (typeof this.settings.mcpStdioCommand !== 'string' || !this.settings.mcpStdioCommand.trim()) {
@@ -3502,13 +3513,23 @@ class ObswikiSettingTab extends PluginSettingTab {
 						this.plugin.settings.statusMessage = value;
 						await this.plugin.saveSettings();
 					})
+			)
+			.addExtraButton((button) =>
+				button
+					.setIcon('rotate-ccw')
+					.setTooltip(ui('恢复默认', 'Restore default'))
+					.onClick(async () => {
+						this.plugin.settings.statusMessage = DEFAULT_SETTINGS.statusMessage;
+						await this.plugin.saveSettings();
+						this.display();
+					})
 			);
 
 		new Setting(containerEl)
 			.setName(ui('AI 工具连接地址', 'AI tool connection URL'))
 			.setDesc(ui(
-				'常用 AI 工具默认使用这个本机地址连接知识库；需要自定义 Runtime 时可修改。',
-				'Most AI tools use this local endpoint by default; change it only for a custom Runtime.'
+				`默认使用本机 ${DEFAULT_MCP_PORT} 端口，避开常见开发服务；需要自定义 Runtime 时可修改。`,
+				`Uses local port ${DEFAULT_MCP_PORT} by default to avoid common development services; change it only for a custom Runtime.`
 			))
 			.addText((text) =>
 				text
@@ -3518,6 +3539,17 @@ class ObswikiSettingTab extends PluginSettingTab {
 						this.plugin.settings.mcpHttpEndpoint = value.trim() || DEFAULT_MCP_HTTP_ENDPOINT;
 						await this.plugin.saveSettings();
 						await this.plugin.refreshGovernanceViews();
+					})
+			)
+			.addExtraButton((button) =>
+				button
+					.setIcon('rotate-ccw')
+					.setTooltip(ui('恢复默认', 'Restore default'))
+					.onClick(async () => {
+						this.plugin.settings.mcpHttpEndpoint = DEFAULT_SETTINGS.mcpHttpEndpoint;
+						await this.plugin.saveSettings();
+						await this.plugin.refreshGovernanceViews();
+						this.display();
 					})
 			);
 
@@ -3536,6 +3568,17 @@ class ObswikiSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 						await this.plugin.refreshGovernanceViews();
 					})
+			)
+			.addExtraButton((button) =>
+				button
+					.setIcon('rotate-ccw')
+					.setTooltip(ui('恢复默认', 'Restore default'))
+					.onClick(async () => {
+						this.plugin.settings.mcpSseEndpoint = DEFAULT_SETTINGS.mcpSseEndpoint;
+						await this.plugin.saveSettings();
+						await this.plugin.refreshGovernanceViews();
+						this.display();
+					})
 			);
 
 		new Setting(containerEl)
@@ -3552,6 +3595,17 @@ class ObswikiSettingTab extends PluginSettingTab {
 						this.plugin.settings.mcpStdioCommand = value.trim() || DEFAULT_MCP_STDIO_COMMAND;
 						await this.plugin.saveSettings();
 						await this.plugin.refreshGovernanceViews();
+					})
+			)
+			.addExtraButton((button) =>
+				button
+					.setIcon('rotate-ccw')
+					.setTooltip(ui('恢复默认', 'Restore default'))
+					.onClick(async () => {
+						this.plugin.settings.mcpStdioCommand = DEFAULT_SETTINGS.mcpStdioCommand;
+						await this.plugin.saveSettings();
+						await this.plugin.refreshGovernanceViews();
+						this.display();
 					})
 			);
 	}

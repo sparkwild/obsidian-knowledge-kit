@@ -42,7 +42,7 @@ The plugin settings are intentionally user-controlled:
 - stdio command name
 - Agent scope label
 
-The plugin ships with local Runtime defaults: `http://127.0.0.1:37241/mcp` and legacy `http://127.0.0.1:37241/sse`. Users can override them when their Runtime uses another address or port.
+The plugin ships with local Runtime defaults: `http://127.0.0.1:58437/mcp` and legacy `http://127.0.0.1:58437/sse`. Users can override them when their Runtime uses another address or port, and custom text or connection settings include restore-default controls.
 
 ## Local Install
 
