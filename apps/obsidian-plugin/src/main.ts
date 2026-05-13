@@ -12,6 +12,7 @@ import {
 	WorkspaceLeaf,
 	getLanguage,
 	requestUrl,
+	setIcon,
 } from 'obsidian';
 
 const OBS_WIKI_ACTIVITY_VIEW = 'obs-wiki-activity';
@@ -2823,19 +2824,28 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		this.renderStatusItem(statusBar, ui('最近连接', 'Recent connections'), String(snapshot.recentAgents.length));
 		this.renderStatusItem(statusBar, ui('使用记录', 'Usage records'), String(snapshot.recentToolCalls.length));
 
-		const runtime = contentEl.createDiv({ cls: 'obs-wiki-card' });
-		runtime.createEl('h3', { text: ui('AI 工具连接检查', 'AI tool connection check') });
-		runtime.createEl('p', {
+		const connectionPanel = contentEl.createDiv({ cls: 'obs-wiki-card obs-wiki-connection-panel' });
+		connectionPanel.createEl('h3', { text: ui('AI 工具连接', 'AI tool connections') });
+
+		const connectionCheck = connectionPanel.createDiv({ cls: 'obs-wiki-connection-check' });
+		connectionCheck.createEl('h4', { text: ui('连接检查', 'Connection check') });
+		connectionCheck.createEl('p', {
 			text: ui(
 				'这里检查你要填到 AI 工具里的 obs-wiki 地址是否可用。未运行时也可以先复制配置；启动 obs-wiki 后点刷新确认。',
 				'This checks whether the obs-wiki URL you will put into an AI tool is reachable. You can copy configs first, then refresh after starting obs-wiki.'
 			),
 			cls: 'obs-wiki-view__description',
 		});
-		const endpointGrid = runtime.createDiv({ cls: 'obs-wiki-detail-grid' });
+		const endpointGrid = connectionCheck.createDiv({ cls: 'obs-wiki-detail-grid obs-wiki-connection-detail-grid' });
 		this.renderDetail(endpointGrid, ui('当前状态', 'Current status'), snapshot.localConnection.label);
 		this.renderDetail(endpointGrid, ui('建议操作', 'Suggested action'), snapshot.localConnection.detail, 'description');
-		this.renderDetail(endpointGrid, ui('AI 工具连接地址', 'AI tool URL'), snapshot.httpEndpoint);
+		this.renderCopyableDetail(
+			endpointGrid,
+			ui('AI 工具连接地址', 'AI tool URL'),
+			snapshot.httpEndpoint,
+			ui('复制连接地址', 'Copy URL'),
+			ui('已复制 AI 工具连接地址。', 'AI tool URL copied.')
+		);
 		this.renderDetail(
 			endpointGrid,
 			ui('最近检测时间', 'Last checked'),
@@ -2844,23 +2854,20 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		if (snapshot.localConnection.statusCode) {
 			this.renderDetail(endpointGrid, ui('响应状态', 'Response status'), String(snapshot.localConnection.statusCode));
 		}
-		const commandAction = runtime.createDiv({ cls: 'obs-wiki-action-row' });
-		const copyHttp = commandAction.createEl('button', { text: ui('复制连接地址', 'Copy URL') });
-		copyHttp.addEventListener('click', () => {
-			void this.plugin.copyToClipboard(snapshot.httpEndpoint, ui('已复制 AI 工具连接地址。', 'AI tool URL copied.'));
-		});
 
 		const coreClientIds = new Set(['codex', 'claude-code', 'claude-desktop', 'cursor']);
 		const coreClientConfigs = snapshot.clientConfigs.filter((config) => coreClientIds.has(config.clientId));
 		const advancedClientConfigs = snapshot.clientConfigs.filter((config) => !coreClientIds.has(config.clientId));
 
-		const configGrid = contentEl.createDiv({ cls: 'obs-wiki-config-grid' });
+		const commonConnections = connectionPanel.createDiv({ cls: 'obs-wiki-connection-section' });
+		commonConnections.createEl('h4', { text: ui('常用连接方式', 'Common connection methods') });
+		const configGrid = commonConnections.createDiv({ cls: 'obs-wiki-config-grid' });
 		for (const clientConfig of coreClientConfigs) {
 			this.renderConfigCard(configGrid, clientConfig);
 		}
 		if (advancedClientConfigs.length > 0) {
-			const advanced = contentEl.createDiv({ cls: 'obs-wiki-card obs-wiki-advanced-config' });
-			advanced.createEl('h3', { text: ui('手动连接方式', 'Manual connection methods') });
+			const advanced = connectionPanel.createDiv({ cls: 'obs-wiki-connection-section obs-wiki-advanced-config' });
+			advanced.createEl('h4', { text: ui('更多连接方式', 'More connection methods') });
 			advanced.createEl('p', {
 				text: ui(
 					'上方列表没有你的 AI 工具时再使用。多数工具只需要连接地址；只有工具要求 command 和 args 时才使用命令启动配置。',
@@ -2983,7 +2990,7 @@ class ObsWikiAgentConnectionsView extends ItemView {
 	}
 
 	private renderConfigCard(container: HTMLElement, config: GeneratedClientConfig): void {
-		const row = container.createDiv({ cls: 'obs-wiki-card obs-wiki-config-row' });
+		const row = container.createDiv({ cls: 'obs-wiki-config-row' });
 		row.createDiv({ cls: 'obs-wiki-config-row__client' }).createEl('strong', { text: config.displayName });
 		const actions = row.createDiv({ cls: 'obs-wiki-config-row__actions obs-wiki-action-row' });
 		const copy = actions.createEl('button', { text: ui('复制配置', 'Copy config') });
@@ -3068,6 +3075,20 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		});
 		item.createEl('span', { text: label });
 		item.createEl('strong', { text: value });
+	}
+
+	private renderCopyableDetail(container: HTMLElement, label: string, value: string, buttonLabel: string, notice: string): void {
+		const item = container.createDiv({ cls: 'obs-wiki-detail obs-wiki-detail--copyable' });
+		item.createEl('span', { text: label });
+		const row = item.createDiv({ cls: 'obs-wiki-detail__value-row' });
+		row.createEl('strong', { text: value });
+		const copy = row.createEl('button', { cls: 'obs-wiki-copy-icon-button' });
+		setIcon(copy, 'copy');
+		copy.setAttr('aria-label', buttonLabel);
+		copy.setAttr('title', buttonLabel);
+		copy.addEventListener('click', () => {
+			void this.plugin.copyToClipboard(value, notice);
+		});
 	}
 
 	private renderToolset(container: HTMLElement, title: string, tools: string[]): void {

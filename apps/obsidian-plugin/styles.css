@@ -105,6 +105,35 @@
 	margin-top: 12px;
 }
 
+.obs-wiki-connection-panel {
+	display: grid;
+	gap: 12px;
+}
+
+.obs-wiki-connection-panel > h3,
+.obs-wiki-connection-check h4,
+.obs-wiki-connection-section h4 {
+	margin: 0;
+}
+
+.obs-wiki-connection-check {
+	padding-bottom: 12px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.obs-wiki-connection-detail-grid {
+	margin-bottom: 0;
+}
+
+.obs-wiki-connection-section {
+	display: grid;
+	gap: 8px;
+}
+
+.obs-wiki-connection-section .obs-wiki-config-grid {
+	margin: 0;
+}
+
 .obs-wiki-config-row {
 	display: grid;
 	grid-template-columns: minmax(120px, 1fr) auto;
@@ -112,6 +141,9 @@
 	align-items: center;
 	margin-top: 0;
 	padding: 8px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-primary);
 }
 
 .obs-wiki-config-row__client {
@@ -126,6 +158,28 @@
 .obs-wiki-config-row__actions {
 	justify-content: flex-end;
 	min-width: fit-content;
+}
+
+.obs-wiki-detail__value-row {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+}
+
+.obs-wiki-detail__value-row strong {
+	min-width: 0;
+}
+
+.obs-wiki-copy-icon-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	min-width: 26px;
+	padding: 4px;
+	border-radius: 6px;
 }
 
 .obs-wiki-card__header {
