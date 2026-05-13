@@ -184,6 +184,7 @@ const REVIEW_QUEUE_FILTERS: Array<MemoryProposalStatus | 'all'> = [
 	'pending',
 	'approved',
 	'rejected',
+	'deferred',
 	'revision_requested',
 	'applied',
 	'all',
