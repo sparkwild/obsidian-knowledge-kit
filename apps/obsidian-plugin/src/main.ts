@@ -2958,21 +2958,9 @@ class ObsWikiAgentConnectionsView extends ItemView {
 	}
 
 	private renderConfigCard(container: HTMLElement, config: GeneratedClientConfig): void {
-		const card = container.createDiv({ cls: 'obs-wiki-card obs-wiki-config-card' });
-		const header = card.createDiv({ cls: 'obs-wiki-card__header' });
-		header.createEl('strong', { text: config.displayName });
-		const headerActions = header.createDiv({ cls: 'obs-wiki-action-row' });
-		const copy = headerActions.createEl('button', { text: ui('复制配置', 'Copy config') });
-		copy.addEventListener('click', () => {
-			void this.plugin.copyToClipboard(config.configText, ui('已复制连接配置。', 'Connection config copied.'));
-		});
-		if (config.supportsAutoConfigure && config.targetPath) {
-			const autoConfigure = headerActions.createEl('button', { text: ui('自动配置', 'Auto setup'), cls: 'mod-cta' });
-			autoConfigure.addEventListener('click', () => {
-				new ClientConfigPreviewModal(this.app, this.plugin, config, 'apply').open();
-			});
-		}
-		const facts = card.createDiv({ cls: 'obs-wiki-client-meta' });
+		const row = container.createDiv({ cls: 'obs-wiki-card obs-wiki-config-row' });
+		row.createDiv({ cls: 'obs-wiki-config-row__client' }).createEl('strong', { text: config.displayName });
+		const facts = row.createDiv({ cls: 'obs-wiki-client-meta' });
 		this.renderClientMeta(facts, ui('连接方式', 'Connection'), this.transportLabel(config.transport));
 		this.renderClientMeta(
 			facts,
@@ -2987,8 +2975,18 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		if (config.targetPath) {
 			this.renderClientMeta(facts, ui('配置文件', 'Config file'), config.targetPath);
 		}
+		const actions = row.createDiv({ cls: 'obs-wiki-config-row__actions obs-wiki-action-row' });
+		const copy = actions.createEl('button', { text: ui('复制配置', 'Copy config') });
+		copy.addEventListener('click', () => {
+			void this.plugin.copyToClipboard(config.configText, ui('已复制连接配置。', 'Connection config copied.'));
+		});
 		if (config.supportsAutoConfigure && config.targetPath) {
-			const actions = card.createDiv({ cls: 'obs-wiki-action-row' });
+			const autoConfigure = actions.createEl('button', { text: ui('自动配置', 'Auto setup'), cls: 'mod-cta' });
+			autoConfigure.addEventListener('click', () => {
+				new ClientConfigPreviewModal(this.app, this.plugin, config, 'apply').open();
+			});
+		}
+		if (config.supportsAutoConfigure && config.targetPath) {
 			const openFile = actions.createEl('button', { text: ui('打开配置文件', 'Open config file') });
 			openFile.addEventListener('click', () => {
 				void this.plugin.openClientConfigFile(config);
@@ -2998,7 +2996,6 @@ class ObsWikiAgentConnectionsView extends ItemView {
 				new ClientConfigPreviewModal(this.app, this.plugin, config, 'remove').open();
 			});
 		}
-		card.createEl('pre', { text: config.configText, cls: 'obs-wiki-code-block' });
 	}
 
 	private renderClientMeta(container: HTMLElement, label: string, value: string): void {
