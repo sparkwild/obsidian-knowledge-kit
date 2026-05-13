@@ -4,6 +4,8 @@ __pycache__/
 # Ignore generated Obsidian plugin package directories.
 plugin/
 apps/obsidian-plugin/plugin/
+apps/obsidian-plugin/main.js
+apps/obsidian-plugin/main.js.map
 /.idea/
 apps/**/node_modules/
 apps/obsidian-plugin/node_modules/

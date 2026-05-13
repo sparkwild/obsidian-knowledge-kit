@@ -45,6 +45,14 @@ npm run package
 - MCP-first for agent access: expose memory semantics, not arbitrary filesystem operations. The MCP server is read-only by default with controlled write tools for bounded working records.
 - Human Governance in Obsidian: Obsidian is the UI for review, approval, rejection, revision requests, audit, permissions, and status.
 
+## Disclosures
+
+- Network: the Obsidian plugin does not make network requests.
+- Telemetry: the Obsidian plugin does not collect analytics, usage metrics, or client-side telemetry.
+- Vault writes: the Obsidian plugin can initialize obs-wiki control folders/files, update review queue approval status, and append audit events inside the active vault after user action.
+- External files: the Obsidian plugin does not read or write files outside the active vault.
+- Agent/runtime boundary: URL/file submission, source analysis, context pack generation, lint, distill, and protected memory writeback are Agent/runtime workflows, not direct Obsidian plugin actions.
+
 ## Target Architecture
 
 ```text
@@ -98,7 +106,7 @@ The first coding milestone is a buildable Obsidian plugin scaffold with:
 - TypeScript project configuration.
 - `main.ts`.
 - Ribbon icon.
-- command palette entries for governance views only.
+- command palette entries for governance views and confirmed vault initialization only.
 - settings tab with persistent settings.
 - basic ItemView.
 

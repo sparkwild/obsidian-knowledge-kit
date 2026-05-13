@@ -45,6 +45,14 @@ npm run package
 - MCP-first for agent access：对 Agent 暴露记忆语义工具，而不是任意文件系统操作；MCP server 默认只读，并只提供受控写入工具。
 - Human Governance in Obsidian：Obsidian 是审核、批准、拒绝、修订请求、审计、权限和状态界面。
 
+## 行为披露
+
+- 网络：Obsidian 插件不发起网络请求。
+- 遥测：Obsidian 插件不收集 analytics、usage metrics 或客户端 telemetry。
+- Vault 写入：Obsidian 插件可在用户操作后初始化 obs-wiki 控制文件夹/文件、更新审核队列状态，并在当前 vault 内追加审计事件。
+- 外部文件：Obsidian 插件不读取或写入当前 vault 外部的文件。
+- Agent/runtime 边界：URL/文件提交、source analysis、context pack、lint、distill 和受保护记忆写回属于 Agent/runtime 流程，不是 Obsidian 插件直接动作。
+
 ## 目标架构
 
 ```text
@@ -98,7 +106,7 @@ obs-wiki/
 - TypeScript 项目配置
 - `main.ts`
 - ribbon icon
-- 仅治理视图相关的 command palette 命令
+- 仅治理视图和确认式 vault 初始化相关的 command palette 命令
 - 可持久化配置的 settings tab
 - 基础 ItemView
 

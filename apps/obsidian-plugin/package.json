@@ -1,7 +1,7 @@
 {
   "name": "obs-wiki-obsidian-plugin",
-  "version": "0.1.0",
-  "description": "Obsidian plugin scaffold for obs-wiki.",
+  "version": "0.1.2",
+  "description": "Review, audit, and govern Agent-first memory workflows in an Obsidian vault.",
   "private": true,
   "main": "main.js",
   "scripts": {

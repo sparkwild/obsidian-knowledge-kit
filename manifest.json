@@ -1,0 +1,10 @@
+{
+	"id": "obs-wiki",
+	"name": "obs-wiki",
+	"version": "0.1.2",
+	"minAppVersion": "1.6.0",
+	"description": "Review, audit, and govern Agent-first memory workflows in an Obsidian vault.",
+	"author": "sparkwild",
+	"authorUrl": "https://github.com/sparkwild/obs-wiki",
+	"isDesktopOnly": false
+}

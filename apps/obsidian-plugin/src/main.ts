@@ -46,6 +46,10 @@ const MAX_TASK_ROWS = 6;
 const MAX_AUDIT_ROWS = 12;
 const MAX_SOURCE_STATUS_ROWS = 20;
 const MAX_REVIEW_QUEUE_ROWS = 20;
+const LEGACY_DEFAULT_STATUS_MESSAGE = 'Welcome to obs-wiki Agent Activity.';
+const DEFAULT_STATUS_MESSAGE =
+	'欢迎使用 obs-wiki Agent Activity。 / Welcome to obs-wiki Agent Activity.';
+const ui = (zh: string, en: string): string => `${zh} / ${en}`;
 const MEMORY_STRUCTURE: string[] = [
 	'01_inbox/agent_requests',
 	'01_inbox/review_queue',
@@ -132,6 +136,15 @@ type MemoryProposalStatus =
 	| 'revision_requested'
 	| 'applied';
 
+const MEMORY_PROPOSAL_STATUS_LABELS: Record<MemoryProposalStatus, string> = {
+	pending: ui('待审核', 'Pending'),
+	approved: ui('已批准', 'Approved'),
+	rejected: ui('已拒绝', 'Rejected'),
+	deferred: ui('已暂缓', 'Deferred'),
+	revision_requested: ui('需修订', 'Revision requested'),
+	applied: ui('已写回', 'Applied'),
+};
+
 interface AuditEventRecord {
 	path: string;
 	auditId: string;
@@ -184,7 +197,7 @@ interface ObsWikiSettings {
 const DEFAULT_SETTINGS: ObsWikiSettings = {
 	showWelcomeMessage: true,
 	defaultAgentScope: 'vault',
-	statusMessage: 'Welcome to obs-wiki Agent Activity.',
+	statusMessage: DEFAULT_STATUS_MESSAGE,
 };
 
 export default class ObsWikiPlugin extends Plugin {
@@ -192,6 +205,10 @@ export default class ObsWikiPlugin extends Plugin {
 
 	async onload() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		if (this.settings.statusMessage === LEGACY_DEFAULT_STATUS_MESSAGE) {
+			this.settings.statusMessage = DEFAULT_STATUS_MESSAGE;
+			await this.saveSettings();
+		}
 
 		this.registerView(
 			OBS_WIKI_SOURCE_STATUS_VIEW,
@@ -222,51 +239,59 @@ export default class ObsWikiPlugin extends Plugin {
 			(leaf) => new ObsWikiPermissionPolicyView(leaf)
 		);
 
-		this.addRibbonIcon('layout-dashboard', 'Open obs-wiki Activity', () => {
+		this.addRibbonIcon('brain-circuit', ui('打开 obs-wiki 活动', 'Open obs-wiki activity'), () => {
 			this.openPluginView(OBS_WIKI_ACTIVITY_VIEW);
 		});
 
 		this.addCommand({
 			id: 'open-agent-activity',
-			name: 'Open Agent Activity',
+			name: ui('打开 Agent 活动', 'Open agent activity'),
 			callback: () => this.openPluginView(OBS_WIKI_ACTIVITY_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-review-queue',
-			name: 'Open Review Queue',
+			name: ui('打开审核队列', 'Open review queue'),
 			callback: () => this.openPluginView(OBS_WIKI_REVIEW_QUEUE_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-memory-inspector',
-			name: 'Open Memory Inspector',
+			name: ui('打开记忆检查器', 'Open memory inspector'),
 			callback: () => this.openPluginView(OBS_WIKI_MEMORY_INSPECTOR_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-audit-log',
-			name: 'Open Audit Log',
+			name: ui('打开审计日志', 'Open audit log'),
 			callback: () => this.openPluginView(OBS_WIKI_AUDIT_LOG_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-runtime-status',
-			name: 'Open Runtime Status',
+			name: ui('打开运行状态', 'Open runtime status'),
 			callback: () => this.openPluginView(OBS_WIKI_RUNTIME_STATUS_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-permission-policy',
-			name: 'Open Permission Policy',
+			name: ui('打开权限策略', 'Open permission policy'),
 			callback: () => this.openPluginView(OBS_WIKI_PERMISSION_POLICY_VIEW),
 		});
 
 		this.addCommand({
 			id: 'refresh-views',
-			name: 'Refresh Views',
+			name: ui('刷新视图', 'Refresh views'),
 			callback: () => {
 				void this.refreshGovernanceViews();
+			},
+		});
+
+		this.addCommand({
+			id: 'initialize-memory-structure',
+			name: ui('初始化记忆结构', 'Initialize memory structure'),
+			callback: () => {
+				void this.promptInitializeMemoryStructure();
 			},
 		});
 
@@ -403,10 +428,10 @@ export default class ObsWikiPlugin extends Plugin {
 			}
 
 			await this.appendAuditEvent(plan);
-			new Notice('obs-wiki memory structure initialized.');
+			new Notice(ui('obs-wiki 记忆结构已初始化。', 'obs-wiki memory structure initialized.'));
 		} catch (error) {
 			console.error('obs-wiki failed to initialize memory structure', error);
-			new Notice('obs-wiki failed to initialize memory structure.');
+			new Notice(ui('obs-wiki 记忆结构初始化失败。', 'obs-wiki failed to initialize memory structure.'));
 		}
 	}
 
@@ -469,13 +494,11 @@ export default class ObsWikiPlugin extends Plugin {
 			throw new Error(`Cannot append audit log: ${auditPath} is not a file.`);
 		}
 
-		const current = await this.app.vault.read(finalAuditFile);
-		const normalizedCurrent = current.endsWith('\n') ? current : `${current}\n`;
-		const separator = normalizedCurrent.length > 0 ? '\n' : '';
-		await this.app.vault.modify(
-			finalAuditFile,
-			`${normalizedCurrent}${separator}${rawEvent}`
-		);
+		await this.app.vault.process(finalAuditFile, (current) => {
+			const normalizedCurrent = current.endsWith('\n') ? current : `${current}\n`;
+			const separator = normalizedCurrent.length > 0 ? '\n' : '';
+			return `${normalizedCurrent}${separator}${rawEvent}`;
+		});
 	}
 
 	private async refreshActivityViews(): Promise<void> {
@@ -687,17 +710,10 @@ export default class ObsWikiPlugin extends Plugin {
 			throw new Error(`Cannot update proposal status: ${proposal.path} is not available.`);
 		}
 
-		let content = '';
-		try {
-			content = await this.app.vault.cachedRead(file);
-		} catch (error) {
-			console.error(`obs-wiki failed to read proposal for update: ${proposal.path}`, error);
-			throw error;
-		}
-
 		const normalizedStatus = this.normalizeProposalStatus(nextStatus);
-		const updatedContent = this.updateApprovalStatusInFrontmatter(content, normalizedStatus);
-		await this.app.vault.modify(file, updatedContent);
+		await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+			frontmatter.approval_status = normalizedStatus;
+		});
 		await this.appendProposalStatusAuditEvent(
 			{
 				...proposal,
@@ -939,55 +955,6 @@ export default class ObsWikiPlugin extends Plugin {
 		return events;
 	}
 
-	private updateApprovalStatusInFrontmatter(content: string, nextStatus: MemoryProposalStatus): string {
-		const normalized = content.replace(/\r\n/g, '\n');
-		const fmStatusLine = `approval_status: ${nextStatus}`;
-		const fmPrefix = '---';
-
-		if (normalized.trim() === '') {
-			return `${fmPrefix}\n${fmStatusLine}\n${fmPrefix}\n`;
-		}
-
-		const lines = normalized.split('\n');
-		if (lines.length === 0 || lines[0].trim() !== fmPrefix) {
-			return `${fmPrefix}\n${fmStatusLine}\n${fmPrefix}\n${normalized}`;
-		}
-
-		let end = -1;
-		for (let index = 1; index < lines.length; index++) {
-			if (lines[index].trim() === fmPrefix) {
-				end = index;
-				break;
-			}
-		}
-
-		if (end < 0) {
-			return `${fmPrefix}\n${fmStatusLine}\n${fmPrefix}\n${normalized}`;
-		}
-
-		const frontmatterLines = lines.slice(1, end);
-		let found = false;
-		const updatedFrontmatter = frontmatterLines.map((line) => {
-			if (/^\s*approval_status\s*:/i.test(line)) {
-				found = true;
-				const indent = line.match(/^(\s*)/)?.[0] || '';
-				return `${indent}${fmStatusLine}`;
-			}
-			return line;
-		});
-
-		if (!found) {
-			updatedFrontmatter.push(fmStatusLine);
-		}
-
-		return [
-			fmPrefix,
-			...updatedFrontmatter,
-			fmPrefix,
-			...lines.slice(end + 1),
-		].join('\n');
-	}
-
 	private readFrontmatter(content: string): ParsedFrontmatter {
 		const normalized = content.replace(/\r\n/g, '\n');
 		const lines = normalized.split('\n');
@@ -1195,29 +1162,35 @@ class InitializeMemoryStructureModal extends Modal {
 
 	onOpen(): void {
 		super.onOpen();
-		this.titleEl.setText('Initialize Memory Structure');
+		this.titleEl.setText(ui('初始化记忆结构', 'Initialize memory structure'));
 
 		const { contentEl } = this;
 		contentEl.empty();
 
 		const { foldersToCreate, filesToCreate } = this.options.plan;
 		contentEl.createEl('p', {
-			text: 'The following obs-wiki structure will be created if missing in this vault.',
+			text: ui(
+				'将为当前仓库创建以下缺失的 obs-wiki 结构。',
+				'The following obs-wiki structure will be created if missing in this vault.'
+			),
 		});
 
 		if (foldersToCreate.length === 0 && filesToCreate.length === 0) {
 			contentEl.createEl('p', {
-				text: 'Nothing is missing. No files or folders will be created.',
+				text: ui(
+					'没有缺失项，不会创建新的文件或文件夹。',
+					'Nothing is missing. No files or folders will be created.'
+				),
 			});
 		} else {
 			const section = contentEl.createDiv();
-			section.createEl('h3', { text: 'Folders' });
+			section.createEl('h3', { text: ui('文件夹', 'Folders') });
 			const folderList = section.createEl('ul');
 			for (const folder of foldersToCreate) {
 				folderList.createEl('li', { text: folder });
 			}
 
-			section.createEl('h3', { text: 'Files' });
+			section.createEl('h3', { text: ui('文件', 'Files') });
 			const fileList = section.createEl('ul');
 			for (const file of filesToCreate) {
 				fileList.createEl('li', { text: file });
@@ -1225,10 +1198,10 @@ class InitializeMemoryStructureModal extends Modal {
 		}
 
 		const actions = contentEl.createDiv({ cls: 'modal-button-container' });
-		const cancel = actions.createEl('button', { text: 'Cancel', cls: 'mod-warning' });
+		const cancel = actions.createEl('button', { text: ui('取消', 'Cancel'), cls: 'mod-warning' });
 		cancel.addEventListener('click', () => this.close());
 
-		const confirm = actions.createEl('button', { text: 'Initialize', cls: 'mod-cta' });
+		const confirm = actions.createEl('button', { text: ui('初始化', 'Initialize'), cls: 'mod-cta' });
 		confirm.addEventListener('click', async () => {
 			await this.options.onConfirm();
 			this.close();
@@ -1253,7 +1226,7 @@ class ObsWikiSourceStatusView extends ItemView {
 	}
 
 	getDisplayText() {
-		return 'Source Status';
+		return ui('来源状态', 'Source status');
 	}
 
 	getViewData() {
@@ -1278,18 +1251,18 @@ class ObsWikiSourceStatusView extends ItemView {
 		contentEl.empty();
 		contentEl.addClass('obs-wiki-view-root');
 
-		contentEl.createEl('h2', { text: 'Source Status', cls: 'obs-wiki-view__title' });
+		contentEl.createEl('h2', { text: ui('来源状态', 'Source status'), cls: 'obs-wiki-view__title' });
 
 		const header = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
 		header.createEl('div', {
-			text: `Last refreshed: ${this.plugin.formatDisplayTime(
+			text: `${ui('最后刷新', 'Last refreshed')}: ${this.plugin.formatDisplayTime(
 				Date.parse(snapshot.updatedAt)
 			)}`,
 			cls: 'obs-wiki-view__description',
 		});
 		const actions = header.createDiv();
 		const refreshButton = actions.createEl('button', {
-			text: 'Refresh',
+			text: ui('刷新', 'Refresh'),
 			cls: 'mod-cta',
 		});
 		refreshButton.addEventListener('click', async () => {
@@ -1298,7 +1271,10 @@ class ObsWikiSourceStatusView extends ItemView {
 
 		if (snapshot.missingRequestFolder) {
 			contentEl.createEl('p', {
-				text: 'No agent source request folder found at 01_inbox/agent_requests. Agent-created requests will appear here after the memory structure exists.',
+				text: ui(
+					'未找到 Agent 来源请求文件夹 01_inbox/agent_requests。记忆结构创建后，Agent 生成的请求会显示在这里。',
+					'No agent source request folder found at 01_inbox/agent_requests. Agent-created requests will appear here after the memory structure exists.'
+				),
 				cls: 'obs-wiki-view__description',
 			});
 			return;
@@ -1306,7 +1282,10 @@ class ObsWikiSourceStatusView extends ItemView {
 
 		if (snapshot.requests.length === 0) {
 			contentEl.createEl('p', {
-				text: 'No pending agent-created source requests yet.',
+				text: ui(
+					'当前没有待处理的 Agent 来源请求。',
+					'No pending agent-created source requests yet.'
+				),
 				cls: 'obs-wiki-view__description',
 			});
 			return;
@@ -1319,21 +1298,21 @@ class ObsWikiSourceStatusView extends ItemView {
 				text: `${this.plugin.formatDisplayTime(request.sortTimestamp)} • ${request.sourceKind} • ${request.status}`,
 			});
 			if (request.source) {
-				item.createEl('div', { text: `Source: ${this.plugin.trimText(request.source, 120)}` });
+				item.createEl('div', { text: `${ui('来源', 'Source')}: ${this.plugin.trimText(request.source, 120)}` });
 			}
 			if (request.purpose) {
-				item.createEl('div', { text: `Purpose: ${request.purpose}` });
+				item.createEl('div', { text: `${ui('用途', 'Purpose')}: ${request.purpose}` });
 			}
 			if (request.analysisMode) {
-				item.createEl('div', { text: `Analysis mode: ${request.analysisMode}` });
+				item.createEl('div', { text: `${ui('分析模式', 'Analysis mode')}: ${request.analysisMode}` });
 			}
 			if (request.relatedProject) {
-				item.createEl('div', { text: `Related project: ${request.relatedProject}` });
+				item.createEl('div', { text: `${ui('关联项目', 'Related project')}: ${request.relatedProject}` });
 			}
 			if (request.summary) {
 				item.createEl('div', { text: this.plugin.trimText(request.summary, 140) });
 			}
-			item.createEl('small', { text: `file: ${request.path}` });
+			item.createEl('small', { text: `${ui('文件', 'File')}: ${request.path}` });
 		}
 	}
 
@@ -1356,7 +1335,7 @@ class ObsWikiActivityView extends ItemView {
 	}
 
 	getDisplayText() {
-		return 'obs-wiki Activity';
+		return ui('obs-wiki 活动', 'obs-wiki activity');
 	}
 
 	getViewData() {
@@ -1382,10 +1361,10 @@ class ObsWikiActivityView extends ItemView {
 		contentEl.addClass('obs-wiki-view-root');
 
 		const header = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-		header.createEl('h2', { text: 'Agent Activity', cls: 'obs-wiki-view__title' });
+		header.createEl('h2', { text: ui('Agent 活动', 'Agent activity'), cls: 'obs-wiki-view__title' });
 		const actions = header.createDiv();
 		const refreshButton = actions.createEl('button', {
-			text: 'Refresh',
+			text: ui('刷新', 'Refresh'),
 			cls: 'mod-cta',
 		});
 		refreshButton.addEventListener('click', async () => {
@@ -1395,23 +1374,32 @@ class ObsWikiActivityView extends ItemView {
 		contentEl.createEl('p', {
 			text: this.plugin.settings.showWelcomeMessage
 				? this.plugin.settings.statusMessage
-				: 'Welcome message is disabled. Activity data is shown in read-only mode.',
+				: ui(
+					'欢迎信息已关闭。活动数据以只读模式显示。',
+					'Welcome message is disabled. Activity data is shown in read-only mode.'
+				),
 			cls: 'obs-wiki-view__description',
 		});
 		contentEl.createEl('p', {
-			text: `Last refreshed: ${this.plugin.formatDisplayTime(
+			text: `${ui('最后刷新', 'Last refreshed')}: ${this.plugin.formatDisplayTime(
 				Date.parse(snapshot.updatedAt)
 			)}`,
 			cls: 'obs-wiki-view__description',
 		});
 
 		const currentSection = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-		currentSection.createEl('h3', { text: 'Current Task' });
+		currentSection.createEl('h3', { text: ui('当前任务', 'Current task') });
 		if (!snapshot.currentTask) {
 			currentSection.createEl('p', {
 				text: snapshot.missingTaskFolder
-					? 'No agent task folder found at 02_timeline/agent_tasks. Agent/runtime setup should create the memory structure.'
-					: 'No active or recent agent task found.',
+					? ui(
+						'未找到 Agent 任务文件夹 02_timeline/agent_tasks。Agent/runtime 初始化应创建该记忆结构。',
+						'No agent task folder found at 02_timeline/agent_tasks. Agent/runtime setup should create the memory structure.'
+					)
+					: ui(
+						'未找到当前或最近的 Agent 任务。',
+						'No active or recent agent task found.'
+					),
 				cls: 'obs-wiki-view__description',
 			});
 		} else {
@@ -1419,10 +1407,10 @@ class ObsWikiActivityView extends ItemView {
 		}
 
 		const recentTaskSection = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-		recentTaskSection.createEl('h3', { text: 'Recent Agent Tasks' });
+		recentTaskSection.createEl('h3', { text: ui('最近 Agent 任务', 'Recent agent tasks') });
 		if (snapshot.recentTasks.length === 0) {
 			recentTaskSection.createEl('p', {
-				text: 'No agent task notes found yet.',
+				text: ui('还没有 Agent 任务笔记。', 'No agent task notes found yet.'),
 				cls: 'obs-wiki-view__description',
 			});
 		} else {
@@ -1436,12 +1424,15 @@ class ObsWikiActivityView extends ItemView {
 		}
 
 		const auditSection = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-		auditSection.createEl('h3', { text: 'Recent Audit Events' });
+		auditSection.createEl('h3', { text: ui('最近审计事件', 'Recent audit events') });
 		if (snapshot.recentAuditEvents.length === 0) {
 			auditSection.createEl('p', {
 				text: snapshot.missingAuditSources
-					? 'No audit source found. Create 00_control/audit_log.md or 00_control/audit/*.md.'
-					: 'No audit events found yet.',
+					? ui(
+						'未找到审计来源。请创建 00_control/audit_log.md 或 00_control/audit/*.md。',
+						'No audit source found. Create 00_control/audit_log.md or 00_control/audit/*.md.'
+					)
+					: ui('还没有审计事件。', 'No audit events found yet.'),
 				cls: 'obs-wiki-view__description',
 			});
 		} else {
@@ -1452,15 +1443,15 @@ class ObsWikiActivityView extends ItemView {
 					text: `${this.plugin.formatDisplayTime(event.sortTimestamp)} • ${event.action} • ${event.actor}`,
 				});
 				if (event.reason) {
-					item.createEl('div', { text: `Reason: ${event.reason}` });
+					item.createEl('div', { text: `${ui('原因', 'Reason')}: ${event.reason}` });
 				}
 				if (event.target || event.taskId) {
 					const extras: string[] = [];
-					if (event.target) extras.push(`target: ${event.target}`);
-					if (event.taskId) extras.push(`task: ${event.taskId}`);
+					if (event.target) extras.push(`${ui('目标', 'Target')}: ${event.target}`);
+					if (event.taskId) extras.push(`${ui('任务', 'Task')}: ${event.taskId}`);
 					item.createEl('div', { text: extras.join(' • ') });
 				}
-				item.createEl('small', { text: `file: ${event.path}` });
+				item.createEl('small', { text: `${ui('文件', 'File')}: ${event.path}` });
 				if (event.snippet) {
 					item.createEl('div', {
 						text: this.plugin.trimText(event.snippet, 140),
@@ -1476,25 +1467,25 @@ class ObsWikiActivityView extends ItemView {
 			text: `${this.plugin.formatDisplayTime(task.sortTimestamp)} • ${task.taskId} • ${task.agent} • ${task.status}`,
 		});
 		if (task.objective) {
-			item.createEl('div', { text: `Objective: ${task.objective}` });
+			item.createEl('div', { text: `${ui('目标', 'Objective')}: ${task.objective}` });
 		}
 		if (task.contextPack || task.relatedProject) {
 			const extra: string[] = [];
-			if (task.contextPack) extra.push(`context: ${task.contextPack}`);
-			if (task.relatedProject) extra.push(`project: ${task.relatedProject}`);
+			if (task.contextPack) extra.push(`${ui('上下文', 'Context')}: ${task.contextPack}`);
+			if (task.relatedProject) extra.push(`${ui('项目', 'Project')}: ${task.relatedProject}`);
 			item.createEl('div', { text: extra.join(' • ') });
 		}
 		if (expanded) {
 			const summary: string[] = [];
-			if (task.startedAt) summary.push(`started ${task.startedAt}`);
-			if (task.finishedAt) summary.push(`finished ${task.finishedAt}`);
-			summary.push(`reads ${task.memoryReads.length}`);
-			summary.push(`writes ${task.memoryWrites.length}`);
-			summary.push(`captures ${task.sourceCaptures.length}`);
-			summary.push(`proposals ${task.proposals.length}`);
+			if (task.startedAt) summary.push(`${ui('开始', 'Started')} ${task.startedAt}`);
+			if (task.finishedAt) summary.push(`${ui('完成', 'Finished')} ${task.finishedAt}`);
+			summary.push(`${ui('读取', 'Reads')} ${task.memoryReads.length}`);
+			summary.push(`${ui('写入', 'Writes')} ${task.memoryWrites.length}`);
+			summary.push(`${ui('捕获', 'Captures')} ${task.sourceCaptures.length}`);
+			summary.push(`${ui('提案', 'Proposals')} ${task.proposals.length}`);
 			item.createEl('div', { text: summary.join(' • ') });
 		}
-		item.createEl('small', { text: `file: ${task.path}` });
+		item.createEl('small', { text: `${ui('文件', 'File')}: ${task.path}` });
 		if (task.snippet) {
 			item.createEl('div', {
 				text: this.plugin.trimText(task.snippet, 140),
@@ -1531,7 +1522,7 @@ class ObsWikiReviewQueueView extends ItemView {
 	}
 
 	getDisplayText() {
-		return 'Review Queue';
+		return ui('审核队列', 'Review queue');
 	}
 
 	getViewData() {
@@ -1556,11 +1547,11 @@ class ObsWikiReviewQueueView extends ItemView {
 		contentEl.empty();
 		contentEl.addClass('obs-wiki-view-root');
 
-		contentEl.createEl('h2', { text: 'Review Queue', cls: 'obs-wiki-view__title' });
+		contentEl.createEl('h2', { text: ui('审核队列', 'Review queue'), cls: 'obs-wiki-view__title' });
 
 		const header = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
 		header.createEl('div', {
-			text: `Last refreshed: ${this.plugin.formatDisplayTime(
+			text: `${ui('最后刷新', 'Last refreshed')}: ${this.plugin.formatDisplayTime(
 				Date.parse(snapshot.updatedAt)
 			)}`,
 			cls: 'obs-wiki-view__description',
@@ -1568,7 +1559,7 @@ class ObsWikiReviewQueueView extends ItemView {
 
 		const actions = header.createDiv();
 		const refreshButton = actions.createEl('button', {
-			text: 'Refresh',
+			text: ui('刷新', 'Refresh'),
 			cls: 'mod-cta',
 		});
 		refreshButton.addEventListener('click', async () => {
@@ -1577,7 +1568,10 @@ class ObsWikiReviewQueueView extends ItemView {
 
 		if (snapshot.missingReviewQueueFolder) {
 			contentEl.createEl('p', {
-				text: 'No review queue folder found at 01_inbox/review_queue. Agent/runtime setup should create the memory structure.',
+				text: ui(
+					'未找到审核队列文件夹 01_inbox/review_queue。Agent/runtime 初始化应创建该记忆结构。',
+					'No review queue folder found at 01_inbox/review_queue. Agent/runtime setup should create the memory structure.'
+				),
 				cls: 'obs-wiki-view__description',
 			});
 			return;
@@ -1585,7 +1579,10 @@ class ObsWikiReviewQueueView extends ItemView {
 
 		if (snapshot.proposals.length === 0) {
 			contentEl.createEl('p', {
-				text: 'No memory proposals in the review queue yet.',
+				text: ui(
+					'审核队列中还没有记忆提案。',
+					'No memory proposals in the review queue yet.'
+				),
 				cls: 'obs-wiki-view__description',
 			});
 			return;
@@ -1609,7 +1606,7 @@ class ObsWikiReviewQueueView extends ItemView {
 			}
 
 			const section = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-			section.createEl('h3', { text: `${status.toUpperCase()} (${proposals.length})` });
+			section.createEl('h3', { text: `${MEMORY_PROPOSAL_STATUS_LABELS[status]} (${proposals.length})` });
 
 			for (const proposal of proposals) {
 				const card = section.createDiv({ cls: 'obs-wiki-view__item' });
@@ -1617,16 +1614,16 @@ class ObsWikiReviewQueueView extends ItemView {
 					text: `${proposal.proposalId} • ${proposal.proposalKind} • ${proposal.riskLevel}`,
 				});
 				if (proposal.taskId) {
-					card.createEl('div', { text: `Task: ${proposal.taskId}` });
+					card.createEl('div', { text: `${ui('任务', 'Task')}: ${proposal.taskId}` });
 				}
 				if (proposal.targetNote) {
-					card.createEl('div', { text: `Target: ${proposal.targetNote}` });
+					card.createEl('div', { text: `${ui('目标笔记', 'Target note')}: ${proposal.targetNote}` });
 				}
 				if (proposal.evidence.length > 0) {
-					card.createEl('div', { text: `Evidence refs: ${proposal.evidence.join(', ')}` });
+					card.createEl('div', { text: `${ui('证据引用', 'Evidence refs')}: ${proposal.evidence.join(', ')}` });
 				}
 				card.createEl('div', {
-					text: `Created: ${proposal.created || 'unknown'} • Proposed by: ${proposal.proposedBy}`,
+					text: `${ui('创建时间', 'Created')}: ${proposal.created || ui('未知', 'unknown')} • ${ui('提议者', 'Proposed by')}: ${proposal.proposedBy}`,
 				});
 				if (proposal.snippet) {
 					card.createEl('div', {
@@ -1634,23 +1631,23 @@ class ObsWikiReviewQueueView extends ItemView {
 					});
 				}
 
-				card.createEl('small', { text: `file: ${proposal.path}` });
+				card.createEl('small', { text: `${ui('文件', 'File')}: ${proposal.path}` });
 
 				if (proposal.approvalStatus === 'pending') {
 					const actionRow = card.createDiv({ cls: 'obs-wiki-view__actions' });
 					const approve = actionRow.createEl('button', {
-						text: 'Approve',
+						text: ui('批准', 'Approve'),
 						cls: 'mod-cta',
 					});
 					const reject = actionRow.createEl('button', {
-						text: 'Reject',
+						text: ui('拒绝', 'Reject'),
 						cls: 'mod-warning',
 					});
 					const defer = actionRow.createEl('button', {
-						text: 'Defer',
+						text: ui('暂缓', 'Defer'),
 					});
 					const requestRevision = actionRow.createEl('button', {
-						text: 'Request Revision',
+						text: ui('要求修订', 'Request revision'),
 					});
 
 					const actionButtons = [approve, reject, defer, requestRevision];
@@ -1675,11 +1672,14 @@ class ObsWikiReviewQueueView extends ItemView {
 				} else if (proposal.approvalStatus === 'approved') {
 					const actionRow = card.createDiv({ cls: 'obs-wiki-view__actions' });
 					const apply = actionRow.createEl('button', {
-						text: 'Apply Approved Writeback',
+						text: ui('应用已批准写回', 'Apply approved writeback'),
 						cls: 'mod-cta',
 					});
 					apply.addEventListener('click', () => {
-						new Notice('Approved writeback is applied by Runtime through obs_wiki.apply_approved_writeback. The plugin does not write protected memory directly.');
+						new Notice(ui(
+							'已批准写回由 Runtime 通过 obs_wiki.apply_approved_writeback 执行，插件不会直接写入受保护记忆。',
+							'Approved writeback is applied by Runtime through obs_wiki.apply_approved_writeback. The plugin does not write protected memory directly.'
+						));
 					});
 				}
 			}
@@ -1688,12 +1688,12 @@ class ObsWikiReviewQueueView extends ItemView {
 		if (unknown.length > 0) {
 			const section = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
 			section.createEl('h3', {
-				text: `UNKNOWN (${unknown.length})`,
+				text: `${ui('未知状态', 'Unknown')} (${unknown.length})`,
 			});
 			for (const proposal of unknown) {
 				const card = section.createDiv({ cls: 'obs-wiki-view__item' });
 				card.createEl('div', {
-					text: `${proposal.proposalId} • status: ${proposal.approvalStatus}`,
+					text: `${proposal.proposalId} • ${ui('状态', 'Status')}: ${proposal.approvalStatus}`,
 				});
 			}
 		}
@@ -1727,7 +1727,7 @@ class ObsWikiMemoryInspectorView extends ItemView {
 	}
 
 	getDisplayText() {
-		return 'Memory Inspector';
+		return ui('记忆检查器', 'Memory inspector');
 	}
 
 	getViewData() {
@@ -1752,9 +1752,12 @@ class ObsWikiMemoryInspectorView extends ItemView {
 		contentEl.empty();
 		contentEl.addClass('obs-wiki-view-root');
 
-		contentEl.createEl('h2', { text: 'Memory Inspector', cls: 'obs-wiki-view__title' });
+		contentEl.createEl('h2', { text: ui('记忆检查器', 'Memory inspector'), cls: 'obs-wiki-view__title' });
 		contentEl.createEl('p', {
-			text: 'Scaffold placeholder: note source, claim, evidence, and agent usage inspection will be added later.',
+			text: ui(
+				'脚手架占位：后续会加入笔记来源、claim、证据和 Agent 使用情况检查。',
+				'Scaffold placeholder: note source, claim, evidence, and agent usage inspection will be added later.'
+			),
 			cls: 'obs-wiki-view__description',
 		});
 	}
@@ -1773,7 +1776,7 @@ class ObsWikiAuditLogView extends ItemView {
 	}
 
 	getDisplayText() {
-		return 'Audit Log';
+		return ui('审计日志', 'Audit log');
 	}
 
 	getViewData() {
@@ -1798,9 +1801,12 @@ class ObsWikiAuditLogView extends ItemView {
 		contentEl.empty();
 		contentEl.addClass('obs-wiki-view-root');
 
-		contentEl.createEl('h2', { text: 'Audit Log', cls: 'obs-wiki-view__title' });
+		contentEl.createEl('h2', { text: ui('审计日志', 'Audit log'), cls: 'obs-wiki-view__title' });
 		contentEl.createEl('p', {
-			text: 'Scaffold placeholder: detailed agent, runtime, plugin, and user audit timeline will be added later. Recent audit events are visible in Agent Activity.',
+			text: ui(
+				'脚手架占位：后续会加入 Agent、Runtime、插件和用户的详细审计时间线。最近审计事件已在 Agent 活动中展示。',
+				'Scaffold placeholder: detailed agent, runtime, plugin, and user audit timeline will be added later. Recent audit events are visible in Agent Activity.'
+			),
 			cls: 'obs-wiki-view__description',
 		});
 	}
@@ -1816,7 +1822,7 @@ class ObsWikiRuntimeStatusView extends ItemView {
 	}
 
 	getDisplayText() {
-		return 'Runtime Status';
+		return ui('运行状态', 'Runtime status');
 	}
 
 	getViewData() {
@@ -1841,9 +1847,12 @@ class ObsWikiRuntimeStatusView extends ItemView {
 		contentEl.empty();
 		contentEl.addClass('obs-wiki-view-root');
 
-		contentEl.createEl('h2', { text: 'Runtime Status', cls: 'obs-wiki-view__title' });
+		contentEl.createEl('h2', { text: ui('运行状态', 'Runtime status'), cls: 'obs-wiki-view__title' });
 		contentEl.createEl('p', {
-			text: 'Scaffold placeholder: MCP server, runtime index, context pack, lint, and source-analysis status will be added later.',
+			text: ui(
+				'脚手架占位：后续会加入 MCP Server、Runtime 索引、context pack、lint 和来源分析状态。',
+				'Scaffold placeholder: MCP server, runtime index, context pack, lint, and source-analysis status will be added later.'
+			),
 			cls: 'obs-wiki-view__description',
 		});
 	}
@@ -1859,7 +1868,7 @@ class ObsWikiPermissionPolicyView extends ItemView {
 	}
 
 	getDisplayText() {
-		return 'Permission Policy';
+		return ui('权限策略', 'Permission policy');
 	}
 
 	getViewData() {
@@ -1884,15 +1893,18 @@ class ObsWikiPermissionPolicyView extends ItemView {
 		contentEl.empty();
 		contentEl.addClass('obs-wiki-view-root');
 
-		contentEl.createEl('h2', { text: 'Permission Policy', cls: 'obs-wiki-view__title' });
+		contentEl.createEl('h2', { text: ui('权限策略', 'Permission policy'), cls: 'obs-wiki-view__title' });
 		contentEl.createEl('p', {
-			text: 'Runtime policy is read-only by default, with controlled writes for working records and review-gated apply for protected memory writeback.',
+			text: ui(
+				'Runtime 策略默认只读；工作记录使用受控写入，受保护记忆写回必须经过审核批准。',
+				'Runtime policy is read-only by default, with controlled writes for working records and review-gated apply for protected memory writeback.'
+			),
 			cls: 'obs-wiki-view__description',
 		});
 
 		const sections = [
 			{
-				title: 'Read-only tools',
+				title: ui('只读工具', 'Read-only tools'),
 				items: [
 					'obs_wiki.status',
 					'obs_wiki.start_task',
@@ -1905,7 +1917,7 @@ class ObsWikiPermissionPolicyView extends ItemView {
 				],
 			},
 			{
-				title: 'Low-risk write tools',
+				title: ui('低风险写入工具', 'Low-risk write tools'),
 				items: [
 					'obs_wiki.write_context_pack -> 06_outputs/context_packs/',
 					'obs_wiki.write_session_note -> 02_timeline/sessions/',
@@ -1915,21 +1927,45 @@ class ObsWikiPermissionPolicyView extends ItemView {
 				],
 			},
 			{
-				title: 'Review-gated apply',
+				title: ui('审核门控应用', 'Review-gated apply'),
 				items: [
-					'obs_wiki.apply_approved_writeback requires approval_status=approved',
-					'Runtime appends explicit ## Writeback content to an existing target note',
-					'Proposal status becomes applied and an audit event is written',
+					ui(
+						'obs_wiki.apply_approved_writeback 要求 approval_status=approved',
+						'obs_wiki.apply_approved_writeback requires approval_status=approved'
+					),
+					ui(
+						'Runtime 会向现有目标笔记追加明确的 ## Writeback content 内容',
+						'Runtime appends explicit ## Writeback content to an existing target note'
+					),
+					ui(
+						'提案状态会变为 applied，并写入审计事件',
+						'Proposal status becomes applied and an audit event is written'
+					),
 				],
 			},
 			{
-				title: 'Forbidden actions',
+				title: ui('禁止动作', 'Forbidden actions'),
 				items: [
-					'No shell execution or package installation through MCP',
-					'No vault-outside or .obsidian access',
-					'No delete, rename, move, or bulk rewrite tools',
-					'No direct protected memory write without Review Queue approval',
-					'No Obsidian plugin entry for source submission or maintenance actions',
+					ui(
+						'禁止通过 MCP 执行 shell 或安装包',
+						'No shell execution or package installation through MCP'
+					),
+					ui(
+						'禁止访问 vault 外部或 .obsidian',
+						'No vault-outside or .obsidian access'
+					),
+					ui(
+						'禁止删除、重命名、移动或批量重写工具',
+						'No delete, rename, move, or bulk rewrite tools'
+					),
+					ui(
+						'未通过审核队列批准时，禁止直接写入受保护记忆',
+						'No direct protected memory write without Review Queue approval'
+					),
+					ui(
+						'Obsidian 插件不提供来源提交或维护动作入口',
+						'No Obsidian plugin entry for source submission or maintenance actions'
+					),
 				],
 			},
 		];
@@ -1944,7 +1980,7 @@ class ObsWikiPermissionPolicyView extends ItemView {
 		}
 
 		const source = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-		source.createEl('h3', { text: 'Policy source' });
+		source.createEl('h3', { text: ui('策略来源', 'Policy source') });
 		source.createEl('p', {
 			text: 'docs/MCP_Tool_Permission_Matrix.md',
 			cls: 'obs-wiki-view__description',
@@ -1966,8 +2002,11 @@ class ObsWikiSettingTab extends PluginSettingTab {
 		containerEl.createEl('h2', { text: 'obs-wiki' });
 
 		new Setting(containerEl)
-			.setName('Show welcome message')
-			.setDesc('Display a welcome/status line in the Activity view.')
+			.setName(ui('显示欢迎信息', 'Show welcome message'))
+			.setDesc(ui(
+				'在 Agent Activity 视图中显示欢迎或状态文本。',
+				'Display a welcome/status line in the Agent Activity view.'
+			))
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.showWelcomeMessage)
@@ -1978,22 +2017,27 @@ class ObsWikiSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName('Status message')
-			.setDesc('Text shown in Activity when welcome messages are enabled.')
+			.setName(ui('状态文本', 'Status message'))
+			.setDesc(ui(
+				'启用欢迎信息时，在 Agent Activity 中显示的文本。',
+				'Text shown in Agent Activity when welcome messages are enabled.'
+			))
 			.addText((text) =>
 				text
 					.setPlaceholder(this.plugin.settings.statusMessage)
 					.setValue(this.plugin.settings.statusMessage)
 					.onChange(async (value) => {
-						this.plugin.settings.statusMessage =
-							value || 'Welcome to obs-wiki Agent Activity.';
+						this.plugin.settings.statusMessage = value || DEFAULT_STATUS_MESSAGE;
 						await this.plugin.saveSettings();
 					})
 			);
 
 		new Setting(containerEl)
-			.setName('Default agent scope')
-			.setDesc('Reserved for later use while wiring permission controls.')
+			.setName(ui('默认 Agent 范围', 'Default agent scope'))
+			.setDesc(ui(
+				'预留给后续权限控制接入使用。',
+				'Reserved for later use while wiring permission controls.'
+			))
 			.setDisabled(true)
 			.addText((text) => {
 				text.setValue(this.plugin.settings.defaultAgentScope);

@@ -1,6 +1,6 @@
 {
 	"name": "obs-wiki",
-	"version": "0.1.0",
+	"version": "0.1.2",
 	"description": "Agent-first Obsidian-native memory system workspace.",
 	"private": true,
 	"workspaces": [
