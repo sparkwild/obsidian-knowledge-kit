@@ -304,6 +304,51 @@
 	margin: 6px 0;
 }
 
+.obs-wiki-advanced-details {
+	margin-top: 8px;
+}
+
+.obs-wiki-advanced-summary {
+	display: inline-flex;
+	align-items: center;
+	cursor: pointer;
+	color: var(--text-muted);
+	font-size: 12px;
+}
+
+.obs-wiki-advanced-list {
+	display: grid;
+	gap: 8px;
+	margin-top: 8px;
+}
+
+.obs-wiki-advanced-config-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 8px;
+	align-items: center;
+	padding: 8px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-primary);
+}
+
+.obs-wiki-advanced-config-row__info {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.obs-wiki-advanced-config-row__info strong {
+	display: block;
+	overflow-wrap: anywhere;
+}
+
+.obs-wiki-advanced-config-row__info small {
+	color: var(--text-muted);
+	font-size: 12px;
+}
+
 @media (max-width: 520px) {
 	.obs-wiki-shell-header,
 	.obs-wiki-card__header {
@@ -325,5 +370,13 @@
 
 	.obs-wiki-table-row {
 		grid-template-columns: 1fr;
+	}
+
+	.obs-wiki-advanced-config-row {
+		grid-template-columns: 1fr;
+	}
+
+	.obs-wiki-advanced-config-row__info {
+		min-width: 0;
 	}
 }

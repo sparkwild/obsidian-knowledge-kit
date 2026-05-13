@@ -963,8 +963,8 @@ export default class ObsWikiPlugin extends Plugin {
 			},
 			{
 				id: 'custom',
-				displayName: ui('其他工具', 'Other tools'),
-				description: ui('如果你的 AI 工具支持通过地址连接，可使用这份配置。', 'Use this config when your AI tool supports connecting by URL.'),
+				displayName: ui('自定义 MCP 工具', 'Custom MCP tool'),
+				description: ui('当你的 AI 工具不在上方列表，但支持填写 MCP 地址时使用。', 'Use this when your AI tool is not listed above but supports an MCP URL.'),
 				preferredTransport: 'streamable-http',
 				supportsAutoConfigure: false,
 				restartRequired: true,
@@ -972,8 +972,8 @@ export default class ObsWikiPlugin extends Plugin {
 			},
 			{
 				id: 'local-command',
-				displayName: ui('本机命令方式', 'Local command mode'),
-				description: ui('如果你的 AI 工具只能启动本机命令，可使用这份配置。', 'Use this config when your AI tool needs to start a local command.'),
+				displayName: ui('命令启动配置', 'Command startup config'),
+				description: ui('只有当 AI 工具要求填写 command 和 args 时使用。', 'Use only when an AI tool asks for command and args.'),
 				preferredTransport: 'stdio',
 				supportsAutoConfigure: false,
 				restartRequired: true,
@@ -1044,8 +1044,8 @@ export default class ObsWikiPlugin extends Plugin {
 				state: 'unsupported',
 				label: ui('手动配置', 'Manual setup'),
 				detail: ui(
-					'移动端不支持自动检测本机连接服务，请复制连接配置到桌面端 AI 工具。',
-					'Mobile does not support local service detection; copy the config into a desktop AI tool.'
+					'移动端不能检测这台电脑上的连接地址，请在桌面端复制配置到 AI 工具。',
+					'Mobile cannot check this computer\'s connection address; copy the config into a desktop AI tool.'
 				),
 				checkedAt,
 			};
@@ -1056,8 +1056,8 @@ export default class ObsWikiPlugin extends Plugin {
 				state: 'needs_update',
 				label: ui('建议检查地址', 'Check address'),
 				detail: ui(
-					'推荐连接地址不是 127.0.0.1 本机地址；如果不是你主动修改，建议恢复默认。',
-					'The recommended address is not a 127.0.0.1 local address. Restore the default unless you changed it intentionally.'
+					'当前地址不是 127.0.0.1 本机地址；如果不是你主动修改，建议恢复默认。',
+					'The current address is not a 127.0.0.1 local address. Restore the default unless you changed it intentionally.'
 				),
 				checkedAt,
 			};
@@ -1074,8 +1074,8 @@ export default class ObsWikiPlugin extends Plugin {
 					state: 'needs_update',
 					label: ui('地址需检查', 'Address needs review'),
 					detail: ui(
-						'本机有服务响应，但当前地址不像 obs-wiki 连接入口。请确认本机服务地址是否正确。',
-						'A local service responded, but this address does not look like the obs-wiki connection entry. Check the local service address.'
+						'这台电脑有响应，但不是 obs-wiki 的 AI 工具连接地址。请检查地址是否填错。',
+						'This computer responded, but not as the obs-wiki AI tool connection address. Check whether the URL is correct.'
 					),
 					checkedAt,
 					statusCode: response.status,
@@ -1084,10 +1084,10 @@ export default class ObsWikiPlugin extends Plugin {
 			if (response.status >= 500) {
 				return {
 					state: 'service_not_running',
-					label: ui('服务异常', 'Service error'),
+					label: ui('连接异常', 'Connection error'),
 					detail: ui(
-						'本机连接服务有响应但返回异常，请重启 obs-wiki 本机连接服务后再试。',
-						'The local connection service responded with an error. Restart the obs-wiki local connection service and try again.'
+						'obs-wiki 地址有响应但返回异常。请重启 obs-wiki 后再刷新。',
+						'The obs-wiki address responded with an error. Restart obs-wiki and refresh.'
 					),
 					checkedAt,
 					statusCode: response.status,
@@ -1097,8 +1097,8 @@ export default class ObsWikiPlugin extends Plugin {
 				state: 'available',
 				label: ui('可连接', 'Available'),
 				detail: ui(
-					'本机连接服务有响应，可以继续配置 AI 工具。',
-					'The local connection service responded; you can configure your AI tool.'
+					'AI 工具连接地址可访问，可以继续配置工具。',
+					'The AI tool connection address is reachable; you can continue configuring the tool.'
 				),
 				checkedAt,
 				statusCode: response.status,
@@ -1108,8 +1108,8 @@ export default class ObsWikiPlugin extends Plugin {
 				state: 'service_not_running',
 				label: ui('未运行', 'Not running'),
 				detail: ui(
-					'未检测到本机连接服务。你仍可复制配置，启动服务后再刷新这里。',
-					'No local connection service was detected. You can still copy the config, then refresh after starting the service.'
+					'未检测到 AI 工具连接地址。你仍可先复制配置，启动 obs-wiki 后再刷新这里。',
+					'The AI tool connection address was not detected. You can still copy the config, then refresh after starting obs-wiki.'
 				),
 				checkedAt,
 			};
@@ -2812,52 +2812,72 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		refreshButton.addEventListener('click', async () => this.refresh());
 
 		const statusBar = contentEl.createDiv({ cls: 'obs-wiki-status-bar' });
-		this.renderStatusItem(statusBar, ui('连接方式', 'Connection'), ui('本机连接', 'Local connection'));
-		this.renderStatusItem(statusBar, ui('服务状态', 'Service status'), snapshot.localConnection.label);
+		this.renderStatusItem(statusBar, ui('连接位置', 'Connection location'), ui('这台电脑', 'This computer'));
+		this.renderStatusItem(statusBar, ui('连接状态', 'Connection status'), snapshot.localConnection.label);
 		this.renderStatusItem(statusBar, ui('当前知识库', 'Current knowledge base'), snapshot.vaultRoot);
 		this.renderStatusItem(statusBar, ui('最近连接', 'Recent connections'), String(snapshot.recentAgents.length));
 		this.renderStatusItem(statusBar, ui('使用记录', 'Usage records'), String(snapshot.recentToolCalls.length));
 
 		const runtime = contentEl.createDiv({ cls: 'obs-wiki-card' });
-		runtime.createEl('h3', { text: ui('本机连接服务', 'Local connection service') });
+		runtime.createEl('h3', { text: ui('AI 工具连接检查', 'AI tool connection check') });
 		runtime.createEl('p', {
 			text: ui(
-				'让 AI 工具通过本机地址访问 obs-wiki。连接只在这台电脑上进行，速度更快，也便于控制权限。',
-				'Let AI tools access obs-wiki through a local address on this computer for faster, permission-controlled use.'
+				'这里检查你要填到 AI 工具里的 obs-wiki 地址是否可用。未运行时也可以先复制配置；启动 obs-wiki 后点刷新确认。',
+				'This checks whether the obs-wiki URL you will put into an AI tool is reachable. You can copy configs first, then refresh after starting obs-wiki.'
 			),
 			cls: 'obs-wiki-view__description',
 		});
 		const endpointGrid = runtime.createDiv({ cls: 'obs-wiki-detail-grid' });
-		this.renderDetail(endpointGrid, ui('检测结果', 'Check result'), snapshot.localConnection.label);
-		this.renderDetail(endpointGrid, ui('结果说明', 'Details'), snapshot.localConnection.detail);
-		this.renderDetail(endpointGrid, ui('推荐连接地址', 'Recommended address'), snapshot.httpEndpoint);
-		this.renderDetail(endpointGrid, ui('兼容连接地址', 'Compatibility address'), snapshot.sseEndpoint);
-		this.renderDetail(endpointGrid, ui('本机命令（可选）', 'Local command (optional)'), snapshot.stdioCommand);
+		this.renderDetail(endpointGrid, ui('当前状态', 'Current status'), snapshot.localConnection.label);
+		this.renderDetail(endpointGrid, ui('建议操作', 'Suggested action'), snapshot.localConnection.detail);
+		this.renderDetail(endpointGrid, ui('AI 工具连接地址', 'AI tool URL'), snapshot.httpEndpoint);
 		this.renderDetail(
 			endpointGrid,
-			ui('最近检测', 'Last checked'),
+			ui('最近检测时间', 'Last checked'),
 			this.plugin.formatDisplayTime(Date.parse(snapshot.localConnection.checkedAt))
 		);
 		if (snapshot.localConnection.statusCode) {
 			this.renderDetail(endpointGrid, ui('响应状态', 'Response status'), String(snapshot.localConnection.statusCode));
 		}
 		const commandAction = runtime.createDiv({ cls: 'obs-wiki-action-row' });
-		const copyHttp = commandAction.createEl('button', { text: ui('复制推荐地址', 'Copy recommended address') });
+		const copyHttp = commandAction.createEl('button', { text: ui('复制连接地址', 'Copy URL') });
 		copyHttp.addEventListener('click', () => {
-			void this.plugin.copyToClipboard(snapshot.httpEndpoint, ui('已复制推荐连接地址。', 'Recommended address copied.'));
-		});
-		const copySse = commandAction.createEl('button', { text: ui('复制兼容地址', 'Copy compatibility address') });
-		copySse.addEventListener('click', () => {
-			void this.plugin.copyToClipboard(snapshot.sseEndpoint, ui('已复制兼容连接地址。', 'Compatibility address copied.'));
-		});
-		const copyStdio = commandAction.createEl('button', { text: ui('复制本机命令', 'Copy local command') });
-		copyStdio.addEventListener('click', () => {
-			void this.plugin.copyToClipboard(snapshot.stdioCommand, ui('已复制本机命令。', 'Local command copied.'));
+			void this.plugin.copyToClipboard(snapshot.httpEndpoint, ui('已复制 AI 工具连接地址。', 'AI tool URL copied.'));
 		});
 
+		const coreClientIds = new Set(['codex', 'claude-code', 'claude-desktop', 'cursor']);
+		const coreClientConfigs = snapshot.clientConfigs.filter((config) => coreClientIds.has(config.clientId));
+		const advancedClientConfigs = snapshot.clientConfigs.filter((config) => !coreClientIds.has(config.clientId));
+
 		const configGrid = contentEl.createDiv({ cls: 'obs-wiki-config-grid' });
-		for (const clientConfig of snapshot.clientConfigs) {
+		for (const clientConfig of coreClientConfigs) {
 			this.renderConfigCard(configGrid, clientConfig);
+		}
+		if (advancedClientConfigs.length > 0) {
+			const advanced = contentEl.createDiv({ cls: 'obs-wiki-card obs-wiki-advanced-config' });
+			advanced.createEl('h3', { text: ui('手动连接方式', 'Manual connection methods') });
+			advanced.createEl('p', {
+				text: ui(
+					'上方列表没有你的 AI 工具时再使用。多数工具只需要连接地址；只有工具要求 command 和 args 时才使用命令启动配置。',
+					'Use this only when your AI tool is not listed above. Most tools only need the URL; use the command config only when a tool asks for command and args.'
+				),
+				cls: 'obs-wiki-view__description',
+			});
+			const advancedDetails = advanced.createEl('details', { cls: 'obs-wiki-advanced-details' });
+			const summary = advancedDetails.createEl('summary', { text: ui('查看手动方式', 'Show manual methods') });
+			const advancedList = advancedDetails.createDiv({ cls: 'obs-wiki-advanced-list' });
+			for (const clientConfig of advancedClientConfigs) {
+				this.renderAdvancedConfigRow(advancedList, clientConfig);
+			}
+			this.renderManualCopyRow(
+				advancedList,
+				ui('旧版 SSE 地址', 'Legacy SSE URL'),
+				ui('只有 AI 工具明确要求 SSE 地址时使用。', 'Use only when an AI tool specifically asks for an SSE URL.'),
+				ui('复制 SSE 地址', 'Copy SSE URL'),
+				snapshot.sseEndpoint,
+				ui('已复制旧版 SSE 地址。', 'Legacy SSE URL copied.')
+			);
+			summary.addClass('obs-wiki-advanced-summary');
 		}
 
 		const exposedTools = contentEl.createDiv({ cls: 'obs-wiki-card' });
@@ -2903,7 +2923,7 @@ class ObsWikiAgentConnectionsView extends ItemView {
 				ui('还没有连接记录。', 'No connection records yet.'),
 				snapshot.missingAuditSources
 					? ui('还没有记录文件。初始化 obs-wiki 后，连接和操作记录会显示在这里。', 'No activity file yet. After obs-wiki is initialized, connection and usage records will appear here.')
-					: ui('启动 obs-wiki 本机连接服务后，复制上方配置到你的 AI 工具。', 'Start the obs-wiki local connection service, then copy one of the configs above into your AI tool.')
+					: ui('启动 obs-wiki 后，把上方配置复制到你的 AI 工具。', 'Start obs-wiki, then copy one of the configs above into your AI tool.')
 			);
 		} else {
 			const list = agents.createDiv({ cls: 'obs-wiki-table-list' });
@@ -2998,6 +3018,41 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		}
 	}
 
+	private renderAdvancedConfigRow(container: HTMLElement, config: GeneratedClientConfig): void {
+		const row = container.createDiv({ cls: 'obs-wiki-advanced-config-row' });
+		const info = row.createDiv({ cls: 'obs-wiki-advanced-config-row__info' });
+		info.createEl('strong', { text: config.displayName });
+		info.createEl('small', { text: config.description });
+		const actions = row.createDiv({ cls: 'obs-wiki-action-row' });
+		const copy = actions.createEl('button', {
+			text: config.transport === 'stdio'
+				? ui('复制命令配置', 'Copy command config')
+				: ui('复制地址配置', 'Copy URL config'),
+		});
+		copy.addEventListener('click', () => {
+			void this.plugin.copyToClipboard(config.configText, ui('已复制连接配置。', 'Connection config copied.'));
+		});
+	}
+
+	private renderManualCopyRow(
+		container: HTMLElement,
+		title: string,
+		detail: string,
+		buttonText: string,
+		value: string,
+		notice: string
+	): void {
+		const row = container.createDiv({ cls: 'obs-wiki-advanced-config-row' });
+		const info = row.createDiv({ cls: 'obs-wiki-advanced-config-row__info' });
+		info.createEl('strong', { text: title });
+		info.createEl('small', { text: detail });
+		const actions = row.createDiv({ cls: 'obs-wiki-action-row' });
+		const copy = actions.createEl('button', { text: buttonText });
+		copy.addEventListener('click', () => {
+			void this.plugin.copyToClipboard(value, notice);
+		});
+	}
+
 	private renderClientMeta(container: HTMLElement, label: string, value: string): void {
 		const item = container.createDiv({ cls: 'obs-wiki-client-meta__row' });
 		item.createEl('span', { text: label });
@@ -3007,11 +3062,11 @@ class ObsWikiAgentConnectionsView extends ItemView {
 	private transportLabel(transport: ConnectionTransport): string {
 		switch (transport) {
 			case 'streamable-http':
-				return ui('推荐连接地址', 'Recommended address');
+				return ui('连接地址', 'Connection URL');
 			case 'sse':
-				return ui('兼容连接地址', 'Compatibility address');
+				return ui('旧版 SSE 地址', 'Legacy SSE URL');
 			case 'stdio':
-				return ui('本机命令', 'Local command');
+				return ui('命令启动', 'Command startup');
 			default:
 				return transport;
 		}
@@ -3103,11 +3158,11 @@ class ClientConfigPreviewModal extends Modal {
 	private transportLabel(transport: ConnectionTransport): string {
 		switch (transport) {
 			case 'streamable-http':
-				return ui('推荐连接地址', 'Recommended address');
+				return ui('连接地址', 'Connection URL');
 			case 'sse':
-				return ui('兼容连接地址', 'Compatibility address');
+				return ui('旧版 SSE 地址', 'Legacy SSE URL');
 			case 'stdio':
-				return ui('本机命令', 'Local command');
+				return ui('命令启动', 'Command startup');
 			default:
 				return transport;
 		}
@@ -3247,8 +3302,8 @@ class ObsWikiRuntimeStatusView extends ItemView {
 		contentEl.createEl('h2', { text: ui('连接状态', 'Connection status'), cls: 'obs-wiki-view__title' });
 		contentEl.createEl('p', {
 			text: ui(
-				'这里用于确认本机连接服务、资料索引和资料处理是否正常。若连接中心没有记录，请先确认你的 AI 工具已使用 obs-wiki 连接。',
-				'Use this page to check the local connection service, knowledge base index, and material processing status. If no records appear, confirm that your AI tool is using the obs-wiki connection.'
+				'这里用于确认 AI 工具连接、资料索引和资料处理是否正常。若连接中心没有记录，请先确认你的 AI 工具已使用 obs-wiki 连接。',
+				'Use this page to check AI tool connections, the knowledge base index, and material processing status. If no records appear, confirm that your AI tool is using the obs-wiki connection.'
 			),
 			cls: 'obs-wiki-view__description',
 		});
@@ -3420,7 +3475,7 @@ class ObsWikiSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName(ui('推荐连接地址', 'Recommended connection address'))
+			.setName(ui('AI 工具连接地址', 'AI tool connection URL'))
 			.setDesc(ui(
 				'常用 AI 工具优先使用这个本机地址连接 obs-wiki；不确定时保持默认。',
 				'Most AI tools should use this local address to connect to obs-wiki. Keep the default if unsure.'
@@ -3437,7 +3492,7 @@ class ObsWikiSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName(ui('兼容连接地址', 'Compatibility connection address'))
+			.setName(ui('旧版 SSE 地址', 'Legacy SSE URL'))
 			.setDesc(ui(
 				'少数旧版 AI 工具需要这个地址；不确定时保持默认。',
 				'Some older AI tools need this address. Keep the default if unsure.'
@@ -3454,10 +3509,10 @@ class ObsWikiSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName(ui('本机命令（可选）', 'Local command (optional)'))
+			.setName(ui('命令启动配置', 'Command startup config'))
 			.setDesc(ui(
-				'当 AI 工具不支持连接地址、只能启动本机命令时使用。',
-				'Use this only when an AI tool cannot connect by address and must start a local command.'
+				'只有当 AI 工具要求填写 command 和 args 时使用。',
+				'Use this only when an AI tool asks for command and args.'
 			))
 			.addText((text) =>
 				text
