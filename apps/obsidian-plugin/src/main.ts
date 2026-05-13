@@ -12,8 +12,6 @@ import {
 	getLanguage,
 } from 'obsidian';
 
-declare const __OBS_WIKI_MCP_SERVER_PATH__: string;
-
 const OBS_WIKI_ACTIVITY_VIEW = 'obs-wiki-activity';
 const OBS_WIKI_SOURCE_STATUS_VIEW = 'obs-wiki-source-status';
 const OBS_WIKI_REVIEW_QUEUE_VIEW = 'obs-wiki-review-queue';
@@ -59,7 +57,9 @@ const MAX_AGENT_CONNECTION_ROWS = 8;
 const MAX_AGENT_TOOL_CALL_ROWS = 12;
 const PLUGIN_DISPLAY_NAME_ZH = 'obs-wiki';
 const PLUGIN_DISPLAY_NAME_EN = 'obs-wiki';
-const DEFAULT_MCP_SERVER_PATH = __OBS_WIKI_MCP_SERVER_PATH__;
+const DEFAULT_MCP_HTTP_ENDPOINT = 'http://127.0.0.1:37241/mcp';
+const DEFAULT_MCP_SSE_ENDPOINT = 'http://127.0.0.1:37241/sse';
+const DEFAULT_MCP_STDIO_COMMAND = 'obs-wiki-mcp';
 const LEGACY_DEFAULT_STATUS_MESSAGE = 'Welcome to obs-wiki Agent Activity.';
 const LEGACY_BILINGUAL_DEFAULT_STATUS_MESSAGE =
 	'欢迎使用 obs-wiki Agent Activity。 / Welcome to obs-wiki Agent Activity.';
@@ -292,7 +292,10 @@ interface AgentToolCallRecord {
 
 interface AgentConnectionsSnapshot {
 	vaultRoot: string;
-	mcpCommand: string;
+	httpEndpoint: string;
+	sseEndpoint: string;
+	stdioCommand: string;
+	stdioConfig: string;
 	codexConfig: string;
 	claudeConfig: string;
 	cursorConfig: string;
@@ -307,14 +310,18 @@ interface ObsWikiSettings {
 	showWelcomeMessage: boolean;
 	defaultAgentScope: string;
 	statusMessage: string;
-	mcpServerPath: string;
+	mcpHttpEndpoint: string;
+	mcpSseEndpoint: string;
+	mcpStdioCommand: string;
 }
 
 const DEFAULT_SETTINGS: ObsWikiSettings = {
 	showWelcomeMessage: true,
 	defaultAgentScope: 'vault',
 	statusMessage: '',
-	mcpServerPath: DEFAULT_MCP_SERVER_PATH,
+	mcpHttpEndpoint: DEFAULT_MCP_HTTP_ENDPOINT,
+	mcpSseEndpoint: DEFAULT_MCP_SSE_ENDPOINT,
+	mcpStdioCommand: DEFAULT_MCP_STDIO_COMMAND,
 };
 
 export default class ObsWikiPlugin extends Plugin {
@@ -325,8 +332,14 @@ export default class ObsWikiPlugin extends Plugin {
 		if (typeof this.settings.statusMessage !== 'string') {
 			this.settings.statusMessage = '';
 		}
-		if (typeof this.settings.mcpServerPath !== 'string' || !this.settings.mcpServerPath.trim()) {
-			this.settings.mcpServerPath = DEFAULT_MCP_SERVER_PATH;
+		if (typeof this.settings.mcpHttpEndpoint !== 'string' || !this.settings.mcpHttpEndpoint.trim()) {
+			this.settings.mcpHttpEndpoint = DEFAULT_MCP_HTTP_ENDPOINT;
+		}
+		if (typeof this.settings.mcpSseEndpoint !== 'string' || !this.settings.mcpSseEndpoint.trim()) {
+			this.settings.mcpSseEndpoint = DEFAULT_MCP_SSE_ENDPOINT;
+		}
+		if (typeof this.settings.mcpStdioCommand !== 'string' || !this.settings.mcpStdioCommand.trim()) {
+			this.settings.mcpStdioCommand = DEFAULT_MCP_STDIO_COMMAND;
 		}
 		if (
 			this.settings.statusMessage === LEGACY_DEFAULT_STATUS_MESSAGE ||
@@ -808,11 +821,16 @@ export default class ObsWikiPlugin extends Plugin {
 		const recentAgents = this.buildRecentAgentConnections(auditEvents, toolCalls)
 			.slice(0, MAX_AGENT_CONNECTION_ROWS);
 		const vaultRoot = this.getVaultRoot();
-		const mcpCommand = this.buildMcpCommand(vaultRoot);
+		const httpEndpoint = this.getMcpHttpEndpoint();
+		const sseEndpoint = this.getMcpSseEndpoint();
+		const stdioCommand = this.buildMcpStdioCommand(vaultRoot);
 
 		return {
 			vaultRoot,
-			mcpCommand,
+			httpEndpoint,
+			sseEndpoint,
+			stdioCommand,
+			stdioConfig: this.buildMcpStdioConfig(vaultRoot),
 			codexConfig: this.buildMcpConfig(vaultRoot, 'codex'),
 			claudeConfig: this.buildMcpConfig(vaultRoot, 'claude'),
 			cursorConfig: this.buildMcpConfig(vaultRoot, 'cursor'),
@@ -829,30 +847,27 @@ export default class ObsWikiPlugin extends Plugin {
 		return adapter.basePath || ui('当前 vault 路径不可用', 'Current vault path unavailable');
 	}
 
-	private buildMcpCommand(vaultRoot: string): string {
-		return `node "${this.getMcpServerPath()}" --vault-root "${vaultRoot}"`;
+	private buildMcpStdioCommand(vaultRoot: string): string {
+		return `${this.getMcpStdioCommand()} --vault-root "${vaultRoot}"`;
 	}
 
-	private buildMcpConfig(vaultRoot: string, client: string): string {
-		const serverPath = this.getMcpServerPath();
+	private buildMcpConfig(_vaultRoot: string, client: string): string {
+		const httpEndpoint = this.getMcpHttpEndpoint();
 		if (client === 'codex') {
 			return [
 				'[mcp_servers.obs-wiki]',
-				'type = "stdio"',
-				'command = "node"',
-				`args = [${JSON.stringify(serverPath)}, "--vault-root", ${JSON.stringify(vaultRoot)}]`,
+				`url = ${JSON.stringify(httpEndpoint)}`,
 			].join('\n');
+		}
+
+		if (client === 'claude') {
+			return `claude mcp add --transport http obs-wiki ${httpEndpoint} --scope user`;
 		}
 
 		const config = {
 			mcpServers: {
 				'obs-wiki': {
-					command: 'node',
-					args: [
-						serverPath,
-						'--vault-root',
-						vaultRoot,
-					],
+					url: httpEndpoint,
 				},
 			},
 			client,
@@ -860,8 +875,31 @@ export default class ObsWikiPlugin extends Plugin {
 		return JSON.stringify(config, null, 2);
 	}
 
-	private getMcpServerPath(): string {
-		return (this.settings.mcpServerPath || DEFAULT_MCP_SERVER_PATH).trim();
+	private buildMcpStdioConfig(vaultRoot: string): string {
+		const config = {
+			mcpServers: {
+				'obs-wiki': {
+					command: this.getMcpStdioCommand(),
+					args: [
+						'--vault-root',
+						vaultRoot,
+					],
+				},
+			},
+		};
+		return JSON.stringify(config, null, 2);
+	}
+
+	private getMcpHttpEndpoint(): string {
+		return (this.settings.mcpHttpEndpoint || DEFAULT_MCP_HTTP_ENDPOINT).trim();
+	}
+
+	private getMcpSseEndpoint(): string {
+		return (this.settings.mcpSseEndpoint || DEFAULT_MCP_SSE_ENDPOINT).trim();
+	}
+
+	private getMcpStdioCommand(): string {
+		return (this.settings.mcpStdioCommand || DEFAULT_MCP_STDIO_COMMAND).trim();
 	}
 
 	private isToolCallAuditEvent(event: AuditEventRecord): boolean {
@@ -2307,25 +2345,104 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		refreshButton.addEventListener('click', async () => this.refresh());
 
 		const statusBar = contentEl.createDiv({ cls: 'obs-wiki-status-bar' });
-		this.renderStatusItem(statusBar, ui('运行模式', 'Runtime mode'), ui('stdio MCP', 'stdio MCP'));
-		this.renderStatusItem(statusBar, ui('当前仓库', 'Current vault'), snapshot.vaultRoot);
+		this.renderStatusItem(statusBar, ui('运行模式', 'Runtime mode'), ui('本机服务优先', 'Local service first'));
+		this.renderStatusItem(statusBar, ui('当前 Vault', 'Current vault'), snapshot.vaultRoot);
 		this.renderStatusItem(statusBar, ui('最近 Agent', 'Recent agents'), String(snapshot.recentAgents.length));
 		this.renderStatusItem(statusBar, ui('工具调用', 'Tool calls'), String(snapshot.recentToolCalls.length));
 
 		const runtime = contentEl.createDiv({ cls: 'obs-wiki-card' });
-		runtime.createEl('h3', { text: ui('MCP Server 命令', 'MCP server command') });
-		runtime.createEl('code', { text: snapshot.mcpCommand, cls: 'obs-wiki-code-block' });
+		runtime.createEl('h3', { text: ui('本机 Runtime 连接', 'Local runtime connection') });
+		runtime.createEl('p', {
+			text: ui(
+				'客户端应连接到本机 obs-wiki Runtime/Gateway；插件不再生成指向项目源码目录的配置。',
+				'Clients should connect to the local obs-wiki Runtime/Gateway; the plugin no longer generates source-tree paths.'
+			),
+			cls: 'obs-wiki-view__description',
+		});
+		const endpointGrid = runtime.createDiv({ cls: 'obs-wiki-detail-grid' });
+		this.renderDetail(endpointGrid, ui('Streamable HTTP', 'Streamable HTTP'), snapshot.httpEndpoint);
+		this.renderDetail(endpointGrid, ui('SSE 兼容', 'SSE fallback'), snapshot.sseEndpoint);
+		this.renderDetail(endpointGrid, ui('stdio fallback', 'stdio fallback'), snapshot.stdioCommand);
 		const commandAction = runtime.createDiv({ cls: 'obs-wiki-action-row' });
-		const copyCommand = commandAction.createEl('button', { text: ui('复制命令', 'Copy command') });
-		copyCommand.addEventListener('click', () => {
-			void this.plugin.copyToClipboard(snapshot.mcpCommand, ui('已复制 MCP 命令。', 'MCP command copied.'));
+		const copyHttp = commandAction.createEl('button', { text: ui('复制 HTTP URL', 'Copy HTTP URL') });
+		copyHttp.addEventListener('click', () => {
+			void this.plugin.copyToClipboard(snapshot.httpEndpoint, ui('已复制 HTTP MCP URL。', 'HTTP MCP URL copied.'));
+		});
+		const copySse = commandAction.createEl('button', { text: ui('复制 SSE URL', 'Copy SSE URL') });
+		copySse.addEventListener('click', () => {
+			void this.plugin.copyToClipboard(snapshot.sseEndpoint, ui('已复制 SSE MCP URL。', 'SSE MCP URL copied.'));
+		});
+		const copyStdio = commandAction.createEl('button', { text: ui('复制 stdio 命令', 'Copy stdio command') });
+		copyStdio.addEventListener('click', () => {
+			void this.plugin.copyToClipboard(snapshot.stdioCommand, ui('已复制 stdio 命令。', 'stdio command copied.'));
 		});
 
 		const configGrid = contentEl.createDiv({ cls: 'obs-wiki-config-grid' });
-		this.renderConfigCard(configGrid, 'Codex', snapshot.codexConfig);
-		this.renderConfigCard(configGrid, 'Claude', snapshot.claudeConfig);
-		this.renderConfigCard(configGrid, 'Cursor', snapshot.cursorConfig);
-		this.renderConfigCard(configGrid, ui('自定义', 'Custom'), snapshot.customConfig);
+		this.renderConfigCard(
+			configGrid,
+			'Codex',
+			snapshot.codexConfig,
+			ui('写入 ~/.codex/config.toml，使用本机 HTTP endpoint。', 'Add to ~/.codex/config.toml using the local HTTP endpoint.')
+		);
+		this.renderConfigCard(
+			configGrid,
+			'Claude Code',
+			snapshot.claudeConfig,
+			ui('通过 Claude CLI 添加 user scope 本机 HTTP server。', 'Add a user-scoped local HTTP server through the Claude CLI.')
+		);
+		this.renderConfigCard(
+			configGrid,
+			'Cursor',
+			snapshot.cursorConfig,
+			ui('写入 ~/.cursor/mcp.json 或项目 MCP 配置。', 'Add to ~/.cursor/mcp.json or a project MCP config.')
+		);
+		this.renderConfigCard(
+			configGrid,
+			ui('自定义 HTTP', 'Custom HTTP'),
+			snapshot.customConfig,
+			ui('适用于支持 url 字段的 MCP 客户端。', 'For MCP clients that support the url field.')
+		);
+		this.renderConfigCard(
+			configGrid,
+			ui('已安装 stdio runtime', 'Installed stdio runtime'),
+			snapshot.stdioConfig,
+			ui('仅用于已安装 obs-wiki runtime 命令的本机 fallback。', 'Local fallback only when the obs-wiki runtime command is installed.')
+		);
+
+		const exposedTools = contentEl.createDiv({ cls: 'obs-wiki-card' });
+		exposedTools.createEl('h3', { text: ui('暴露工具', 'Exposed tools') });
+		exposedTools.createEl('p', {
+			text: ui(
+				'这些是 Agent 侧 MCP 工具分组；Obsidian 插件仍只提供审核、治理和连接状态入口。',
+				'These are Agent-side MCP tool groups; the Obsidian plugin still only exposes review, governance, and connection status entry points.'
+			),
+			cls: 'obs-wiki-view__description',
+		});
+		const toolGrid = exposedTools.createDiv({ cls: 'obs-wiki-detail-grid' });
+		this.renderToolset(toolGrid, ui('只读', 'Read-only'), [
+			'status',
+			'recall',
+			'read_note',
+			'list_review_queue',
+			'audit_recent',
+			'lint',
+		]);
+		this.renderToolset(toolGrid, ui('受控写入', 'Controlled write'), [
+			'build_context_pack',
+			'finish_task',
+			'distill_session',
+			'capture_source',
+			'propose_memory',
+		]);
+		this.renderToolset(toolGrid, ui('审核门控', 'Review gated'), [
+			'apply_approved_writeback',
+		]);
+		this.renderToolset(toolGrid, ui('禁止暴露', 'Forbidden'), [
+			'shell',
+			'vault-outside-write',
+			'.obsidian-write',
+			'bulk-delete',
+		]);
 
 		const agents = contentEl.createDiv({ cls: 'obs-wiki-card' });
 		agents.createEl('h3', { text: ui('最近出现的 Agent', 'Recently seen agents') });
@@ -2335,7 +2452,7 @@ class ObsWikiAgentConnectionsView extends ItemView {
 				ui('还没有 Agent 连接记录。', 'No Agent connection records yet.'),
 				snapshot.missingAuditSources
 					? ui('未找到审计日志。Agent 连接 MCP 后，Runtime 会在 00_control/audit_log.md 写入连接事件。', 'No audit log found. Runtime writes connection events to 00_control/audit_log.md after an Agent connects.')
-					: ui('复制上方配置到 Codex、Claude、Cursor 或自定义 Agent，然后让它连接 obs-wiki MCP。', 'Copy a config above into Codex, Claude, Cursor, or a custom Agent, then connect it to obs-wiki MCP.')
+					: ui('启动本机 obs-wiki Runtime 后，复制上方配置到 Codex、Claude、Cursor 或自定义 Agent。', 'Start the local obs-wiki Runtime, then copy a config above into Codex, Claude, Cursor, or a custom Agent.')
 			);
 		} else {
 			const list = agents.createDiv({ cls: 'obs-wiki-table-list' });
@@ -2386,7 +2503,7 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		this.renderDetail(matrix, ui('禁止', 'Forbidden'), ui('shell、vault 外路径、.obsidian、删除/批量重写', 'shell, vault-outside paths, .obsidian, delete/bulk rewrite'));
 	}
 
-	private renderConfigCard(container: HTMLElement, title: string, config: string): void {
+	private renderConfigCard(container: HTMLElement, title: string, config: string, detail?: string): void {
 		const card = container.createDiv({ cls: 'obs-wiki-card obs-wiki-config-card' });
 		const header = card.createDiv({ cls: 'obs-wiki-card__header' });
 		header.createEl('strong', { text: title });
@@ -2394,6 +2511,9 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		copy.addEventListener('click', () => {
 			void this.plugin.copyToClipboard(config, ui('已复制 MCP 配置。', 'MCP config copied.'));
 		});
+		if (detail) {
+			card.createEl('p', { text: detail, cls: 'obs-wiki-view__description' });
+		}
 		card.createEl('pre', { text: config, cls: 'obs-wiki-code-block' });
 	}
 
@@ -2407,6 +2527,15 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		const item = container.createDiv({ cls: 'obs-wiki-detail' });
 		item.createEl('span', { text: label });
 		item.createEl('strong', { text: value });
+	}
+
+	private renderToolset(container: HTMLElement, title: string, tools: string[]): void {
+		const item = container.createDiv({ cls: 'obs-wiki-detail-panel' });
+		item.createEl('strong', { text: title });
+		const list = item.createEl('ul');
+		for (const tool of tools) {
+			list.createEl('li', { text: tool });
+		}
 	}
 
 	private renderEmptyState(container: HTMLElement, title: string, detail: string): void {
@@ -2737,17 +2866,51 @@ class ObsWikiSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName(ui('MCP Server 路径', 'MCP server path'))
+			.setName(ui('本机 MCP HTTP URL', 'Local MCP HTTP URL'))
 			.setDesc(ui(
-				'Agent 连接中心生成配置时使用的 server.js 路径。',
-				'Path to server.js used by Agent Connection Center generated configs.'
+				'Agent 连接中心默认生成的本机 Streamable HTTP endpoint。',
+				'Local Streamable HTTP endpoint generated by Agent Connection Center.'
 			))
 			.addText((text) =>
 				text
-					.setPlaceholder(DEFAULT_MCP_SERVER_PATH)
-					.setValue(this.plugin.settings.mcpServerPath)
+					.setPlaceholder(DEFAULT_MCP_HTTP_ENDPOINT)
+					.setValue(this.plugin.settings.mcpHttpEndpoint)
 					.onChange(async (value) => {
-						this.plugin.settings.mcpServerPath = value.trim() || DEFAULT_MCP_SERVER_PATH;
+						this.plugin.settings.mcpHttpEndpoint = value.trim() || DEFAULT_MCP_HTTP_ENDPOINT;
+						await this.plugin.saveSettings();
+						await this.plugin.refreshGovernanceViews();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName(ui('本机 MCP SSE URL', 'Local MCP SSE URL'))
+			.setDesc(ui(
+				'仅用于兼容旧 MCP 客户端的 SSE endpoint。',
+				'SSE endpoint for legacy MCP clients only.'
+			))
+			.addText((text) =>
+				text
+					.setPlaceholder(DEFAULT_MCP_SSE_ENDPOINT)
+					.setValue(this.plugin.settings.mcpSseEndpoint)
+					.onChange(async (value) => {
+						this.plugin.settings.mcpSseEndpoint = value.trim() || DEFAULT_MCP_SSE_ENDPOINT;
+						await this.plugin.saveSettings();
+						await this.plugin.refreshGovernanceViews();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName(ui('stdio Runtime 命令', 'stdio runtime command'))
+			.setDesc(ui(
+				'仅用于已安装 obs-wiki Runtime 的本机 fallback，不应指向项目源码目录。',
+				'Local fallback for an installed obs-wiki Runtime. It should not point to the project source tree.'
+			))
+			.addText((text) =>
+				text
+					.setPlaceholder(DEFAULT_MCP_STDIO_COMMAND)
+					.setValue(this.plugin.settings.mcpStdioCommand)
+					.onChange(async (value) => {
+						this.plugin.settings.mcpStdioCommand = value.trim() || DEFAULT_MCP_STDIO_COMMAND;
 						await this.plugin.saveSettings();
 						await this.plugin.refreshGovernanceViews();
 					})

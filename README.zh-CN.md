@@ -139,6 +139,20 @@ Obsidian Vault
 Human Review / Audit / Correction in Obsidian App
 ```
 
+## 本机 MCP Runtime 模型
+
+Agent Connection Center 不能生成指向当前仓库 checkout 或 `apps/mcp-server/dist/server.js` 的配置。这个源码路径只属于开发调试细节。
+
+面向用户的连接应使用本机 obs-wiki Runtime/Gateway：
+
+- 首选传输：loopback Streamable HTTP，默认 `http://127.0.0.1:37241/mcp`。
+- 兼容 fallback：loopback SSE，默认 `http://127.0.0.1:37241/sse`。
+- 已安装 runtime fallback：stdio 命令 `obs-wiki-mcp --vault-root <active vault>`。
+- 连接中心应可复制 Codex、Claude Code、Cursor 和通用 MCP 客户端配置。
+- 本机 Runtime 负责 vault 访问、权限检查、审计写入和工具暴露；Agent 客户端不应拿到开发仓库路径。
+
+当前 MCP server 仍是 stdio-first。后续连接层里程碑是实现本机 HTTP/SSE Runtime daemon。
+
 ## 规划中的仓库结构
 
 ```text

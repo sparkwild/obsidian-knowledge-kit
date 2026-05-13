@@ -139,6 +139,20 @@ Obsidian Vault
 Human Review / Audit / Correction in Obsidian App
 ```
 
+## Local MCP Runtime Model
+
+Agent Connection Center must not generate configuration that points to this repository checkout or `apps/mcp-server/dist/server.js`. That source-tree path is only a development detail.
+
+User-facing connections should use a local obs-wiki Runtime/Gateway:
+
+- Preferred transport: Streamable HTTP on loopback, default `http://127.0.0.1:37241/mcp`.
+- Legacy fallback: SSE on loopback, default `http://127.0.0.1:37241/sse`.
+- Installed-runtime fallback: stdio command `obs-wiki-mcp --vault-root <active vault>`.
+- Client configs should be copyable for Codex, Claude Code, Cursor, and generic MCP clients.
+- The local Runtime owns vault access, permission checks, audit writes, and tool exposure. Agent clients should not receive a path to the development repository.
+
+The current MCP server implementation is stdio-first. The local HTTP/SSE Runtime daemon is the next connection-layer milestone.
+
 ## Planned Repository Layout
 
 ```text
