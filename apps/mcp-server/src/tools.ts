@@ -6,6 +6,7 @@ import {
 	analyzeSourceText,
 	type SourceAnalysisResult,
 	buildContextPack,
+	lintNotes,
 	parseMarkdown,
 	recallNotes,
 	scanVault,
@@ -58,6 +59,30 @@ interface StartTaskArgs extends ToolArgs {
 	project_hint?: unknown;
 }
 
+interface BuildContextPackArgs extends ToolArgs {
+	query?: unknown;
+	task_id?: unknown;
+	candidate_limit?: unknown;
+	stale_after_days?: unknown;
+	write?: unknown;
+	filename?: unknown;
+	title?: unknown;
+}
+
+interface LintArgs extends ToolArgs {
+	max_items?: unknown;
+}
+
+interface FinishTaskArgs extends ToolArgs {
+	task_id?: unknown;
+	summary?: unknown;
+	outcomes?: unknown;
+	next_actions?: unknown;
+	client?: unknown;
+	project_hint?: unknown;
+	filename?: unknown;
+}
+
 interface RecallArgs extends ToolArgs {
 	query?: unknown;
 	max_items?: unknown;
@@ -86,6 +111,17 @@ interface WriteSessionNoteArgs extends ToolArgs {
 	filename?: unknown;
 	content?: unknown;
 	task_id?: unknown;
+}
+
+interface DistillSessionArgs extends ToolArgs {
+	task_id?: unknown;
+	summary?: unknown;
+	decisions?: unknown;
+	next_actions?: unknown;
+	possible_preferences?: unknown;
+	outcomes?: unknown;
+	project_hint?: unknown;
+	filename?: unknown;
 }
 
 interface CaptureSourceArgs extends ToolArgs {
@@ -226,6 +262,49 @@ function coerceNonEmptyString(value: unknown, required = false, field = 'value')
 
 function coerceOptionalString(value: unknown): string {
 	return typeof value === 'string' ? value.trim() : '';
+}
+
+function coerceStringOrStringArray(value: unknown, field: string, required = false): string[] {
+	if (value === undefined || value === null) {
+		if (required) {
+			throw new ToolInputError(`Missing required argument: ${field}.`);
+		}
+		return [];
+	}
+
+	if (typeof value === 'string') {
+		const normalized = value.trim();
+		if (!normalized) {
+			if (required) {
+				throw new ToolInputError(`Missing required argument: ${field}.`);
+			}
+			return [];
+		}
+		return [normalized];
+	}
+
+	if (Array.isArray(value)) {
+		const normalized = value
+			.filter((entry): entry is string => typeof entry === 'string')
+			.map((entry) => entry.trim())
+			.filter((entry) => entry.length > 0);
+		if (required && normalized.length === 0) {
+			throw new ToolInputError(`Missing required argument: ${field}.`);
+		}
+		if (normalized.length !== value.length) {
+			throw new ToolInputError(`${field} array must contain only strings.`);
+		}
+		return normalized;
+	}
+
+	throw new ToolInputError(`${field} must be a string or string array.`);
+}
+
+function formatListMarkdown(values: string[]): string {
+	if (values.length === 0) {
+		return '- (none)';
+	}
+	return values.map((item) => `- ${item}`).join('\n');
 }
 
 function coercePositiveInt(value: unknown, fallback: number, min = 1, max = 100): number {
@@ -956,6 +1035,28 @@ function makeToolResultForWrite(tool: string, payload: ReturnType<typeof buildAn
 	};
 }
 
+function buildFixPlanSummary(issues: Array<{ kind: string; severity: string }>): string[] {
+	const issueKinds = issues.map((issue) => issue.kind);
+	const summary: string[] = [];
+
+	const errorCount = issues.filter((issue) => issue.severity === 'error').length;
+	const warningCount = issues.filter((issue) => issue.severity === 'warning').length;
+	summary.push(`${errorCount} error(s), ${warningCount} warning(s)`);
+
+	if (issueKinds.includes('broken_wikilink')) {
+		summary.push('Fix broken wikilinks by creating target notes, correcting link targets, or replacing with plain text.');
+	}
+	if (issueKinds.includes('claim_missing_source')) {
+		summary.push('Add source:: references under [!claim] blocks that currently have no source refs.');
+	}
+
+	if (summary.length === 1) {
+		summary.push('No fix plan generated because no lint issues were found.');
+	}
+
+	return summary;
+}
+
 export function toolDefinitions(): McpToolDefinition[] {
 	return [
 		{
@@ -1217,6 +1318,171 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
+			name: 'obs_wiki.build_context_pack',
+			title: 'obs_wiki.build_context_pack',
+			description:
+				'[read-only | optional write] Build context pack from vault and optionally write a markdown artifact.',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					vaultRoot: {
+						type: 'string',
+						description: 'Vault root path. If omitted, uses server configured --vault-root.',
+					},
+					query: {
+						type: 'string',
+						description: 'Context pack query.',
+					},
+					task_id: {
+						type: 'string',
+						description: 'Optional task id for traceability.',
+					},
+					candidate_limit: {
+						type: 'integer',
+						description: 'How many matches to include.',
+					},
+					stale_after_days: {
+						type: 'integer',
+						description: 'Stale warning threshold in days.',
+					},
+					write: {
+						type: 'boolean',
+						description: 'Whether to write a markdown context-pack artifact.',
+					},
+					filename: {
+						type: 'string',
+						description: 'Optional file stem.',
+					},
+					title: {
+						type: 'string',
+						description: 'Optional note title when writing markdown artifact.',
+					},
+				},
+				required: ['query'],
+				additionalProperties: false,
+			},
+		},
+		{
+			name: 'obs_wiki.lint',
+			title: 'obs_wiki.lint',
+			description: '[read-only] Run lint checks across vault notes.',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					vaultRoot: {
+						type: 'string',
+						description: 'Vault root path. If omitted, uses server configured --vault-root.',
+					},
+					max_items: {
+						type: 'integer',
+						description: 'Maximum number of issues to return.',
+					},
+				},
+				additionalProperties: false,
+			},
+			annotations: {
+				readOnlyHint: true,
+			},
+		},
+		{
+			name: 'obs_wiki.finish_task',
+			title: 'obs_wiki.finish_task',
+			description: '[low-risk write] Create a task session summary note under 02_timeline/sessions.',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					vaultRoot: {
+						type: 'string',
+						description: 'Vault root path. If omitted, uses server configured --vault-root.',
+					},
+					task_id: {
+						type: 'string',
+						description: 'Task id.',
+					},
+					summary: {
+						type: 'string',
+						description: 'Task summary.',
+					},
+					outcomes: {
+						oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+						description: 'Optional outcomes.',
+					},
+					next_actions: {
+						oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+						description: 'Optional next actions.',
+					},
+					client: {
+						type: 'string',
+						description: 'Optional client context.',
+					},
+					project_hint: {
+						type: 'string',
+						description: 'Optional project hint.',
+					},
+					filename: {
+						type: 'string',
+						description: 'Optional file stem.',
+					},
+				},
+				required: ['task_id', 'summary'],
+				additionalProperties: false,
+			},
+			annotations: {
+				destructiveHint: true,
+			},
+		},
+		{
+			name: 'obs_wiki.distill_session',
+			title: 'obs_wiki.distill_session',
+			description: '[low-risk write] Create a task session note and memory proposals from decisions/preferences.',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					vaultRoot: {
+						type: 'string',
+						description: 'Vault root path. If omitted, uses server configured --vault-root.',
+					},
+					task_id: {
+						type: 'string',
+						description: 'Task id.',
+					},
+					summary: {
+						type: 'string',
+						description: 'Session summary.',
+					},
+					decisions: {
+						oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+						description: 'Session decisions.',
+					},
+					next_actions: {
+						oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+						description: 'Optional next actions.',
+					},
+					possible_preferences: {
+						oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+						description: 'Possible preferences.',
+					},
+					outcomes: {
+						oneOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }],
+						description: 'Optional outcomes.',
+					},
+					project_hint: {
+						type: 'string',
+						description: 'Optional project hint.',
+					},
+					filename: {
+						type: 'string',
+						description: 'Optional file stem.',
+					},
+				},
+				required: ['task_id', 'summary'],
+				additionalProperties: false,
+			},
+			annotations: {
+				destructiveHint: true,
+			},
+		},
+		{
 			name: 'obs_wiki.write_context_pack',
 			title: 'obs_wiki.write_context_pack',
 			description: '[low-risk write] Create a new context-pack note under 06_outputs/context_packs.',
@@ -1358,6 +1624,14 @@ export function callTool(name: string, rawParams: unknown, context: ToolContext)
 				return toolResult(handleAnalyzeSourceRequest(rawParams as AnalyzeSourceRequestArgs, context));
 			case 'obs_wiki.apply_approved_writeback':
 				return toolResult(handleApplyApprovedWriteback(rawParams as ApplyApprovedWritebackArgs, context));
+			case 'obs_wiki.build_context_pack':
+				return toolResult(handleBuildContextPack(rawParams as BuildContextPackArgs, context));
+			case 'obs_wiki.lint':
+				return toolResult(handleLint(rawParams as LintArgs, context));
+			case 'obs_wiki.finish_task':
+				return toolResult(handleFinishTask(rawParams as FinishTaskArgs, context));
+			case 'obs_wiki.distill_session':
+				return toolResult(handleDistillSession(rawParams as DistillSessionArgs, context));
 			case 'obs_wiki.write_context_pack':
 				return toolResult(handleWriteContextPack(rawParams as WriteContextPackArgs, context));
 			case 'obs_wiki.write_session_note':
@@ -2213,4 +2487,340 @@ function handleProposeMemory(rawArgs: ProposeMemoryArgs, context: ToolContext) {
 	);
 
 	return makeToolResultForWrite('obs_wiki.propose_memory', note);
+}
+
+function handleBuildContextPack(rawArgs: BuildContextPackArgs, context: ToolContext) {
+	const vaultRoot = vaultRootFromArgs(rawArgs, context);
+	const query = coerceNonEmptyString(rawArgs.query, true, 'query');
+	const taskId = coerceOptionalString(rawArgs.task_id);
+	const candidateLimit = coercePositiveInt(rawArgs.candidate_limit, 8, 1, 120);
+	const staleAfterDays = coercePositiveInt(rawArgs.stale_after_days, 180, 1, 3650);
+	const shouldWrite = coerceBoolean(rawArgs.write, 'write', false);
+	const title = coerceOptionalString(rawArgs.title);
+
+	const contextPack = buildContextPack(vaultRoot, query, {
+		limit: candidateLimit,
+		staleAfterDays,
+	});
+
+	if (!shouldWrite) {
+		return {
+			ok: true,
+			read_only: true,
+			vault_root: vaultRoot,
+			task_id: taskId || null,
+			query,
+			context_pack: contextPack,
+		};
+	}
+
+	const now = new Date().toISOString();
+	const filename = buildSafeFilename(rawArgs.filename, 'context_pack');
+	const contextMarkdown = [
+		'# Context Pack',
+		`- query: ${contextPack.query}`,
+		`- task_id: ${taskId || 'unset'}`,
+		`- generated_at: ${contextPack.generatedAt}`,
+		`- candidate_limit: ${candidateLimit}`,
+		`- stale_after_days: ${staleAfterDays}`,
+		'',
+		'## Relevant Notes',
+		...contextPack.relevantNotes.map(
+			(entry) =>
+				`- ${entry.relativePath} | score: ${entry.score} | title: ${entry.title}`
+		),
+		'',
+		'## Source Candidates',
+		...contextPack.sourceCandidates.map((entry) => `- ${entry.note} (${entry.reason})`),
+		'',
+		'## Evidence Candidates',
+		...contextPack.evidenceCandidates.map((entry) => {
+			const marker = entry.blockId ? `#${entry.blockId}` : '';
+			return `- ${entry.note} ${marker}`.trim();
+		}),
+		'',
+		'## Gaps',
+		...contextPack.gaps.map((entry) => `- ${entry}`),
+		'',
+		'## Stale Warnings',
+		...contextPack.staleWarnings.map((entry) => `- ${entry}`),
+		'',
+		'## Scan Errors',
+		...contextPack.scanErrors.map((entry) => `- ${entry.path}: ${entry.error}`),
+	].join('\n');
+
+	assertNoSensitiveText([
+		{ label: 'query', value: query },
+		{ label: 'title', value: title },
+		{ label: 'context pack', value: contextMarkdown },
+	]);
+
+	const note = buildAndWriteNote(
+		vaultRoot,
+		'obs_wiki.build_context_pack',
+		CONTEXT_PACK_DIR,
+		filename,
+		{
+			tool: 'obs_wiki.build_context_pack',
+			type: 'context_pack',
+			title: title || `context_pack_${now}`,
+			query,
+			task_id: taskId || null,
+			candidate_limit: candidateLimit,
+			stale_after_days: staleAfterDays,
+			created_at: now,
+		},
+		contextMarkdown,
+		taskId || null,
+		{
+			target_type: 'context_pack',
+			output_format: 'markdown',
+		}
+	);
+
+	return {
+		ok: true,
+		read_only: false,
+		vault_root: vaultRoot,
+		task_id: taskId || null,
+		query,
+		context_pack: contextPack,
+		artifact: {
+			path: note.path,
+			audit_path: note.audit_path,
+		},
+	};
+}
+
+function handleLint(rawArgs: LintArgs, context: ToolContext) {
+	const vaultRoot = vaultRootFromArgs(rawArgs, context);
+	const maxItems = coercePositiveInt(rawArgs.max_items, 40, 1, 2000);
+	const scan = scanVault(vaultRoot);
+	const { issues } = lintNotes(vaultRoot, scan.notes);
+	const limitedIssues = issues.slice(0, maxItems);
+
+	return {
+		ok: true,
+		read_only: true,
+		vault_root: vaultRoot,
+		scanned_at: scan.scannedAt,
+		issue_count: issues.length,
+		issues: limitedIssues,
+		fix_plan_summary: buildFixPlanSummary(issues),
+	};
+}
+
+function buildSessionNoteBody(summary: string, outcomes: string[], nextActions: string[]): string {
+	const lines = [
+		'# Task Session Note',
+		`- created_at: ${new Date().toISOString()}`,
+		'',
+		'## Summary',
+		summary,
+		'',
+		'## Outcomes',
+		...formatListMarkdown(outcomes).split('\n'),
+		'',
+		'## Next Actions',
+		...formatListMarkdown(nextActions).split('\n'),
+	].join('\n');
+	return lines.trim();
+}
+
+function buildSessionNoteBodyWithDistill(
+	summary: string,
+	outcomes: string[],
+	nextActions: string[],
+	decisions: string[],
+	possiblePreferences: string[],
+): string {
+	const lines = [
+		'# Distilled Session Note',
+		`- created_at: ${new Date().toISOString()}`,
+		'',
+		'## Summary',
+		summary,
+		'',
+		'## Outcomes',
+		...formatListMarkdown(outcomes).split('\n'),
+		'',
+		'## Next Actions',
+		...formatListMarkdown(nextActions).split('\n'),
+		'',
+		'## Decisions',
+		...formatListMarkdown(decisions).split('\n'),
+		'',
+		'## Possible Preferences',
+		...formatListMarkdown(possiblePreferences).split('\n'),
+	].join('\n');
+	return lines.trim();
+}
+
+function createDistillProposal(
+	vaultRoot: string,
+	taskId: string,
+	proposalKind: string,
+	kindLabel: string,
+	contentItems: string[]
+): { path: string } {
+	const body = [
+		`## Distilled ${kindLabel}`,
+		...contentItems.map((item) => `- ${item}`),
+		'',
+		`- task_id: ${taskId}`,
+	].join('\n');
+	const now = new Date().toISOString();
+	const filenameToken = `${proposalKind}-${taskId}-${now.replace(/[:.]/g, '-')}-${crypto.randomUUID().slice(0, 8)}`;
+	const proposal = buildAndWriteNote(
+		vaultRoot,
+		'obs_wiki.distill_session',
+		MEMORY_PROPOSAL_DIR,
+		buildSafeFilename(filenameToken, proposalKind),
+		{
+			tool: 'obs_wiki.distill_session',
+			type: 'memory_proposal',
+			title: `${kindLabel} ${taskId}`,
+			proposal_kind: proposalKind,
+			status: 'pending',
+			risk_level: 'medium',
+			created_at: now,
+			task_id: taskId,
+		},
+		body,
+		taskId,
+		{
+			target_type: 'memory_proposal',
+			proposal_kind: proposalKind,
+		}
+	);
+	return { path: proposal.path };
+}
+
+function handleFinishTask(rawArgs: FinishTaskArgs, context: ToolContext) {
+	const vaultRoot = vaultRootFromArgs(rawArgs, context);
+	const taskId = coerceNonEmptyString(rawArgs.task_id, true, 'task_id');
+	const summary = coerceNonEmptyString(rawArgs.summary, true, 'summary');
+	const outcomes = coerceStringOrStringArray(rawArgs.outcomes, 'outcomes');
+	const nextActions = coerceStringOrStringArray(rawArgs.next_actions, 'next_actions');
+	const client = coerceOptionalString(rawArgs.client);
+	const projectHint = coerceOptionalString(rawArgs.project_hint);
+	const filename = buildSafeFilename(rawArgs.filename, 'session');
+	const now = new Date().toISOString();
+
+	const body = buildSessionNoteBody(summary, outcomes, nextActions);
+	assertNoSensitiveText([
+		{ label: 'summary', value: summary },
+		{ label: 'outcomes', value: outcomes.join('\n') },
+		{ label: 'next_actions', value: nextActions.join('\n') },
+		{ label: 'client', value: client },
+		{ label: 'project_hint', value: projectHint },
+	]);
+
+	const note = buildAndWriteNote(
+		vaultRoot,
+		'obs_wiki.finish_task',
+		SESSION_NOTE_DIR,
+		filename,
+		{
+			tool: 'obs_wiki.finish_task',
+			type: 'session_note',
+			title: `Task ${taskId} finish note`,
+			task_id: taskId,
+			client: client || null,
+			project_hint: projectHint || null,
+			created_at: now,
+		},
+		body,
+		taskId,
+		{
+			target_type: 'session_note',
+			task_stage: 'finish',
+		}
+	);
+
+	return {
+		ok: true,
+		read_only: false,
+		task_id: taskId,
+		path: note.path,
+		audit_path: note.audit_path,
+		outcome_count: outcomes.length,
+		next_action_count: nextActions.length,
+	};
+}
+
+function handleDistillSession(rawArgs: DistillSessionArgs, context: ToolContext) {
+	const vaultRoot = vaultRootFromArgs(rawArgs, context);
+	const taskId = coerceNonEmptyString(rawArgs.task_id, true, 'task_id');
+	const summary = coerceNonEmptyString(rawArgs.summary, true, 'summary');
+	const decisions = coerceStringOrStringArray(rawArgs.decisions, 'decisions');
+	const nextActions = coerceStringOrStringArray(rawArgs.next_actions, 'next_actions');
+	const possiblePreferences = coerceStringOrStringArray(rawArgs.possible_preferences, 'possible_preferences');
+	const outcomes = coerceStringOrStringArray(rawArgs.outcomes, 'outcomes');
+	const projectHint = coerceOptionalString(rawArgs.project_hint);
+	const filename = buildSafeFilename(rawArgs.filename, 'session');
+	const now = new Date().toISOString();
+
+	assertNoSensitiveText([
+		{ label: 'summary', value: summary },
+		{ label: 'decisions', value: decisions.join('\n') },
+		{ label: 'next_actions', value: nextActions.join('\n') },
+		{ label: 'possible_preferences', value: possiblePreferences.join('\n') },
+		{ label: 'outcomes', value: outcomes.join('\n') },
+		{ label: 'project_hint', value: projectHint },
+	]);
+
+	const body = buildSessionNoteBodyWithDistill(summary, outcomes, nextActions, decisions, possiblePreferences);
+	const note = buildAndWriteNote(
+		vaultRoot,
+		'obs_wiki.distill_session',
+		SESSION_NOTE_DIR,
+		filename,
+		{
+			tool: 'obs_wiki.distill_session',
+			type: 'session_note',
+			title: `Task ${taskId} distill note`,
+			task_id: taskId,
+			project_hint: projectHint || null,
+			created_at: now,
+		},
+		body,
+		taskId,
+		{
+			target_type: 'session_note',
+			task_stage: 'distill',
+		}
+	);
+
+	const proposals: string[] = [];
+	if (decisions.length > 0) {
+		const proposal = createDistillProposal(
+			vaultRoot,
+			taskId,
+			'distill_decisions',
+			'Decisions',
+			decisions
+		);
+		proposals.push(proposal.path);
+	}
+	if (possiblePreferences.length > 0) {
+		const proposal = createDistillProposal(
+			vaultRoot,
+			taskId,
+			'distill_preferences',
+			'Possible Preferences',
+			possiblePreferences
+		);
+		proposals.push(proposal.path);
+	}
+
+	return {
+		ok: true,
+		read_only: false,
+		task_id: taskId,
+		path: note.path,
+		audit_path: note.audit_path,
+		proposals: proposals.map((p) => ({ path: p })),
+		proposal_count: proposals.length,
+	};
 }

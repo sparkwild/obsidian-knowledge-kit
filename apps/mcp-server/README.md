@@ -23,6 +23,10 @@ MCP server for obs-wiki operations. It is read-only by default and exposes contr
 - `obs_wiki.list_approved_writebacks`
 - `obs_wiki.audit_recent`
 - `obs_wiki.write_context_pack`
+- `obs_wiki.build_context_pack`
+- `obs_wiki.lint`
+- `obs_wiki.finish_task`
+- `obs_wiki.distill_session`
 - `obs_wiki.write_session_note`
 - `obs_wiki.capture_source`
 - `obs_wiki.propose_memory`
@@ -40,9 +44,9 @@ Current write allowlist:
 
 - Writes are strictly limited to:
   - `06_outputs/context_packs/`
+  - `06_outputs/source_analysis/`
   - `02_timeline/sessions/`
   - `03_sources/`
-  - `06_outputs/source_analysis/`
   - `01_inbox/review_queue/`
   - `01_inbox/agent_requests/` request status updates
   - `00_control/audit_log.md`

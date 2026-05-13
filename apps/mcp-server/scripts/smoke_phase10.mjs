@@ -130,6 +130,7 @@ async function main() {
 	const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'obs-wiki-mcp-phase10-'));
 	const vaultRoot = path.join(tempRoot, 'vault');
 	const fixturePath = path.join(vaultRoot, '01_inbox', 'agent_requests', 'local-source-request.md');
+	const lintFixturePath = path.join(vaultRoot, '04_projects', 'demo', 'phase10-lint-fixture.md');
 	const client = new McpTestClient(vaultRoot);
 
 	try {
@@ -173,6 +174,15 @@ async function main() {
 			'',
 		].join('\n'));
 		writeNote(vaultRoot, '03_sources/local-source.md', '# Source\n\nThis is source content for mcp smoke source-analysis test.');
+		writeNote(vaultRoot, '04_projects/demo/phase10-lint-fixture.md', [
+			'# Phase 10 Lint Fixture',
+			'This note references [[phase10_missing_page]] and includes a claim with no source.',
+			'',
+			'> [!claim]',
+			'> This is a claim that should require source refs.',
+			'',
+		].join('\n'));
+		assert.ok(fs.existsSync(lintFixturePath), 'lint fixture created');
 
 		await client.start();
 
@@ -196,6 +206,10 @@ async function main() {
 			'obs_wiki.list_approved_writebacks',
 			'obs_wiki.audit_recent',
 			'obs_wiki.write_context_pack',
+			'obs_wiki.build_context_pack',
+			'obs_wiki.lint',
+			'obs_wiki.finish_task',
+			'obs_wiki.distill_session',
 			'obs_wiki.write_session_note',
 			'obs_wiki.capture_source',
 			'obs_wiki.propose_memory',
@@ -233,6 +247,80 @@ async function main() {
 		}));
 		assert.equal(writeContext.ok, true);
 		assert.ok(fs.existsSync(path.join(vaultRoot, writeContext.path)));
+
+		const buildContextRead = buildStructured(await client.call('tools/call', {
+			name: 'obs_wiki.build_context_pack',
+			arguments: {
+				query: 'smoke',
+				candidate_limit: 5,
+				stale_after_days: 30,
+				write: false,
+			},
+		}));
+		assert.equal(buildContextRead.ok, true);
+		assert.equal(buildContextRead.read_only, true);
+		assert.equal(buildContextRead.query, 'smoke');
+		assert.equal(Array.isArray(buildContextRead.context_pack.relevantNotes), true);
+
+		const buildContextWrite = buildStructured(await client.call('tools/call', {
+			name: 'obs_wiki.build_context_pack',
+			arguments: {
+				query: 'smoke',
+				write: true,
+				filename: 'phase10-context-pack-auto',
+				title: 'Phase 10 build context pack',
+			},
+		}));
+		assert.equal(buildContextWrite.ok, true);
+		assert.equal(buildContextWrite.read_only, false);
+		assert.ok(fs.existsSync(path.join(vaultRoot, buildContextWrite.artifact.path)));
+		assert.ok(buildContextWrite.artifact.path.startsWith('06_outputs/context_packs/'));
+		assert.ok(buildContextWrite.artifact.path.endsWith('.md'));
+
+		const lintResult = buildStructured(await client.call('tools/call', {
+			name: 'obs_wiki.lint',
+			arguments: {
+				max_items: 20,
+			},
+		}));
+		assert.equal(lintResult.ok, true);
+		assert.equal(typeof lintResult.issue_count, 'number');
+		assert.ok(Array.isArray(lintResult.issues));
+		assert.ok(lintResult.issues.length > 0);
+		assert.ok(Array.isArray(lintResult.fix_plan_summary));
+
+		const finishTask = buildStructured(await client.call('tools/call', {
+			name: 'obs_wiki.finish_task',
+			arguments: {
+				task_id: 'task-smoke-finish',
+				summary: 'Smoke task finish session.',
+				outcomes: ['Complete smoke validation'],
+				next_actions: ['Run lint and distill'],
+			},
+		}));
+		assert.equal(finishTask.ok, true);
+		assert.equal(finishTask.read_only, false);
+		assert.ok(fs.existsSync(path.join(vaultRoot, finishTask.path)));
+
+		const distillSession = buildStructured(await client.call('tools/call', {
+			name: 'obs_wiki.distill_session',
+			arguments: {
+				task_id: 'task-smoke-distill',
+				summary: 'Smoke distill session.',
+				decisions: ['Prefer deterministic artifacts'],
+				possible_preferences: ['Prefer markdown session notes'],
+				outcomes: ['Generated distill proposals'],
+				next_actions: ['Review proposals'],
+			},
+		}));
+		assert.equal(distillSession.ok, true);
+		assert.equal(distillSession.read_only, false);
+		assert.equal(distillSession.proposal_count, 2);
+		assert.ok(Array.isArray(distillSession.proposals));
+		assert.equal(distillSession.proposals.length, 2);
+		for (const proposal of distillSession.proposals) {
+			assert.ok(fs.existsSync(path.join(vaultRoot, proposal.path)));
+		}
 
 		const writeSession = buildStructured(await client.call('tools/call', {
 			name: 'obs_wiki.write_session_note',
