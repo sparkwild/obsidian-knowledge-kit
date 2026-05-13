@@ -2992,9 +2992,6 @@ class ObsWikiAgentConnectionsView extends ItemView {
 			ui('验证方式', 'Verify'),
 			config.restartRequired ? ui('重启工具', 'Restart tool') : ui('按工具提示验证', 'Use tool prompt')
 		);
-		if (config.targetPath) {
-			this.renderClientMeta(facts, ui('配置文件', 'Config file'), config.targetPath);
-		}
 		const actions = row.createDiv({ cls: 'obs-wiki-config-row__actions obs-wiki-action-row' });
 		const copy = actions.createEl('button', { text: ui('复制配置', 'Copy config') });
 		copy.addEventListener('click', () => {
