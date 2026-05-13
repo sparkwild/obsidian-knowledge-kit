@@ -444,7 +444,7 @@ export default class ObswikiPlugin extends Plugin {
 			(leaf) => new ObswikiAgentConnectionsView(leaf, this)
 		);
 
-		this.addRibbonIcon('brain-circuit', ui('打开知识库活动', 'Open Obswiki activity'), () => {
+		this.addRibbonIcon('brain-circuit', ui(`打开${PLUGIN_DISPLAY_NAME_ZH}面板`, `Open ${PLUGIN_DISPLAY_NAME_EN} panel`), () => {
 			this.openPluginView(OBSWIKI_ACTIVITY_VIEW);
 		});
 
