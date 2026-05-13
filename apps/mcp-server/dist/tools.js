@@ -831,7 +831,7 @@ function appendAuditEvent(vaultRoot, input) {
     const audit = ensureAuditLog(vaultRoot);
     const eventName = input.type || 'tool-call';
     const eventType = input.event || eventName;
-    const toolName = input.tool || input.tool || 'unknown';
+    const toolName = input.tool || '';
     const timestamp = input.timestamp || new Date().toISOString();
     const targetPaths = normalizeAuditTargets(input.targetPath ? [input.targetPath] : input.targetPaths || []);
     const eventLines = [
@@ -857,7 +857,9 @@ function appendAuditEvent(vaultRoot, input) {
     if (input.action) {
         eventLines.push(`- action: ${sanitizeYamlValue(input.action)}`);
     }
-    eventLines.push(`- tool_name: ${sanitizeYamlValue(toolName)}`);
+    if (toolName) {
+        eventLines.push(`- tool_name: ${sanitizeYamlValue(toolName)}`);
+    }
     if (input.resultStatus) {
         eventLines.push(`- result_status: ${sanitizeYamlValue(input.resultStatus)}`);
     }

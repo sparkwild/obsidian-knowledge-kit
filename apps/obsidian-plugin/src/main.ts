@@ -1763,6 +1763,19 @@ export default class WikiWeaverPlugin extends Plugin {
 		return event.eventType === 'connection' || event.eventType === 'agent-connection-event' || event.action === 'connection' || event.action === 'mcp.initialize';
 	}
 
+	private normalizeAuditToolName(eventType: string, action: string, toolName: string): string {
+		const normalizedTool = toolName.trim();
+		const isConnection =
+			eventType === 'connection' ||
+			eventType === 'agent-connection-event' ||
+			action === 'connection' ||
+			action === 'mcp.initialize';
+		if (isConnection && normalizedTool.toLowerCase() === 'unknown') {
+			return '';
+		}
+		return normalizedTool;
+	}
+
 	private toAgentToolCallRecord(event: AuditEventRecord): AgentToolCallRecord {
 		return {
 			agentId: event.agentId || 'unknown',
@@ -2178,23 +2191,30 @@ export default class WikiWeaverPlugin extends Plugin {
 			this.parseTimestamp(timestamp, file.stat?.mtime || Date.now()) || file.stat?.mtime || Date.now();
 
 		if (Object.keys(data).length > 0) {
+			const eventType = this.firstString(data, ['type']);
+			const action = this.firstString(data, ['action']) || 'unknown';
+			const toolName = this.normalizeAuditToolName(
+				eventType,
+				action,
+				this.firstString(data, ['tool_name', 'toolName', 'tool'])
+			);
 			return [
 				{
 					path: file.path,
 					auditId: this.firstString(data, ['audit_id', 'auditId', 'id']),
 					actor: this.firstString(data, ['actor']) || 'unknown',
-					action: this.firstString(data, ['action']) || 'unknown',
+					action,
 					target: this.firstString(data, ['target']) || '',
 					reason: this.firstString(data, ['reason']) || '',
 					taskId: this.firstString(data, ['task_id', 'taskId']),
 					timestamp: timestamp || '',
 					sortTimestamp: fallbackTs,
 					snippet: this.snippetFromText(parsed.body, this.trimText(file.basename)),
-					eventType: this.firstString(data, ['type']),
+					eventType,
 					agentId: this.firstString(data, ['agent_id', 'agentId', 'session_id', 'sessionId']),
 					sessionId: this.firstString(data, ['session_id', 'sessionId']),
 					clientName: this.firstString(data, ['client_name', 'clientName', 'client']),
-					toolName: this.firstString(data, ['tool_name', 'toolName', 'tool']),
+					toolName,
 					resultStatus: this.firstString(data, ['result_status', 'resultStatus', 'status']),
 					targetPaths: this.readStringList(data, ['target_paths', 'targetPaths', 'target_path', 'targetPath', 'target']),
 					durationMs: this.firstString(data, ['duration_ms', 'durationMs']),
@@ -2236,11 +2256,18 @@ export default class WikiWeaverPlugin extends Plugin {
 			const row = this.readKeyValueRows(bodyLines);
 			const fallbackTimestamp =
 				this.firstString(row, ['timestamp']) || timestampHeader;
+			const eventType = this.firstString(row, ['type']);
+			const action = this.firstString(row, ['action']) || 'unknown';
+			const toolName = this.normalizeAuditToolName(
+				eventType,
+				action,
+				this.firstString(row, ['tool_name', 'toolName', 'tool'])
+			);
 			events.push({
 				path: sourcePath,
 				auditId: this.firstString(row, ['audit_id', 'auditId', 'id']),
 				actor: this.firstString(row, ['actor']) || 'unknown',
-				action: this.firstString(row, ['action']) || 'unknown',
+				action,
 				target: this.firstString(row, ['target']) || '',
 				reason: this.firstString(row, ['reason']) || '',
 				taskId: this.firstString(row, ['task_id', 'taskId']),
@@ -2250,11 +2277,11 @@ export default class WikiWeaverPlugin extends Plugin {
 					Date.now()
 				),
 				snippet: this.snippetFromText(bodyLines.join('\n')),
-				eventType: this.firstString(row, ['type']),
+				eventType,
 				agentId: this.firstString(row, ['agent_id', 'agentId', 'session_id', 'sessionId']),
 				sessionId: this.firstString(row, ['session_id', 'sessionId']),
 				clientName: this.firstString(row, ['client_name', 'clientName', 'client']),
-				toolName: this.firstString(row, ['tool_name', 'toolName', 'tool']),
+				toolName,
 				resultStatus: this.firstString(row, ['result_status', 'resultStatus', 'status']),
 				targetPaths: this.readStringList(row, ['target_paths', 'targetPaths', 'target_path', 'targetPath', 'target']),
 				durationMs: this.firstString(row, ['duration_ms', 'durationMs']),
@@ -2520,6 +2547,30 @@ export default class WikiWeaverPlugin extends Plugin {
 			apply_approved_writeback: ui('应用已批准写回', 'Apply approved writeback'),
 		};
 		return labels[normalized] || normalized.replace(/_/g, ' ') || ui('未知操作', 'Unknown action');
+	}
+
+	formatAgentDisplayName(clientName: string, agentId = ''): string {
+		const raw = (clientName || agentId || '').trim();
+		const normalized = raw.toLowerCase();
+		if (!normalized) {
+			return ui('AI 工具', 'AI tool');
+		}
+		if (normalized.includes('codex')) {
+			return 'Codex';
+		}
+		if (normalized.includes('claude')) {
+			return 'Claude';
+		}
+		if (normalized.includes('cursor')) {
+			return 'Cursor';
+		}
+		if (normalized.includes('wiki-weaver')) {
+			return 'Wiki Weaver';
+		}
+		if (raw.length <= 28) {
+			return raw;
+		}
+		return this.trimText(raw, 28);
 	}
 
 	formatResultLabel(status: string): string {
@@ -2940,14 +2991,30 @@ class WikiWeaverActivityView extends ItemView {
 				body: proposal.snippet,
 				path: proposal.path,
 			})),
-			...snapshot.recentAuditEvents.map((event) => ({
-				time: event.sortTimestamp,
-				type: event.toolName ? ui('工具使用', 'Tool usage') : ui('记录', 'Record'),
-				title: event.toolName ? this.plugin.formatToolDisplayName(event.toolName) : event.action,
-				meta: event.resultStatus ? this.plugin.formatResultLabel(event.resultStatus) : event.actor,
-				body: event.reason || event.snippet,
-				path: event.target || event.path,
-			})),
+			...snapshot.recentAuditEvents.map((event) => {
+				const isConnection =
+					event.eventType === 'connection' ||
+					event.eventType === 'agent-connection-event' ||
+					event.action === 'connection' ||
+					event.action === 'mcp.initialize';
+				const agentLabel = this.plugin.formatAgentDisplayName(event.clientName, event.agentId);
+				return {
+					time: event.sortTimestamp,
+					type: event.toolName
+						? ui(`${agentLabel} 操作`, `${agentLabel} action`)
+						: isConnection
+							? ui(`${agentLabel} 连接`, `${agentLabel} connection`)
+							: ui('记录', 'Record'),
+					title: event.toolName
+						? this.plugin.formatToolDisplayName(event.toolName)
+						: isConnection
+							? ui('建立连接', 'Connected')
+							: event.action,
+					meta: event.resultStatus ? this.plugin.formatResultLabel(event.resultStatus) : event.actor,
+					body: event.reason || event.snippet,
+					path: event.target || event.path,
+				};
+			}),
 		].sort((a, b) => b.time - a.time).slice(0, 18);
 
 		const timeline = contentEl.createDiv({ cls: 'wiki-weaver-card' });
