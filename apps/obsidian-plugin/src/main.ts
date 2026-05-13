@@ -2850,7 +2850,6 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		const advancedClientConfigs = snapshot.clientConfigs.filter((config) => !coreClientIds.has(config.clientId));
 
 		const configGrid = contentEl.createDiv({ cls: 'obs-wiki-config-grid' });
-		this.renderConfigListHeader(configGrid);
 		for (const clientConfig of coreClientConfigs) {
 			this.renderConfigCard(configGrid, clientConfig);
 		}
@@ -2976,15 +2975,6 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		this.renderDetail(matrix, ui('工作记录', 'Working records'), ui('保存前检查', 'Checked before saving'));
 		this.renderDetail(matrix, ui('长期记忆', 'Long-term memory'), ui('先审核再写入', 'Review before writing'));
 		this.renderDetail(matrix, ui('不会执行', 'Never allowed'), ui('系统命令、知识库外文件、Obsidian 配置目录、删除或批量重写', 'System commands, files outside the knowledge base, Obsidian settings folders, delete or bulk rewrite'));
-	}
-
-	private renderConfigListHeader(container: HTMLElement): void {
-		const header = container.createDiv({ cls: 'obs-wiki-config-row obs-wiki-config-row--header' });
-		header.createEl('span', { text: ui('AI 工具', 'AI tool') });
-		header.createEl('span', { text: ui('连接', 'Connection') });
-		header.createEl('span', { text: ui('配置', 'Setup') });
-		header.createEl('span', { text: ui('验证', 'Verify') });
-		header.createEl('span', { text: ui('操作', 'Actions') });
 	}
 
 	private renderConfigCard(container: HTMLElement, config: GeneratedClientConfig): void {

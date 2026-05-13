@@ -107,18 +107,6 @@
 	padding: 8px 10px;
 }
 
-.obs-wiki-config-row--header {
-	margin: 6px 0 -2px;
-	padding: 0 10px;
-	color: var(--text-muted);
-	font-size: 12px;
-	font-weight: 600;
-}
-
-.obs-wiki-config-row--header span:last-child {
-	text-align: right;
-}
-
 .obs-wiki-config-row__client {
 	min-width: 0;
 }
@@ -359,10 +347,6 @@
 	.obs-wiki-config-row {
 		grid-template-columns: 1fr;
 		align-items: start;
-	}
-
-	.obs-wiki-config-row--header {
-		display: none;
 	}
 
 	.obs-wiki-config-value {
