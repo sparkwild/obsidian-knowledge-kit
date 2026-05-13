@@ -3,6 +3,7 @@ import {
 	ItemView,
 	Modal,
 	Notice,
+	Platform,
 	Plugin,
 	PluginSettingTab,
 	Setting,
@@ -10,6 +11,7 @@ import {
 	TFolder,
 	WorkspaceLeaf,
 	getLanguage,
+	requestUrl,
 } from 'obsidian';
 
 const OBS_WIKI_ACTIVITY_VIEW = 'obs-wiki-activity';
@@ -287,16 +289,73 @@ interface AgentToolCallRecord {
 	sortTimestamp: number;
 }
 
+type LocalConnectionState =
+	| 'available'
+	| 'service_not_running'
+	| 'needs_update'
+	| 'needs_restart'
+	| 'unsupported';
+
+type ConnectionTransport = 'streamable-http' | 'sse' | 'stdio';
+
+interface LocalConnectionStatus {
+	state: LocalConnectionState;
+	label: string;
+	detail: string;
+	checkedAt: string;
+	statusCode?: number;
+}
+
+interface ClientProfile {
+	id: string;
+	displayName: string;
+	description: string;
+	preferredTransport: ConnectionTransport;
+	supportsAutoConfigure: boolean;
+	restartRequired: boolean;
+	configFormat: 'codex-toml' | 'mcp-json' | 'command' | 'copy-only';
+	targetPath?: string;
+}
+
+interface GeneratedClientConfig {
+	clientId: string;
+	displayName: string;
+	description: string;
+	transport: ConnectionTransport;
+	configText: string;
+	supportsAutoConfigure: boolean;
+	restartRequired: boolean;
+	configFormat: ClientProfile['configFormat'];
+	targetPath?: string;
+}
+
+interface DesktopNodeApi {
+	fs: {
+		existsSync(path: string): boolean;
+		readFileSync(path: string, encoding: 'utf8'): string;
+		writeFileSync(path: string, content: string, encoding: 'utf8'): void;
+		mkdirSync(path: string, options: { recursive: boolean }): void;
+		renameSync(oldPath: string, newPath: string): void;
+	};
+	path: {
+		dirname(path: string): string;
+		join(...parts: string[]): string;
+	};
+	os: {
+		homedir(): string;
+	};
+	shell?: {
+		openPath(path: string): Promise<string>;
+	};
+}
+
 interface AgentConnectionsSnapshot {
 	vaultRoot: string;
 	httpEndpoint: string;
 	sseEndpoint: string;
 	stdioCommand: string;
-	stdioConfig: string;
-	codexConfig: string;
-	claudeConfig: string;
-	cursorConfig: string;
-	customConfig: string;
+	localConnection: LocalConnectionStatus;
+	clientConfigs: GeneratedClientConfig[];
 	recentAgents: AgentConnectionRecord[];
 	recentToolCalls: AgentToolCallRecord[];
 	missingAuditSources: boolean;
@@ -821,17 +880,15 @@ export default class ObsWikiPlugin extends Plugin {
 		const httpEndpoint = this.getMcpHttpEndpoint();
 		const sseEndpoint = this.getMcpSseEndpoint();
 		const stdioCommand = this.buildMcpStdioCommand(vaultRoot);
+		const localConnection = await this.checkLocalConnectionStatus(httpEndpoint);
 
 		return {
 			vaultRoot,
 			httpEndpoint,
 			sseEndpoint,
 			stdioCommand,
-			stdioConfig: this.buildMcpStdioConfig(vaultRoot),
-			codexConfig: this.buildMcpConfig(vaultRoot, 'codex'),
-			claudeConfig: this.buildMcpConfig(vaultRoot, 'claude'),
-			cursorConfig: this.buildMcpConfig(vaultRoot, 'cursor'),
-			customConfig: this.buildMcpConfig(vaultRoot, 'custom'),
+			localConnection,
+			clientConfigs: this.buildClientConfigs(vaultRoot),
 			recentAgents,
 			recentToolCalls: toolCalls,
 			missingAuditSources: auditLogMissing && auditDirMissing,
@@ -848,17 +905,98 @@ export default class ObsWikiPlugin extends Plugin {
 		return `${this.getMcpStdioCommand()} --vault-root "${vaultRoot}"`;
 	}
 
-	private buildMcpConfig(_vaultRoot: string, client: string): string {
+	private buildClientConfigs(vaultRoot: string): GeneratedClientConfig[] {
+		return this.getClientProfiles().map((profile) => ({
+			clientId: profile.id,
+			displayName: profile.displayName,
+			description: profile.description,
+			transport: profile.preferredTransport,
+			configText: this.buildClientConfigText(profile, vaultRoot),
+			supportsAutoConfigure: profile.supportsAutoConfigure,
+			restartRequired: profile.restartRequired,
+			configFormat: profile.configFormat,
+			targetPath: profile.targetPath,
+		}));
+	}
+
+	private getClientProfiles(): ClientProfile[] {
+		const desktopApi = this.getDesktopNodeApi();
+		const homeDir = desktopApi?.os.homedir();
+		return [
+			{
+				id: 'codex',
+				displayName: 'Codex',
+				description: ui('将下面内容加入 Codex 配置文件，然后重启 Codex。', 'Add this to your Codex config file, then restart Codex.'),
+				preferredTransport: 'streamable-http',
+				supportsAutoConfigure: Boolean(homeDir),
+				restartRequired: true,
+				configFormat: 'codex-toml',
+				targetPath: homeDir ? desktopApi?.path.join(homeDir, '.codex', 'config.toml') : undefined,
+			},
+			{
+				id: 'claude-code',
+				displayName: 'Claude Code',
+				description: ui('在终端执行下面命令，为 Claude Code 添加 obs-wiki 连接。', 'Run this command in a terminal to add the obs-wiki connection to Claude Code.'),
+				preferredTransport: 'streamable-http',
+				supportsAutoConfigure: false,
+				restartRequired: false,
+				configFormat: 'command',
+			},
+			{
+				id: 'claude-desktop',
+				displayName: 'Claude Desktop',
+				description: ui('将下面内容加入 Claude Desktop 连接配置，然后重启 Claude Desktop。', 'Add this to Claude Desktop connection settings, then restart Claude Desktop.'),
+				preferredTransport: 'streamable-http',
+				supportsAutoConfigure: Boolean(homeDir),
+				restartRequired: true,
+				configFormat: 'mcp-json',
+				targetPath: homeDir ? desktopApi?.path.join(homeDir, 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json') : undefined,
+			},
+			{
+				id: 'cursor',
+				displayName: 'Cursor',
+				description: ui('将下面内容加入 Cursor 的连接配置，然后重启 Cursor。', 'Add this to Cursor connection settings, then restart Cursor.'),
+				preferredTransport: 'streamable-http',
+				supportsAutoConfigure: false,
+				restartRequired: true,
+				configFormat: 'copy-only',
+			},
+			{
+				id: 'custom',
+				displayName: ui('其他工具', 'Other tools'),
+				description: ui('如果你的 AI 工具支持通过地址连接，可使用这份配置。', 'Use this config when your AI tool supports connecting by URL.'),
+				preferredTransport: 'streamable-http',
+				supportsAutoConfigure: false,
+				restartRequired: true,
+				configFormat: 'copy-only',
+			},
+			{
+				id: 'local-command',
+				displayName: ui('本机命令方式', 'Local command mode'),
+				description: ui('如果你的 AI 工具只能启动本机命令，可使用这份配置。', 'Use this config when your AI tool needs to start a local command.'),
+				preferredTransport: 'stdio',
+				supportsAutoConfigure: false,
+				restartRequired: true,
+				configFormat: 'copy-only',
+			},
+		];
+	}
+
+	private buildClientConfigText(profile: ClientProfile, vaultRoot: string): string {
 		const httpEndpoint = this.getMcpHttpEndpoint();
-		if (client === 'codex') {
+		if (profile.id === 'codex') {
 			return [
 				'[mcp_servers.obs-wiki]',
 				`url = ${JSON.stringify(httpEndpoint)}`,
 			].join('\n');
 		}
 
-		if (client === 'claude') {
+		if (profile.id === 'claude-code') {
 			return `claude mcp add --transport http obs-wiki ${httpEndpoint} --scope user`;
+		}
+
+		if (profile.preferredTransport === 'stdio') {
+			return this.buildMcpStdioConfig(vaultRoot);
 		}
 
 		const config = {
@@ -867,7 +1005,7 @@ export default class ObsWikiPlugin extends Plugin {
 					url: httpEndpoint,
 				},
 			},
-			client,
+			client: profile.id,
 		};
 		return JSON.stringify(config, null, 2);
 	}
@@ -897,6 +1035,281 @@ export default class ObsWikiPlugin extends Plugin {
 
 	private getMcpStdioCommand(): string {
 		return (this.settings.mcpStdioCommand || DEFAULT_MCP_STDIO_COMMAND).trim();
+	}
+
+	private async checkLocalConnectionStatus(httpEndpoint: string): Promise<LocalConnectionStatus> {
+		const checkedAt = new Date().toISOString();
+		if (Platform.isMobileApp || Platform.isMobile) {
+			return {
+				state: 'unsupported',
+				label: ui('手动配置', 'Manual setup'),
+				detail: ui(
+					'移动端不支持自动检测本机连接服务，请复制连接配置到桌面端 AI 工具。',
+					'Mobile does not support local service detection; copy the config into a desktop AI tool.'
+				),
+				checkedAt,
+			};
+		}
+
+		if (!this.isLoopbackHttpEndpoint(httpEndpoint)) {
+			return {
+				state: 'needs_update',
+				label: ui('建议检查地址', 'Check address'),
+				detail: ui(
+					'推荐连接地址不是 127.0.0.1 本机地址；如果不是你主动修改，建议恢复默认。',
+					'The recommended address is not a 127.0.0.1 local address. Restore the default unless you changed it intentionally.'
+				),
+				checkedAt,
+			};
+		}
+
+		try {
+			const response = await requestUrl({
+				url: httpEndpoint,
+				method: 'OPTIONS',
+				throw: false,
+			});
+			if (response.status === 404) {
+				return {
+					state: 'needs_update',
+					label: ui('地址需检查', 'Address needs review'),
+					detail: ui(
+						'本机有服务响应，但当前地址不像 obs-wiki 连接入口。请确认本机服务地址是否正确。',
+						'A local service responded, but this address does not look like the obs-wiki connection entry. Check the local service address.'
+					),
+					checkedAt,
+					statusCode: response.status,
+				};
+			}
+			if (response.status >= 500) {
+				return {
+					state: 'service_not_running',
+					label: ui('服务异常', 'Service error'),
+					detail: ui(
+						'本机连接服务有响应但返回异常，请重启 obs-wiki 本机连接服务后再试。',
+						'The local connection service responded with an error. Restart the obs-wiki local connection service and try again.'
+					),
+					checkedAt,
+					statusCode: response.status,
+				};
+			}
+			return {
+				state: 'available',
+				label: ui('可连接', 'Available'),
+				detail: ui(
+					'本机连接服务有响应，可以继续配置 AI 工具。',
+					'The local connection service responded; you can configure your AI tool.'
+				),
+				checkedAt,
+				statusCode: response.status,
+			};
+		} catch (_error) {
+			return {
+				state: 'service_not_running',
+				label: ui('未运行', 'Not running'),
+				detail: ui(
+					'未检测到本机连接服务。你仍可复制配置，启动服务后再刷新这里。',
+					'No local connection service was detected. You can still copy the config, then refresh after starting the service.'
+				),
+				checkedAt,
+			};
+		}
+	}
+
+	async applyClientConfig(config: GeneratedClientConfig): Promise<void> {
+		try {
+			const result = this.writeClientConfig(config);
+			await this.appendClientConfigAuditEvent('client_config_applied', config, 'success', result.backupPath);
+			new Notice(ui('已写入 obs-wiki 连接配置，请重启对应 AI 工具。', 'obs-wiki connection config written. Restart the AI tool.'));
+			await this.refreshAgentConnectionViews();
+		} catch (error) {
+			console.error('obs-wiki failed to apply client config', error);
+			await this.appendClientConfigAuditEvent('client_config_failed', config, 'failed');
+			new Notice(ui('写入连接配置失败。', 'Failed to write connection config.'));
+		}
+	}
+
+	async removeClientConfig(config: GeneratedClientConfig): Promise<void> {
+		try {
+			const result = this.deleteClientConfig(config);
+			await this.appendClientConfigAuditEvent('client_config_removed', config, 'success', result.backupPath);
+			new Notice(ui('已移除 obs-wiki 连接配置，请重启对应 AI 工具。', 'obs-wiki connection config removed. Restart the AI tool.'));
+			await this.refreshAgentConnectionViews();
+		} catch (error) {
+			console.error('obs-wiki failed to remove client config', error);
+			await this.appendClientConfigAuditEvent('client_config_failed', config, 'failed');
+			new Notice(ui('移除连接配置失败。', 'Failed to remove connection config.'));
+		}
+	}
+
+	async openClientConfigFile(config: GeneratedClientConfig): Promise<void> {
+		const api = this.getDesktopNodeApi();
+		if (!api?.shell || !config.targetPath) {
+			new Notice(ui('当前环境无法打开配置文件。', 'Cannot open the config file in this environment.'));
+			return;
+		}
+		const result = await api.shell.openPath(config.targetPath);
+		if (result) {
+			new Notice(ui('打开配置文件失败。', 'Failed to open config file.'));
+		}
+	}
+
+	private writeClientConfig(config: GeneratedClientConfig): { backupPath: string } {
+		const { api, targetPath } = this.requireAutoConfigApi(config);
+		const original = api.fs.existsSync(targetPath) ? api.fs.readFileSync(targetPath, 'utf8') : '';
+		const nextContent = this.mergeClientConfigContent(config, original);
+		return this.writeConfigFile(api, targetPath, original, nextContent);
+	}
+
+	private deleteClientConfig(config: GeneratedClientConfig): { backupPath: string } {
+		const { api, targetPath } = this.requireAutoConfigApi(config);
+		const original = api.fs.existsSync(targetPath) ? api.fs.readFileSync(targetPath, 'utf8') : '';
+		const nextContent = this.removeClientConfigContent(config, original);
+		return this.writeConfigFile(api, targetPath, original, nextContent);
+	}
+
+	private requireAutoConfigApi(config: GeneratedClientConfig): { api: DesktopNodeApi; targetPath: string } {
+		const api = this.getDesktopNodeApi();
+		if (!api || !config.targetPath || !config.supportsAutoConfigure) {
+			throw new Error(`Client auto-configuration is not supported for ${config.clientId}.`);
+		}
+		return { api, targetPath: config.targetPath };
+	}
+
+	private writeConfigFile(api: DesktopNodeApi, targetPath: string, original: string, nextContent: string): { backupPath: string } {
+		const directory = api.path.dirname(targetPath);
+		api.fs.mkdirSync(directory, { recursive: true });
+		const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+		const backupPath = `${targetPath}.obs-wiki-backup-${stamp}`;
+		const tmpPath = `${targetPath}.obs-wiki-tmp-${stamp}`;
+		api.fs.writeFileSync(backupPath, original, 'utf8');
+		api.fs.writeFileSync(tmpPath, nextContent, 'utf8');
+		api.fs.renameSync(tmpPath, targetPath);
+		return { backupPath };
+	}
+
+	private mergeClientConfigContent(config: GeneratedClientConfig, original: string): string {
+		if (config.configFormat === 'codex-toml') {
+			return this.trimLeadingWhitespace(`${this.trimTrailingWhitespace(this.removeCodexTomlObsWikiBlock(original))}\n\n${config.configText}\n`);
+		}
+		if (config.configFormat === 'mcp-json') {
+			const parsed = this.parseMcpJsonConfig(original);
+			parsed.mcpServers['obs-wiki'] = {
+				url: this.getMcpHttpEndpoint(),
+			};
+			return `${JSON.stringify(parsed, null, 2)}\n`;
+		}
+		throw new Error(`Unsupported config format: ${config.configFormat}`);
+	}
+
+	private removeClientConfigContent(config: GeneratedClientConfig, original: string): string {
+		if (config.configFormat === 'codex-toml') {
+			return `${this.trimTrailingWhitespace(this.removeCodexTomlObsWikiBlock(original))}\n`;
+		}
+		if (config.configFormat === 'mcp-json') {
+			const parsed = this.parseMcpJsonConfig(original);
+			delete parsed.mcpServers['obs-wiki'];
+			return `${JSON.stringify(parsed, null, 2)}\n`;
+		}
+		throw new Error(`Unsupported config format: ${config.configFormat}`);
+	}
+
+	private trimTrailingWhitespace(value: string): string {
+		return value.replace(/\s+$/, '');
+	}
+
+	private trimLeadingWhitespace(value: string): string {
+		return value.replace(/^\s+/, '');
+	}
+
+	private parseMcpJsonConfig(content: string): { mcpServers: Record<string, unknown>; [key: string]: unknown } {
+		const trimmed = content.trim();
+		const parsed = trimmed ? JSON.parse(trimmed) : {};
+		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+			throw new Error('Client config must be a JSON object.');
+		}
+		const result = parsed as { mcpServers?: unknown; [key: string]: unknown };
+		if (!result.mcpServers || typeof result.mcpServers !== 'object' || Array.isArray(result.mcpServers)) {
+			result.mcpServers = {};
+		}
+		return result as { mcpServers: Record<string, unknown>; [key: string]: unknown };
+	}
+
+	private removeCodexTomlObsWikiBlock(content: string): string {
+		const lines = content.split(/\r?\n/);
+		const nextLines: string[] = [];
+		let skipping = false;
+		for (const line of lines) {
+			if (this.isObsWikiCodexTomlHeader(line)) {
+				skipping = true;
+				continue;
+			}
+			if (skipping && this.isTomlHeader(line)) {
+				skipping = false;
+			}
+			if (!skipping) {
+				nextLines.push(line);
+			}
+		}
+		return nextLines.join('\n');
+	}
+
+	private isObsWikiCodexTomlHeader(line: string): boolean {
+		return /^\s*\[mcp_servers\.(?:"obs-wiki"|'obs-wiki'|obs-wiki)\]\s*$/.test(line);
+	}
+
+	private isTomlHeader(line: string): boolean {
+		return /^\s*\[[^\]]+\]\s*$/.test(line);
+	}
+
+	private async appendClientConfigAuditEvent(
+		action: string,
+		config: GeneratedClientConfig,
+		result: string,
+		backupPath?: string
+	): Promise<void> {
+		const now = new Date().toISOString();
+		const event = (
+			`## ${now}\n` +
+			`action: ${action}\n` +
+			'actor: user\n' +
+			`client: ${config.clientId}\n` +
+			`transport: ${config.transport}\n` +
+			`target: ${config.targetPath || ''}\n` +
+			`backup_path: ${backupPath || ''}\n` +
+			`result: ${result}\n` +
+			`timestamp: ${now}\n\n`
+		);
+		await this.appendToAuditLog(event);
+	}
+
+	private getDesktopNodeApi(): DesktopNodeApi | null {
+		if (!Platform.isDesktopApp) {
+			return null;
+		}
+		const maybeWindow = window as unknown as { require?: (moduleName: string) => unknown };
+		if (!maybeWindow.require) {
+			return null;
+		}
+		const fs = maybeWindow.require('fs') as DesktopNodeApi['fs'];
+		const path = maybeWindow.require('path') as DesktopNodeApi['path'];
+		const os = maybeWindow.require('os') as DesktopNodeApi['os'];
+		const electron = maybeWindow.require('electron') as { shell?: DesktopNodeApi['shell'] };
+		return {
+			fs,
+			path,
+			os,
+			shell: electron.shell,
+		};
+	}
+
+	private isLoopbackHttpEndpoint(endpoint: string): boolean {
+		try {
+			const parsed = new URL(endpoint);
+			return parsed.protocol === 'http:' && ['127.0.0.1', 'localhost', '::1'].includes(parsed.hostname);
+		} catch (_error) {
+			return false;
+		}
 	}
 
 	private isToolCallAuditEvent(event: AuditEventRecord): boolean {
@@ -2400,6 +2813,7 @@ class ObsWikiAgentConnectionsView extends ItemView {
 
 		const statusBar = contentEl.createDiv({ cls: 'obs-wiki-status-bar' });
 		this.renderStatusItem(statusBar, ui('连接方式', 'Connection'), ui('本机连接', 'Local connection'));
+		this.renderStatusItem(statusBar, ui('服务状态', 'Service status'), snapshot.localConnection.label);
 		this.renderStatusItem(statusBar, ui('当前知识库', 'Current knowledge base'), snapshot.vaultRoot);
 		this.renderStatusItem(statusBar, ui('最近连接', 'Recent connections'), String(snapshot.recentAgents.length));
 		this.renderStatusItem(statusBar, ui('使用记录', 'Usage records'), String(snapshot.recentToolCalls.length));
@@ -2414,9 +2828,19 @@ class ObsWikiAgentConnectionsView extends ItemView {
 			cls: 'obs-wiki-view__description',
 		});
 		const endpointGrid = runtime.createDiv({ cls: 'obs-wiki-detail-grid' });
+		this.renderDetail(endpointGrid, ui('检测结果', 'Check result'), snapshot.localConnection.label);
+		this.renderDetail(endpointGrid, ui('结果说明', 'Details'), snapshot.localConnection.detail);
 		this.renderDetail(endpointGrid, ui('推荐连接地址', 'Recommended address'), snapshot.httpEndpoint);
 		this.renderDetail(endpointGrid, ui('兼容连接地址', 'Compatibility address'), snapshot.sseEndpoint);
 		this.renderDetail(endpointGrid, ui('本机命令（可选）', 'Local command (optional)'), snapshot.stdioCommand);
+		this.renderDetail(
+			endpointGrid,
+			ui('最近检测', 'Last checked'),
+			this.plugin.formatDisplayTime(Date.parse(snapshot.localConnection.checkedAt))
+		);
+		if (snapshot.localConnection.statusCode) {
+			this.renderDetail(endpointGrid, ui('响应状态', 'Response status'), String(snapshot.localConnection.statusCode));
+		}
 		const commandAction = runtime.createDiv({ cls: 'obs-wiki-action-row' });
 		const copyHttp = commandAction.createEl('button', { text: ui('复制推荐地址', 'Copy recommended address') });
 		copyHttp.addEventListener('click', () => {
@@ -2432,36 +2856,9 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		});
 
 		const configGrid = contentEl.createDiv({ cls: 'obs-wiki-config-grid' });
-		this.renderConfigCard(
-			configGrid,
-			'Codex',
-			snapshot.codexConfig,
-			ui('将下面内容加入 Codex 配置文件，然后重启 Codex。', 'Add this to your Codex config file, then restart Codex.')
-		);
-		this.renderConfigCard(
-			configGrid,
-			'Claude Code',
-			snapshot.claudeConfig,
-			ui('在终端执行下面命令，为 Claude Code 添加 obs-wiki 连接。', 'Run this command in a terminal to add the obs-wiki connection to Claude Code.')
-		);
-		this.renderConfigCard(
-			configGrid,
-			'Cursor',
-			snapshot.cursorConfig,
-			ui('将下面内容加入 Cursor 的连接配置，然后重启 Cursor。', 'Add this to Cursor connection settings, then restart Cursor.')
-		);
-		this.renderConfigCard(
-			configGrid,
-			ui('其他工具', 'Other tools'),
-			snapshot.customConfig,
-			ui('如果你的 AI 工具支持通过地址连接，可使用这份配置。', 'Use this config when your AI tool supports connecting by URL.')
-		);
-		this.renderConfigCard(
-			configGrid,
-			ui('本机命令方式', 'Local command mode'),
-			snapshot.stdioConfig,
-			ui('如果你的 AI 工具只能启动本机命令，可使用这份配置。', 'Use this config when your AI tool needs to start a local command.')
-		);
+		for (const clientConfig of snapshot.clientConfigs) {
+			this.renderConfigCard(configGrid, clientConfig);
+		}
 
 		const exposedTools = contentEl.createDiv({ cls: 'obs-wiki-card' });
 		exposedTools.createEl('h3', { text: ui('可用能力', 'Available capabilities') });
@@ -2560,18 +2957,64 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		this.renderDetail(matrix, ui('不会执行', 'Never allowed'), ui('系统命令、知识库外文件、Obsidian 配置目录、删除或批量重写', 'System commands, files outside the knowledge base, Obsidian settings folders, delete or bulk rewrite'));
 	}
 
-	private renderConfigCard(container: HTMLElement, title: string, config: string, detail?: string): void {
+	private renderConfigCard(container: HTMLElement, config: GeneratedClientConfig): void {
 		const card = container.createDiv({ cls: 'obs-wiki-card obs-wiki-config-card' });
 		const header = card.createDiv({ cls: 'obs-wiki-card__header' });
-		header.createEl('strong', { text: title });
-		const copy = header.createEl('button', { text: ui('复制配置', 'Copy config') });
+		header.createEl('strong', { text: config.displayName });
+		const headerActions = header.createDiv({ cls: 'obs-wiki-action-row' });
+		const copy = headerActions.createEl('button', { text: ui('复制配置', 'Copy config') });
 		copy.addEventListener('click', () => {
-			void this.plugin.copyToClipboard(config, ui('已复制连接配置。', 'Connection config copied.'));
+			void this.plugin.copyToClipboard(config.configText, ui('已复制连接配置。', 'Connection config copied.'));
 		});
-		if (detail) {
-			card.createEl('p', { text: detail, cls: 'obs-wiki-view__description' });
+		if (config.supportsAutoConfigure && config.targetPath) {
+			const autoConfigure = headerActions.createEl('button', { text: ui('自动配置', 'Auto setup'), cls: 'mod-cta' });
+			autoConfigure.addEventListener('click', () => {
+				new ClientConfigPreviewModal(this.app, this.plugin, config, 'apply').open();
+			});
 		}
-		card.createEl('pre', { text: config, cls: 'obs-wiki-code-block' });
+		card.createEl('p', { text: config.description, cls: 'obs-wiki-view__description' });
+		const facts = card.createDiv({ cls: 'obs-wiki-detail-grid' });
+		this.renderDetail(facts, ui('连接方式', 'Connection'), this.transportLabel(config.transport));
+		this.renderDetail(
+			facts,
+			ui('自动配置', 'Auto setup'),
+			config.supportsAutoConfigure
+				? ui('可用', 'Available')
+				: ui('当前版本先复制配置', 'Copy config in this version')
+		);
+		this.renderDetail(
+			facts,
+			ui('重启提示', 'Restart'),
+			config.restartRequired ? ui('配置后需要重启工具', 'Restart after adding config') : ui('按工具提示验证', 'Verify in the tool')
+		);
+		if (config.targetPath) {
+			this.renderDetail(facts, ui('配置文件', 'Config file'), config.targetPath);
+		}
+		if (config.supportsAutoConfigure && config.targetPath) {
+			const actions = card.createDiv({ cls: 'obs-wiki-action-row' });
+			const openFile = actions.createEl('button', { text: ui('打开配置文件', 'Open config file') });
+			openFile.addEventListener('click', () => {
+				void this.plugin.openClientConfigFile(config);
+			});
+			const remove = actions.createEl('button', { text: ui('移除连接', 'Remove connection') });
+			remove.addEventListener('click', () => {
+				new ClientConfigPreviewModal(this.app, this.plugin, config, 'remove').open();
+			});
+		}
+		card.createEl('pre', { text: config.configText, cls: 'obs-wiki-code-block' });
+	}
+
+	private transportLabel(transport: ConnectionTransport): string {
+		switch (transport) {
+			case 'streamable-http':
+				return ui('推荐连接地址', 'Recommended address');
+			case 'sse':
+				return ui('兼容连接地址', 'Compatibility address');
+			case 'stdio':
+				return ui('本机命令', 'Local command');
+			default:
+				return transport;
+		}
 	}
 
 	private renderStatusItem(container: HTMLElement, label: string, value: string): void {
@@ -2599,6 +3042,75 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		const empty = container.createDiv({ cls: 'obs-wiki-empty-state' });
 		empty.createEl('strong', { text: title });
 		empty.createEl('p', { text: detail });
+	}
+}
+
+class ClientConfigPreviewModal extends Modal {
+	constructor(
+		app: App,
+		private plugin: ObsWikiPlugin,
+		private config: GeneratedClientConfig,
+		private mode: 'apply' | 'remove'
+	) {
+		super(app);
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl('h2', {
+			text: this.mode === 'apply'
+				? ui('确认自动配置', 'Confirm auto setup')
+				: ui('确认移除连接', 'Confirm removal'),
+		});
+		contentEl.createEl('p', {
+			text: this.mode === 'apply'
+				? ui('将只写入 obs-wiki 连接配置，不会修改其他 MCP server。写入前会创建备份。', 'Only the obs-wiki connection will be written. Other MCP servers will not be changed. A backup will be created first.')
+				: ui('将只移除 obs-wiki 连接配置，不会删除其他 MCP server。移除前会创建备份。', 'Only the obs-wiki connection will be removed. Other MCP servers will not be deleted. A backup will be created first.'),
+			cls: 'obs-wiki-view__description',
+		});
+		const details = contentEl.createDiv({ cls: 'obs-wiki-detail-grid' });
+		this.renderDetail(details, ui('AI 工具', 'AI tool'), this.config.displayName);
+		this.renderDetail(details, ui('配置文件', 'Config file'), this.config.targetPath || ui('不可用', 'Unavailable'));
+		this.renderDetail(details, ui('连接方式', 'Connection'), this.transportLabel(this.config.transport));
+		if (this.mode === 'apply') {
+			contentEl.createEl('pre', { text: this.config.configText, cls: 'obs-wiki-code-block' });
+		}
+		const actions = contentEl.createDiv({ cls: 'obs-wiki-action-row' });
+		const cancel = actions.createEl('button', { text: ui('取消', 'Cancel') });
+		cancel.addEventListener('click', () => this.close());
+		const confirm = actions.createEl('button', {
+			text: this.mode === 'apply' ? ui('确认写入', 'Write config') : ui('确认移除', 'Remove config'),
+			cls: 'mod-cta',
+		});
+		confirm.addEventListener('click', async () => {
+			confirm.disabled = true;
+			if (this.mode === 'apply') {
+				await this.plugin.applyClientConfig(this.config);
+			} else {
+				await this.plugin.removeClientConfig(this.config);
+			}
+			this.close();
+		});
+	}
+
+	private renderDetail(container: HTMLElement, label: string, value: string): void {
+		const item = container.createDiv({ cls: 'obs-wiki-detail' });
+		item.createEl('span', { text: label });
+		item.createEl('strong', { text: value });
+	}
+
+	private transportLabel(transport: ConnectionTransport): string {
+		switch (transport) {
+			case 'streamable-http':
+				return ui('推荐连接地址', 'Recommended address');
+			case 'sse':
+				return ui('兼容连接地址', 'Compatibility address');
+			case 'stdio':
+				return ui('本机命令', 'Local command');
+			default:
+				return transport;
+		}
 	}
 }
 

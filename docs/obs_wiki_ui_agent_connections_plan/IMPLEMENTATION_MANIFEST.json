@@ -1,0 +1,31 @@
+{
+  "package": "obs_wiki_ui_agent_connections_plan",
+  "version": "2026-05-13",
+  "target_repo": "sparkwild/obs-wiki",
+  "documents": [
+    "00_README.md",
+    "01_UI_AND_AGENT_CONNECTIONS_PLAN.md",
+    "02_CODEX_EXECUTION_PROMPTS.md",
+    "03_ACCEPTANCE_CHECKLIST.md",
+    "04_CLIENT_AUTO_CONFIGURATION_PLAN.md",
+    "IMPLEMENTATION_MANIFEST.json"
+  ],
+  "core_principles": [
+    "obs-wiki is the product and plugin name.",
+    "Agent is the only operation entry.",
+    "Obsidian plugin is human governance, review, audit, permission, status, and connection center.",
+    "No Analyze URL/File/Capture/Context/Lint/Distill entrypoints inside Obsidian plugin.",
+    "Review approval actions are allowed inside Obsidian.",
+    "Agent Connection Center is a core Obsidian plugin view.",
+    "Client auto-configuration must be user-confirmed and must only touch the obs-wiki config block."
+  ],
+  "recommended_batches": [
+    "Batch A: UI Design System + Agent Activity Dashboard",
+    "Batch B: Review Queue UI",
+    "Batch C: Agent Connection Center MVP",
+    "Batch D: MCP Connection / Tool-call Audit",
+    "Batch E: MCP Tool Permission Matrix",
+    "Batch F: main.ts decomposition",
+    "Batch G: client auto-configuration"
+  ]
+}

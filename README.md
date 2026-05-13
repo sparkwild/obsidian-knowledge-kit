@@ -208,6 +208,7 @@ The first coding milestone is a buildable Obsidian plugin scaffold with:
 - [Open Questions](./docs/obs_wiki_new_start_plan/10_Open_Questions.md)
 - [First Batch Adjustment](./docs/obs_wiki_new_start_plan/12_First_Batch_Adjustment.md)
 - [MCP Tool Permission Matrix](./docs/MCP_Tool_Permission_Matrix.md)
+- [MCP Client Auto-Configuration Plan](./docs/obs_wiki_ui_agent_connections_plan/04_CLIENT_AUTO_CONFIGURATION_PLAN.md)
 - [Implementation Manifest](./docs/obs_wiki_new_start_plan/IMPLEMENTATION_MANIFEST.json)
 
 ## Repository Scope
