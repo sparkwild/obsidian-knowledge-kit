@@ -20,7 +20,7 @@
 Before considering public distribution:
 
 - no hardcoded developer paths
-- no fixed local port assumption
+- local Runtime defaults are documented and user-overridable
 - no stale historical migration docs
 - clear privacy/security docs
 - repeatable package verification

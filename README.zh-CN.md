@@ -74,15 +74,15 @@ obsidian dev:errors
 
 ## 连接模型
 
-Obswiki 不会硬编码 vault 路径、仓库 checkout 路径、本机端口或开发者电脑路径。
+Obswiki 不会硬编码 vault 路径、仓库 checkout 路径或开发者电脑路径。它会内置本机 Runtime 的 loopback 默认连接地址。
 
 - Vault 路径：运行时读取当前 Obsidian vault。
-- MCP URL：由用户在插件设置中填写。
-- SSE URL：只在旧客户端需要时由用户填写。
+- MCP URL：默认 `http://127.0.0.1:37241/mcp`，可在插件设置中修改。
+- SSE URL：默认 `http://127.0.0.1:37241/sse`，用于旧客户端，可在插件设置中修改。
 - stdio 命令：可配置，默认命令名为 `obswiki-mcp`。
 - 客户端配置写入：必须由用户确认，写入前备份，并且只处理 `obswiki` 这个 MCP server 配置块。
 
-如果你的本机 runtime 提供了 loopback 地址，可以填写类似 `http://127.0.0.1:<port>/mcp` 的地址。插件会把它视为用户配置，而不是内置默认值。
+除非你的本机 Runtime 使用了其它地址或端口，否则保持默认 loopback 地址即可。
 
 ## 产品边界
 

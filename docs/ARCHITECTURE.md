@@ -26,7 +26,7 @@ AI assistant
 - The Obsidian plugin is not a source submission UI.
 - The plugin does not run maintenance actions such as Analyze URL, Analyze File, Capture Source, Build Context Pack, Run Lint, or Run Distill.
 - Obswiki does not require a hosted backend.
-- Obswiki does not assume a fixed local port, vault path, or repository checkout path.
+- Obswiki ships with a default loopback Runtime port, but does not assume a fixed vault path or repository checkout path.
 
 ## Vault Scope
 

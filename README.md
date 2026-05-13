@@ -74,15 +74,15 @@ The installed plugin should report id `obswiki`, name `Obswiki`, version `0.1.0`
 
 ## Connection Model
 
-Obswiki does not hardcode a vault path, repository checkout path, local port, or developer machine path.
+Obswiki does not hardcode a vault path, repository checkout path, or developer machine path. It does ship with local Runtime defaults for the loopback connection.
 
 - Vault path: read from the current Obsidian vault at runtime.
-- MCP URL: configured by the user in plugin settings.
-- SSE URL: optional, configured by the user only for older clients.
+- MCP URL: defaults to `http://127.0.0.1:37241/mcp` and can be changed in plugin settings.
+- SSE URL: defaults to `http://127.0.0.1:37241/sse` for older clients and can be changed in plugin settings.
 - stdio command: configurable, default command name is `obswiki-mcp`.
 - Client config writeback: user-confirmed only, with backup, and only for the `obswiki` MCP server block.
 
-Use a loopback URL such as `http://127.0.0.1:<port>/mcp` when your local runtime provides one. The plugin treats this as user configuration, not a built-in default.
+Keep the default loopback URL unless your local Runtime is configured to use a different address or port.
 
 ## Product Boundary
 

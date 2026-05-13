@@ -42,7 +42,7 @@ The plugin settings are intentionally user-controlled:
 - stdio command name
 - Agent scope label
 
-The plugin does not ship with a fixed MCP URL or fixed port. Use a URL such as `http://127.0.0.1:<port>/mcp` only when your local runtime provides it.
+The plugin ships with local Runtime defaults: `http://127.0.0.1:37241/mcp` and legacy `http://127.0.0.1:37241/sse`. Users can override them when their Runtime uses another address or port.
 
 ## Local Install
 

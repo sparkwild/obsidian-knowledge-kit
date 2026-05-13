@@ -6,8 +6,8 @@ The Agent Connections view helps users connect AI tools to Obswiki without expos
 
 - Do not point clients to the source tree.
 - Do not hardcode a vault path.
-- Do not hardcode a local port.
-- Prefer the user-configured MCP URL from plugin settings.
+- Use the built-in loopback Runtime defaults unless the user changes them.
+- Prefer the MCP URL from plugin settings.
 - Use SSE only for legacy clients that explicitly need it.
 - Use stdio only when a client asks for command/args configuration.
 - Never auto-configure from an agent call; configuration writes are user-triggered in Obsidian only.

@@ -60,10 +60,8 @@ const MAX_AGENT_CONNECTION_ROWS = 8;
 const MAX_AGENT_TOOL_CALL_ROWS = 12;
 const PLUGIN_DISPLAY_NAME_ZH = '知识库';
 const PLUGIN_DISPLAY_NAME_EN = 'Obswiki';
-const DEFAULT_MCP_HTTP_ENDPOINT = '';
-const DEFAULT_MCP_SSE_ENDPOINT = '';
-const MCP_HTTP_ENDPOINT_PLACEHOLDER = 'http://127.0.0.1:<port>/mcp';
-const MCP_SSE_ENDPOINT_PLACEHOLDER = 'http://127.0.0.1:<port>/sse';
+const DEFAULT_MCP_HTTP_ENDPOINT = 'http://127.0.0.1:37241/mcp';
+const DEFAULT_MCP_SSE_ENDPOINT = 'http://127.0.0.1:37241/sse';
 const DEFAULT_MCP_STDIO_COMMAND = 'obswiki-mcp';
 const DEFAULT_STATUS_MESSAGE_ZH = '欢迎使用知识库。';
 const DEFAULT_STATUS_MESSAGE_EN = 'Welcome to Obswiki.';
@@ -392,10 +390,10 @@ export default class ObswikiPlugin extends Plugin {
 		if (typeof this.settings.statusMessage !== 'string') {
 			this.settings.statusMessage = '';
 		}
-		if (typeof this.settings.mcpHttpEndpoint !== 'string') {
+		if (typeof this.settings.mcpHttpEndpoint !== 'string' || !this.settings.mcpHttpEndpoint.trim()) {
 			this.settings.mcpHttpEndpoint = DEFAULT_MCP_HTTP_ENDPOINT;
 		}
-		if (typeof this.settings.mcpSseEndpoint !== 'string') {
+		if (typeof this.settings.mcpSseEndpoint !== 'string' || !this.settings.mcpSseEndpoint.trim()) {
 			this.settings.mcpSseEndpoint = DEFAULT_MCP_SSE_ENDPOINT;
 		}
 		if (typeof this.settings.mcpStdioCommand !== 'string' || !this.settings.mcpStdioCommand.trim()) {
@@ -1051,8 +1049,8 @@ export default class ObswikiPlugin extends Plugin {
 				state: 'not_configured',
 				label: ui('未配置', 'Not configured'),
 				detail: ui(
-					'请先在设置中填写知识库的本机连接地址；插件不会替你写入固定地址。',
-					'Set the local Obswiki connection URL in settings first; the plugin does not use a fixed address.'
+					'请检查设置中的知识库本机连接地址；默认地址用于本机 Runtime。',
+					'Check the local Obswiki connection URL in settings; the default is for the local Runtime.'
 				),
 				checkedAt,
 			};
@@ -2848,8 +2846,8 @@ class ObswikiAgentConnectionsView extends ItemView {
 		connectionCheck.createEl('h4', { text: ui('连接检查', 'Connection check') });
 		connectionCheck.createEl('p', {
 			text: ui(
-				'这里检查你在设置中填写的知识库连接地址是否可用。插件不会预设固定地址。',
-				'This checks the Obswiki connection URL from settings. The plugin does not assume a fixed URL.'
+				'这里检查知识库本机连接地址是否可用；默认连接本机 Runtime。',
+				'This checks the local Obswiki connection URL; by default it targets the local Runtime.'
 			),
 			cls: 'obswiki-view__description',
 		});
@@ -3509,15 +3507,15 @@ class ObswikiSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName(ui('AI 工具连接地址', 'AI tool connection URL'))
 			.setDesc(ui(
-				'填写你本机知识库服务提供的 MCP 地址。插件不会预设固定端口或开发者路径。',
-				'Enter the MCP URL provided by your local Obswiki service. The plugin does not assume a fixed port or developer path.'
+				'常用 AI 工具默认使用这个本机地址连接知识库；需要自定义 Runtime 时可修改。',
+				'Most AI tools use this local endpoint by default; change it only for a custom Runtime.'
 			))
 			.addText((text) =>
 				text
-					.setPlaceholder(MCP_HTTP_ENDPOINT_PLACEHOLDER)
+					.setPlaceholder(DEFAULT_MCP_HTTP_ENDPOINT)
 					.setValue(this.plugin.settings.mcpHttpEndpoint)
 					.onChange(async (value) => {
-						this.plugin.settings.mcpHttpEndpoint = value.trim();
+						this.plugin.settings.mcpHttpEndpoint = value.trim() || DEFAULT_MCP_HTTP_ENDPOINT;
 						await this.plugin.saveSettings();
 						await this.plugin.refreshGovernanceViews();
 					})
@@ -3526,15 +3524,15 @@ class ObswikiSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName(ui('旧版 SSE 地址', 'Legacy SSE URL'))
 			.setDesc(ui(
-				'只有旧版工具明确要求 SSE 时才填写。',
-				'Fill this only when an older tool specifically requires SSE.'
+				'少数旧版 AI 工具需要这个地址；不确定时保持默认。',
+				'Some older AI tools need this address. Keep the default if unsure.'
 			))
 			.addText((text) =>
 				text
-					.setPlaceholder(MCP_SSE_ENDPOINT_PLACEHOLDER)
+					.setPlaceholder(DEFAULT_MCP_SSE_ENDPOINT)
 					.setValue(this.plugin.settings.mcpSseEndpoint)
 					.onChange(async (value) => {
-						this.plugin.settings.mcpSseEndpoint = value.trim();
+						this.plugin.settings.mcpSseEndpoint = value.trim() || DEFAULT_MCP_SSE_ENDPOINT;
 						await this.plugin.saveSettings();
 						await this.plugin.refreshGovernanceViews();
 					})

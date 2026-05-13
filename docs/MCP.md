@@ -49,11 +49,13 @@ The MCP server must not expose tools that:
 
 ## Configuration
 
-Prefer a user-configured local MCP URL when available:
+The default local MCP URL is:
 
 ```text
-http://127.0.0.1:<port>/mcp
+http://127.0.0.1:37241/mcp
 ```
+
+The legacy SSE URL is `http://127.0.0.1:37241/sse`. Change these only when the local Runtime is configured for a different address or port.
 
 Use stdio only when a client requires command/args configuration:
 
@@ -61,4 +63,4 @@ Use stdio only when a client requires command/args configuration:
 obswiki-mcp --vault-root <vault>
 ```
 
-Both `<port>` and `<vault>` are user/runtime values, not repository defaults.
+The `<vault>` value is supplied by the active vault or runtime configuration, not by a repository checkout path.
