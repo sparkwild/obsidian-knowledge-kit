@@ -40,8 +40,17 @@
 }
 
 .obs-wiki-metric-grid,
-.obs-wiki-config-grid {
+.obs-wiki-metric-grid {
 	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.obs-wiki-config-grid {
+	display: flex;
+	gap: 12px;
+	margin: 10px 0;
+	padding-bottom: 8px;
+	overflow-x: auto;
+	scroll-snap-type: x proximity;
 }
 
 .obs-wiki-detail-grid {
@@ -91,6 +100,12 @@
 
 .obs-wiki-card {
 	margin-top: 12px;
+}
+
+.obs-wiki-config-card {
+	flex: 0 0 min(360px, 86vw);
+	margin-top: 0;
+	scroll-snap-align: start;
 }
 
 .obs-wiki-card__header {
@@ -157,6 +172,28 @@
 	flex-direction: column;
 	gap: 2px;
 	min-width: 0;
+}
+
+.obs-wiki-client-meta {
+	display: grid;
+	gap: 6px;
+	margin: 8px 0;
+}
+
+.obs-wiki-client-meta__row {
+	display: grid;
+	grid-template-columns: minmax(70px, 0.7fr) minmax(0, 1.3fr);
+	gap: 8px;
+	align-items: start;
+}
+
+.obs-wiki-client-meta__row span {
+	color: var(--text-muted);
+	font-size: 12px;
+}
+
+.obs-wiki-client-meta__row strong {
+	overflow-wrap: anywhere;
 }
 
 .obs-wiki-detail-panel {

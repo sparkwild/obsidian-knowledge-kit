@@ -2972,23 +2972,20 @@ class ObsWikiAgentConnectionsView extends ItemView {
 				new ClientConfigPreviewModal(this.app, this.plugin, config, 'apply').open();
 			});
 		}
-		card.createEl('p', { text: config.description, cls: 'obs-wiki-view__description' });
-		const facts = card.createDiv({ cls: 'obs-wiki-detail-grid' });
-		this.renderDetail(facts, ui('连接方式', 'Connection'), this.transportLabel(config.transport));
-		this.renderDetail(
+		const facts = card.createDiv({ cls: 'obs-wiki-client-meta' });
+		this.renderClientMeta(facts, ui('连接方式', 'Connection'), this.transportLabel(config.transport));
+		this.renderClientMeta(
 			facts,
-			ui('自动配置', 'Auto setup'),
-			config.supportsAutoConfigure
-				? ui('可用', 'Available')
-				: ui('当前版本先复制配置', 'Copy config in this version')
+			ui('配置方式', 'Setup'),
+			config.supportsAutoConfigure ? ui('可自动配置', 'Auto setup available') : ui('复制配置', 'Copy config')
 		);
-		this.renderDetail(
+		this.renderClientMeta(
 			facts,
-			ui('重启提示', 'Restart'),
-			config.restartRequired ? ui('配置后需要重启工具', 'Restart after adding config') : ui('按工具提示验证', 'Verify in the tool')
+			ui('验证方式', 'Verify'),
+			config.restartRequired ? ui('重启工具', 'Restart tool') : ui('按工具提示验证', 'Use tool prompt')
 		);
 		if (config.targetPath) {
-			this.renderDetail(facts, ui('配置文件', 'Config file'), config.targetPath);
+			this.renderClientMeta(facts, ui('配置文件', 'Config file'), config.targetPath);
 		}
 		if (config.supportsAutoConfigure && config.targetPath) {
 			const actions = card.createDiv({ cls: 'obs-wiki-action-row' });
@@ -3002,6 +2999,12 @@ class ObsWikiAgentConnectionsView extends ItemView {
 			});
 		}
 		card.createEl('pre', { text: config.configText, cls: 'obs-wiki-code-block' });
+	}
+
+	private renderClientMeta(container: HTMLElement, label: string, value: string): void {
+		const item = container.createDiv({ cls: 'obs-wiki-client-meta__row' });
+		item.createEl('span', { text: label });
+		item.createEl('strong', { text: value });
 	}
 
 	private transportLabel(transport: ConnectionTransport): string {
