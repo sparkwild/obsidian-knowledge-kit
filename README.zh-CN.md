@@ -35,6 +35,74 @@ npm run test
 npm run package
 ```
 
+## 安装 Obsidian 插件
+
+当前插件版本：[`0.1.3`](https://github.com/sparkwild/obs-wiki/releases/tag/0.1.3)。
+
+### 使用 BRAT 进行 Beta 安装
+
+在插件进入 Obsidian 官方社区插件目录之前，有仓库访问权限的测试用户可以通过 BRAT 社区插件安装：
+
+1. 在 Obsidian 中安装并启用 `BRAT`。
+2. 执行 `BRAT: Add a beta plugin for testing`。
+3. 输入 `sparkwild/obs-wiki`。
+4. 在 `设置 -> 第三方插件` 中启用 `obs-wiki`。
+
+如果当前 GitHub 仓库或 Release 对你的账号不可见，请使用下面的 Release 资产手动安装方式。
+
+### 从 Release 资产手动安装
+
+1. 从最新 GitHub Release 下载 `manifest.json`、`main.js`、`styles.css`。
+2. 在你的 Obsidian vault 中创建插件目录；如果已存在则跳过：
+
+```text
+.obsidian/plugins/obs-wiki/
+```
+
+3. 将下载的三个文件放入 `.obsidian/plugins/obs-wiki/`。
+4. 重启 Obsidian，或重新加载社区插件。
+5. 在 `设置 -> 第三方插件` 中启用 `obs-wiki`。
+6. 打开命令面板，执行 `obs-wiki: 打开 Agent 活动 / Open agent activity`。
+
+### 本地开发安装
+
+在当前仓库构建并打包插件：
+
+```bash
+cd /Users/zhangjie/AgentProjects/sparkwild/obs-wiki
+npm run package
+```
+
+然后将以下生成文件放入 vault 插件目录：
+
+```text
+apps/obsidian-plugin/plugin/manifest.json
+apps/obsidian-plugin/plugin/main.js
+apps/obsidian-plugin/plugin/styles.css
+```
+
+目标目录为：
+
+```text
+<your-vault>/.obsidian/plugins/obs-wiki/
+```
+
+如果本机安装了 Obsidian CLI，可以用下面的命令验证安装状态：
+
+```bash
+obsidian plugin id=obs-wiki
+obsidian plugin:reload id=obs-wiki
+obsidian dev:errors
+```
+
+安装后的插件应显示 id `obs-wiki`、版本 `0.1.3`，并且重载后没有开发者控制台错误。
+
+## 桌面端与移动端声明
+
+Obsidian 插件 manifest 保持 `isDesktopOnly: false`。插件运行时代码只使用 Obsidian 插件 API，不调用 Node.js、Electron、shell 命令、网络 API 或任意本地文件系统 API。
+
+这个声明只适用于 Obsidian 治理插件本身：Agent Activity、Review Queue、Audit Log、Memory Inspector、Runtime Status 和 Permission Policy。MCP server 与 Agent/runtime 流程是独立的本地 Agent 进程，不会打包进移动端插件。
+
 ## 产品原则
 
 - Single Agent Operation Entry：URL、文件、资料分析、context pack、lint、distill、proposal 工作都从 Agent 发起。

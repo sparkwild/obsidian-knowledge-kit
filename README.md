@@ -35,6 +35,74 @@ npm run test
 npm run package
 ```
 
+## Install The Obsidian Plugin
+
+Current plugin release: [`0.1.3`](https://github.com/sparkwild/obs-wiki/releases/tag/0.1.3).
+
+### Beta Install With BRAT
+
+Before the plugin is listed in the official Obsidian community plugin directory, testers can install it with the BRAT community plugin when they have access to this repository:
+
+1. Install and enable `BRAT` in Obsidian.
+2. Run `BRAT: Add a beta plugin for testing`.
+3. Enter `sparkwild/obs-wiki`.
+4. Enable `obs-wiki` in `Settings -> Community plugins`.
+
+If the repository or release is private for your account, use the manual release-asset install path below.
+
+### Manual Install From Release Assets
+
+1. Download `manifest.json`, `main.js`, and `styles.css` from the latest GitHub release.
+2. Create this folder inside your Obsidian vault if it does not already exist:
+
+```text
+.obsidian/plugins/obs-wiki/
+```
+
+3. Place the three downloaded files in `.obsidian/plugins/obs-wiki/`.
+4. Restart Obsidian or reload community plugins.
+5. Enable `obs-wiki` in `Settings -> Community plugins`.
+6. Open the command palette and run `obs-wiki: 打开 Agent 活动 / Open agent activity`.
+
+### Local Development Install
+
+Build and package the plugin from this checkout:
+
+```bash
+cd /Users/zhangjie/AgentProjects/sparkwild/obs-wiki
+npm run package
+```
+
+Then copy these generated files into your vault plugin folder:
+
+```text
+apps/obsidian-plugin/plugin/manifest.json
+apps/obsidian-plugin/plugin/main.js
+apps/obsidian-plugin/plugin/styles.css
+```
+
+Expected target folder:
+
+```text
+<your-vault>/.obsidian/plugins/obs-wiki/
+```
+
+If you use the Obsidian CLI during local development, validate the installed plugin with:
+
+```bash
+obsidian plugin id=obs-wiki
+obsidian plugin:reload id=obs-wiki
+obsidian dev:errors
+```
+
+The installed plugin should report id `obs-wiki`, version `0.1.3`, and no developer console errors after reload.
+
+## Desktop And Mobile Declaration
+
+The Obsidian plugin manifest keeps `isDesktopOnly: false`. The plugin runtime uses Obsidian plugin APIs only; it does not call Node.js, Electron, shell commands, network APIs, or arbitrary local filesystem APIs.
+
+This declaration applies to the Obsidian governance plugin: Agent Activity, Review Queue, Audit Log, Memory Inspector, Runtime Status, and Permission Policy. The MCP server and Agent/runtime workflows are separate local agent processes and are not bundled into the mobile plugin.
+
 ## Product Principles
 
 - Single Agent Operation Entry: users submit URLs, files, source analysis, context pack, lint, distill, and proposal work through an Agent client.
