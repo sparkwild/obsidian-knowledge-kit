@@ -2013,10 +2013,15 @@ export default class ObsWikiPlugin extends Plugin {
 	}
 
 	formatDisplayTime(value: number): string {
-		if (!value) {
-			return 'unknown time';
+		const date = new Date(value);
+		if (!Number.isFinite(value) || Number.isNaN(date.getTime())) {
+			return ui('未知时间', 'Unknown time');
 		}
-		return new Date(value).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, 'Z');
+		const pad = (input: number) => String(input).padStart(2, '0');
+		return [
+			`${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+			`${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`,
+		].join(' ');
 	}
 
 	async openPluginView(viewType: string) {
@@ -2829,7 +2834,7 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		});
 		const endpointGrid = runtime.createDiv({ cls: 'obs-wiki-detail-grid' });
 		this.renderDetail(endpointGrid, ui('当前状态', 'Current status'), snapshot.localConnection.label);
-		this.renderDetail(endpointGrid, ui('建议操作', 'Suggested action'), snapshot.localConnection.detail);
+		this.renderDetail(endpointGrid, ui('建议操作', 'Suggested action'), snapshot.localConnection.detail, 'description');
 		this.renderDetail(endpointGrid, ui('AI 工具连接地址', 'AI tool URL'), snapshot.httpEndpoint);
 		this.renderDetail(
 			endpointGrid,
@@ -3057,8 +3062,10 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		item.createEl('strong', { text: value });
 	}
 
-	private renderDetail(container: HTMLElement, label: string, value: string): void {
-		const item = container.createDiv({ cls: 'obs-wiki-detail' });
+	private renderDetail(container: HTMLElement, label: string, value: string, variant?: 'description'): void {
+		const item = container.createDiv({
+			cls: variant === 'description' ? 'obs-wiki-detail obs-wiki-detail--description' : 'obs-wiki-detail',
+		});
 		item.createEl('span', { text: label });
 		item.createEl('strong', { text: value });
 	}

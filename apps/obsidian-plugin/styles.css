@@ -82,6 +82,13 @@
 	overflow-wrap: anywhere;
 }
 
+.obs-wiki-detail--description strong {
+	color: var(--text-normal);
+	font-size: 13px;
+	font-weight: 500;
+	line-height: 1.45;
+}
+
 .obs-wiki-metric-card,
 .obs-wiki-card {
 	padding: 10px;
