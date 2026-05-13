@@ -302,6 +302,7 @@ type LocalConnectionState =
 	| 'unsupported';
 
 type ConnectionTransport = 'streamable-http' | 'sse' | 'stdio';
+type ClientConfigState = 'configured' | 'needs_update' | 'not_configured' | 'unavailable';
 
 interface LocalConnectionStatus {
 	state: LocalConnectionState;
@@ -332,6 +333,9 @@ interface GeneratedClientConfig {
 	restartRequired: boolean;
 	configFormat: ClientProfile['configFormat'];
 	targetPath?: string;
+	configState: ClientConfigState;
+	configStatusLabel: string;
+	configStatusDetail: string;
 }
 
 interface DesktopNodeApi {
@@ -919,17 +923,62 @@ export default class WikiWeaverPlugin extends Plugin {
 	}
 
 	private buildClientConfigs(vaultRoot: string): GeneratedClientConfig[] {
-		return this.getClientProfiles().map((profile) => ({
-			clientId: profile.id,
-			displayName: profile.displayName,
-			description: profile.description,
-			transport: profile.preferredTransport,
-			configText: this.buildClientConfigText(profile, vaultRoot),
-			supportsAutoConfigure: profile.supportsAutoConfigure,
-			restartRequired: profile.restartRequired,
-			configFormat: profile.configFormat,
-			targetPath: profile.targetPath,
-		}));
+		return this.getClientProfiles().map((profile) => {
+			const status = this.readClientConfigStatus(profile);
+			return {
+				clientId: profile.id,
+				displayName: profile.displayName,
+				description: profile.description,
+				transport: profile.preferredTransport,
+				configText: this.buildClientConfigText(profile, vaultRoot),
+				supportsAutoConfigure: profile.supportsAutoConfigure,
+				restartRequired: profile.restartRequired,
+				configFormat: profile.configFormat,
+				targetPath: profile.targetPath,
+				configState: status.state,
+				configStatusLabel: status.label,
+				configStatusDetail: status.detail,
+			};
+		});
+	}
+
+	private readClientConfigStatus(profile: ClientProfile): { state: ClientConfigState; label: string; detail: string } {
+		if (!profile.supportsAutoConfigure || !profile.targetPath) {
+			return {
+				state: 'not_configured',
+				label: ui('未配置', 'Not configured'),
+				detail: ui('需要复制配置到对应 AI 工具。', 'Copy this config into the AI tool.'),
+			};
+		}
+
+		const api = this.getDesktopNodeApi();
+		if (!api) {
+			return {
+				state: 'unavailable',
+				label: ui('未配置', 'Not configured'),
+				detail: ui('当前环境不支持自动读取配置文件。', 'This environment cannot read the config file automatically.'),
+			};
+		}
+
+		if (!api.fs.existsSync(profile.targetPath)) {
+			return {
+				state: 'not_configured',
+				label: ui('未配置', 'Not configured'),
+				detail: ui('尚未写入 Wiki Weaver 连接。', 'The Wiki Weaver connection has not been written yet.'),
+			};
+		}
+
+		try {
+			const content = api.fs.readFileSync(profile.targetPath, 'utf8');
+			return this.detectClientConfigStatus(profile, content);
+		} catch (error) {
+			console.error('wiki-weaver failed to read client config status', error);
+			return {
+				state: 'unavailable',
+				label: ui('未配置', 'Not configured'),
+				detail: ui('无法读取配置文件，请检查文件权限。', 'Cannot read the config file. Check file permissions.'),
+			};
+		}
 	}
 
 	private getClientProfiles(): ClientProfile[] {
@@ -1041,6 +1090,109 @@ export default class WikiWeaverPlugin extends Plugin {
 		return JSON.stringify(config, null, 2);
 	}
 
+	private detectClientConfigStatus(profile: ClientProfile, content: string): { state: ClientConfigState; label: string; detail: string } {
+		if (profile.configFormat === 'codex-toml') {
+			const block = this.extractCodexTomlWikiWeaverBlock(content);
+			if (block.length === 0) {
+				return {
+					state: 'not_configured',
+					label: ui('未配置', 'Not configured'),
+					detail: ui('配置文件中还没有 Wiki Weaver 连接。', 'The config file does not include the Wiki Weaver connection yet.'),
+				};
+			}
+			const configuredUrl = this.readTomlStringValue(block.join('\n'), 'url');
+			if (configuredUrl && configuredUrl !== this.getMcpHttpEndpoint()) {
+				return {
+					state: 'needs_update',
+					label: ui('已配置', 'Configured'),
+					detail: ui('已配置，但连接地址与当前设置不同。', 'Configured, but the URL differs from the current setting.'),
+				};
+			}
+			return {
+				state: 'configured',
+				label: ui('已配置', 'Configured'),
+				detail: ui('连接配置已写入，重启 AI 工具后生效。', 'Connection config is written. Restart the AI tool to use it.'),
+			};
+		}
+
+		if (profile.configFormat === 'mcp-json') {
+			try {
+				const parsed = this.parseMcpJsonConfig(content);
+				const server = parsed.mcpServers['wiki-weaver'];
+				if (!server || typeof server !== 'object' || Array.isArray(server)) {
+					return {
+						state: 'not_configured',
+						label: ui('未配置', 'Not configured'),
+						detail: ui('配置文件中还没有 Wiki Weaver 连接。', 'The config file does not include the Wiki Weaver connection yet.'),
+					};
+				}
+				const url = (server as { url?: unknown }).url;
+				if (typeof url === 'string' && url.trim() && url.trim() !== this.getMcpHttpEndpoint()) {
+					return {
+						state: 'needs_update',
+						label: ui('已配置', 'Configured'),
+						detail: ui('已配置，但连接地址与当前设置不同。', 'Configured, but the URL differs from the current setting.'),
+					};
+				}
+				return {
+					state: 'configured',
+					label: ui('已配置', 'Configured'),
+					detail: ui('连接配置已写入，重启 AI 工具后生效。', 'Connection config is written. Restart the AI tool to use it.'),
+				};
+			} catch (error) {
+				console.error('wiki-weaver failed to parse client config status', error);
+				return {
+					state: 'not_configured',
+					label: ui('未配置', 'Not configured'),
+					detail: ui('配置文件无法解析，可以自动配置覆盖 Wiki Weaver 连接。', 'The config file could not be parsed. Auto setup can rewrite the Wiki Weaver connection.'),
+				};
+			}
+		}
+
+		return {
+			state: 'not_configured',
+			label: ui('未配置', 'Not configured'),
+			detail: ui('需要复制配置到对应 AI 工具。', 'Copy this config into the AI tool.'),
+		};
+	}
+
+	private extractCodexTomlWikiWeaverBlock(content: string): string[] {
+		const lines = content.split(/\r?\n/);
+		const block: string[] = [];
+		let collecting = false;
+		for (const line of lines) {
+			if (this.isWikiWeaverCodexTomlHeader(line)) {
+				collecting = true;
+				block.push(line);
+				continue;
+			}
+			if (collecting && this.isTomlHeader(line)) {
+				break;
+			}
+			if (collecting) {
+				block.push(line);
+			}
+		}
+		return block;
+	}
+
+	private readTomlStringValue(content: string, key: string): string | null {
+		const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		const match = content.match(new RegExp(`^\\s*${escapedKey}\\s*=\\s*(.+?)\\s*$`, 'm'));
+		if (!match) {
+			return null;
+		}
+		const rawValue = match[1].trim();
+		if (rawValue.startsWith('"')) {
+			try {
+				return JSON.parse(rawValue) as string;
+			} catch (_error) {
+				return rawValue.replace(/^"|"$/g, '');
+			}
+		}
+		return rawValue.replace(/^['"]|['"]$/g, '');
+	}
+
 	getMcpHttpEndpoint(): string {
 		return (this.settings.mcpHttpEndpoint || DEFAULT_MCP_HTTP_ENDPOINT).trim();
 	}
@@ -1146,26 +1298,28 @@ export default class WikiWeaverPlugin extends Plugin {
 	async applyClientConfig(config: GeneratedClientConfig): Promise<void> {
 		try {
 			const result = this.writeClientConfig(config);
-			await this.appendClientConfigAuditEvent('client_config_applied', config, 'success', result.backupPath);
+			this.queueClientConfigAuditEvent('client_config_applied', config, 'success', result.backupPath);
 			new Notice(ui('已写入知识库连接配置，请重启对应 AI 工具。', 'Wiki Weaver connection config written. Restart the AI tool.'));
-			await this.refreshAgentConnectionViews();
+			this.queueAgentConnectionViewRefresh();
 		} catch (error) {
 			console.error('wiki-weaver failed to apply client config', error);
-			await this.appendClientConfigAuditEvent('client_config_failed', config, 'failed');
+			this.queueClientConfigAuditEvent('client_config_failed', config, 'failed');
 			new Notice(ui('写入连接配置失败。', 'Failed to write connection config.'));
+			throw error;
 		}
 	}
 
 	async removeClientConfig(config: GeneratedClientConfig): Promise<void> {
 		try {
 			const result = this.deleteClientConfig(config);
-			await this.appendClientConfigAuditEvent('client_config_removed', config, 'success', result.backupPath);
-			new Notice(ui('已移除知识库连接配置，请重启对应 AI 工具。', 'Wiki Weaver connection config removed. Restart the AI tool.'));
-			await this.refreshAgentConnectionViews();
+			this.queueClientConfigAuditEvent('client_config_removed', config, 'success', result.backupPath);
+			new Notice(ui('已移除配置，请重启对应 AI 工具。', 'Config removed. Restart the AI tool.'));
+			this.queueAgentConnectionViewRefresh();
 		} catch (error) {
 			console.error('wiki-weaver failed to remove client config', error);
-			await this.appendClientConfigAuditEvent('client_config_failed', config, 'failed');
-			new Notice(ui('移除连接配置失败。', 'Failed to remove connection config.'));
+			this.queueClientConfigAuditEvent('client_config_failed', config, 'failed');
+			new Notice(ui('移除配置失败。', 'Failed to remove config.'));
+			throw error;
 		}
 	}
 
@@ -1175,10 +1329,16 @@ export default class WikiWeaverPlugin extends Plugin {
 			new Notice(ui('当前环境无法打开配置文件。', 'Cannot open the config file in this environment.'));
 			return;
 		}
+		if (!api.fs.existsSync(config.targetPath)) {
+			new Notice(ui('配置文件尚未创建，请先完成自动配置。', 'The config file does not exist yet. Run auto setup first.'));
+			return;
+		}
 		const result = await api.shell.openPath(config.targetPath);
 		if (result) {
 			new Notice(ui('打开配置文件失败。', 'Failed to open config file.'));
+			return;
 		}
+		new Notice(ui('已打开配置文件。', 'Config file opened.'));
 	}
 
 	private writeClientConfig(config: GeneratedClientConfig): { backupPath: string } {
@@ -1308,6 +1468,23 @@ export default class WikiWeaverPlugin extends Plugin {
 			`timestamp: ${now}\n\n`
 		);
 		await this.appendToAuditLog(event);
+	}
+
+	private queueClientConfigAuditEvent(
+		action: string,
+		config: GeneratedClientConfig,
+		result: string,
+		backupPath?: string
+	): void {
+		void this.appendClientConfigAuditEvent(action, config, result, backupPath).catch((error) => {
+			console.error('wiki-weaver failed to record client config audit event', error);
+		});
+	}
+
+	private queueAgentConnectionViewRefresh(): void {
+		void this.refreshAgentConnectionViews().catch((error) => {
+			console.error('wiki-weaver failed to refresh agent connection views', error);
+		});
 	}
 
 	private getDesktopNodeApi(): DesktopNodeApi | null {
@@ -2256,7 +2433,17 @@ class WikiWeaverSourceStatusView extends ItemView {
 			cls: 'mod-cta',
 		});
 		refreshButton.addEventListener('click', async () => {
-			await this.refresh();
+			refreshButton.disabled = true;
+			refreshButton.setText(ui('刷新中...', 'Refreshing...'));
+			try {
+				await this.refresh();
+				new Notice(ui('来源状态已刷新。', 'Source status refreshed.'));
+			} catch (error) {
+				console.error('wiki-weaver failed to refresh source status view', error);
+				refreshButton.disabled = false;
+				refreshButton.setText(ui('刷新', 'Refresh'));
+				new Notice(ui('刷新来源状态失败。', 'Failed to refresh source status.'));
+			}
 		});
 
 		if (snapshot.missingRequestFolder) {
@@ -2368,7 +2555,17 @@ class WikiWeaverActivityView extends ItemView {
 			cls: 'mod-cta',
 		});
 		refreshButton.addEventListener('click', async () => {
-			await this.refresh();
+			refreshButton.disabled = true;
+			refreshButton.setText(ui('刷新中...', 'Refreshing...'));
+			try {
+				await this.refresh();
+				new Notice(ui('活动记录已刷新。', 'Activity refreshed.'));
+			} catch (error) {
+				console.error('wiki-weaver failed to refresh activity view', error);
+				refreshButton.disabled = false;
+				refreshButton.setText(ui('刷新', 'Refresh'));
+				new Notice(ui('刷新活动记录失败。', 'Failed to refresh activity.'));
+			}
 		});
 		const reviewButton = actions.createEl('button', {
 			text: ui('打开审核列表', 'Open review list'),
@@ -2604,7 +2801,17 @@ class WikiWeaverReviewQueueView extends ItemView {
 			cls: 'mod-cta',
 		});
 		refreshButton.addEventListener('click', async () => {
-			await this.refresh();
+			refreshButton.disabled = true;
+			refreshButton.setText(ui('刷新中...', 'Refreshing...'));
+			try {
+				await this.refresh();
+				new Notice(ui('审核队列已刷新。', 'Review queue refreshed.'));
+			} catch (error) {
+				console.error('wiki-weaver failed to refresh review queue view', error);
+				refreshButton.disabled = false;
+				refreshButton.setText(ui('刷新', 'Refresh'));
+				new Notice(ui('刷新审核队列失败。', 'Failed to refresh review queue.'));
+			}
 		});
 
 		if (snapshot.missingReviewQueueFolder) {
@@ -2752,7 +2959,14 @@ class WikiWeaverReviewQueueView extends ItemView {
 				}
 				try {
 					await this.plugin.updateMemoryProposalStatus(proposal, status);
+					new Notice(ui(
+						`已更新为：${memoryProposalStatusLabel(status)}。`,
+						`Updated to ${memoryProposalStatusLabel(status)}.`
+					));
 					await this.refresh();
+				} catch (error) {
+					console.error('wiki-weaver failed to update proposal status', error);
+					new Notice(ui('更新审核状态失败。', 'Failed to update review status.'));
 				} finally {
 					for (const button of actionButtons) {
 						button.removeAttribute('disabled');
@@ -2841,7 +3055,9 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 		});
 		const actions = header.createDiv({ cls: 'wiki-weaver-action-row' });
 		const refreshButton = actions.createEl('button', { text: ui('刷新', 'Refresh'), cls: 'mod-cta' });
-		refreshButton.addEventListener('click', async () => this.refresh());
+		refreshButton.addEventListener('click', () => {
+			void this.handleRefreshClick(refreshButton);
+		});
 
 		const statusBar = contentEl.createDiv({ cls: 'wiki-weaver-status-bar' });
 		this.renderStatusItem(statusBar, ui('连接位置', 'Connection location'), ui('这台电脑', 'This computer'));
@@ -3019,29 +3235,82 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 
 	private renderConfigCard(container: HTMLElement, config: GeneratedClientConfig): void {
 		const row = container.createDiv({ cls: 'wiki-weaver-config-row' });
-		row.createDiv({ cls: 'wiki-weaver-config-row__client' }).createEl('strong', { text: config.displayName });
-		const actions = row.createDiv({ cls: 'wiki-weaver-config-row__actions wiki-weaver-action-row' });
-		const copy = actions.createEl('button', { text: ui('复制配置', 'Copy config') });
-		copy.disabled = config.transport !== 'stdio' && !this.plugin.getMcpHttpEndpoint();
-		copy.addEventListener('click', () => {
-			void this.plugin.copyToClipboard(config.configText, ui('已复制连接配置。', 'Connection config copied.'));
+		const client = row.createDiv({ cls: 'wiki-weaver-config-row__client' });
+		const title = client.createDiv({ cls: 'wiki-weaver-config-row__title' });
+		title.createEl('strong', { text: config.displayName });
+		title.createEl('span', {
+			text: config.configStatusLabel,
+			cls: `wiki-weaver-badge ${this.configStatusClass(config.configState)}`,
 		});
-		if (config.supportsAutoConfigure && config.targetPath) {
-			const autoConfigure = actions.createEl('button', { text: ui('自动配置', 'Auto setup'), cls: 'mod-cta' });
+		client.createEl('small', { text: config.configStatusDetail });
+		const actions = row.createDiv({ cls: 'wiki-weaver-config-row__actions wiki-weaver-action-row' });
+
+		if (config.configState !== 'configured') {
+			const copy = actions.createEl('button', { text: ui('复制配置', 'Copy config') });
+			copy.disabled = config.transport !== 'stdio' && !this.plugin.getMcpHttpEndpoint();
+			copy.addEventListener('click', () => {
+				void this.plugin.copyToClipboard(config.configText, ui('已复制连接配置。', 'Connection config copied.'));
+			});
+		}
+
+		if (config.supportsAutoConfigure && config.targetPath && config.configState !== 'configured') {
+			const autoConfigure = actions.createEl('button', {
+				text: config.configState === 'needs_update' ? ui('更新配置', 'Update config') : ui('自动配置', 'Auto setup'),
+				cls: 'mod-cta',
+			});
 			autoConfigure.disabled = !this.plugin.getMcpHttpEndpoint();
 			autoConfigure.addEventListener('click', () => {
 				new ClientConfigPreviewModal(this.app, this.plugin, config, 'apply').open();
 			});
 		}
-		if (config.supportsAutoConfigure && config.targetPath) {
+
+		if (
+			config.supportsAutoConfigure
+			&& config.targetPath
+			&& config.configState === 'needs_update'
+		) {
 			const openFile = actions.createEl('button', { text: ui('打开配置文件', 'Open config file') });
 			openFile.addEventListener('click', () => {
 				void this.plugin.openClientConfigFile(config);
 			});
-			const remove = actions.createEl('button', { text: ui('移除连接', 'Remove connection') });
+		}
+
+		if (
+			config.supportsAutoConfigure
+			&& config.targetPath
+			&& (config.configState === 'configured' || config.configState === 'needs_update')
+		) {
+			const remove = actions.createEl('button', { text: ui('移除配置', 'Remove config') });
 			remove.addEventListener('click', () => {
 				new ClientConfigPreviewModal(this.app, this.plugin, config, 'remove').open();
 			});
+		}
+	}
+
+	private async handleRefreshClick(refreshButton: HTMLButtonElement): Promise<void> {
+		refreshButton.disabled = true;
+		refreshButton.setText(ui('刷新中...', 'Refreshing...'));
+		try {
+			await this.refresh();
+			new Notice(ui('连接状态已刷新。', 'Connection status refreshed.'));
+		} catch (error) {
+			console.error('wiki-weaver failed to refresh agent connections view', error);
+			refreshButton.disabled = false;
+			refreshButton.setText(ui('刷新', 'Refresh'));
+			new Notice(ui('刷新连接状态失败。', 'Failed to refresh connection status.'));
+		}
+	}
+
+	private configStatusClass(state: ClientConfigState): string {
+		switch (state) {
+			case 'configured':
+				return 'wiki-weaver-badge--success';
+			case 'needs_update':
+				return 'wiki-weaver-badge--warning';
+			case 'not_configured':
+			case 'unavailable':
+			default:
+				return 'wiki-weaver-badge--muted';
 		}
 	}
 
@@ -3157,7 +3426,7 @@ class ClientConfigPreviewModal extends Modal {
 		contentEl.createEl('h2', {
 			text: this.mode === 'apply'
 				? ui('确认自动配置', 'Confirm auto setup')
-				: ui('确认移除连接', 'Confirm removal'),
+				: ui('确认移除配置', 'Confirm config removal'),
 		});
 		contentEl.createEl('p', {
 			text: this.mode === 'apply'
@@ -3175,18 +3444,30 @@ class ClientConfigPreviewModal extends Modal {
 		const actions = contentEl.createDiv({ cls: 'wiki-weaver-action-row' });
 		const cancel = actions.createEl('button', { text: ui('取消', 'Cancel') });
 		cancel.addEventListener('click', () => this.close());
+		const confirmText = this.mode === 'apply' ? ui('确认写入', 'Write config') : ui('移除配置', 'Remove config');
 		const confirm = actions.createEl('button', {
-			text: this.mode === 'apply' ? ui('确认写入', 'Write config') : ui('确认移除', 'Remove config'),
+			text: confirmText,
 			cls: 'mod-cta',
 		});
+		const status = actions.createEl('span', { cls: 'wiki-weaver-view__description' });
 		confirm.addEventListener('click', async () => {
 			confirm.disabled = true;
-			if (this.mode === 'apply') {
-				await this.plugin.applyClientConfig(this.config);
-			} else {
-				await this.plugin.removeClientConfig(this.config);
+			cancel.disabled = true;
+			confirm.setText(this.mode === 'apply' ? ui('写入中...', 'Writing...') : ui('移除中...', 'Removing...'));
+			status.setText(this.mode === 'apply' ? ui('正在写入连接配置...', 'Writing connection config...') : ui('正在移除配置...', 'Removing config...'));
+			try {
+				if (this.mode === 'apply') {
+					await this.plugin.applyClientConfig(this.config);
+				} else {
+					await this.plugin.removeClientConfig(this.config);
+				}
+				this.close();
+			} catch (_error) {
+				status.setText(this.mode === 'apply' ? ui('写入失败，请检查配置文件权限后重试。', 'Write failed. Check config file permissions and try again.') : ui('移除失败，请检查配置文件权限后重试。', 'Removal failed. Check config file permissions and try again.'));
+				confirm.disabled = false;
+				cancel.disabled = false;
+				confirm.setText(confirmText);
 			}
-			this.close();
 		});
 	}
 
