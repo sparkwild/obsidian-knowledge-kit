@@ -2850,6 +2850,7 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		const advancedClientConfigs = snapshot.clientConfigs.filter((config) => !coreClientIds.has(config.clientId));
 
 		const configGrid = contentEl.createDiv({ cls: 'obs-wiki-config-grid' });
+		this.renderConfigListHeader(configGrid);
 		for (const clientConfig of coreClientConfigs) {
 			this.renderConfigCard(configGrid, clientConfig);
 		}
@@ -2977,21 +2978,21 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		this.renderDetail(matrix, ui('不会执行', 'Never allowed'), ui('系统命令、知识库外文件、Obsidian 配置目录、删除或批量重写', 'System commands, files outside the knowledge base, Obsidian settings folders, delete or bulk rewrite'));
 	}
 
+	private renderConfigListHeader(container: HTMLElement): void {
+		const header = container.createDiv({ cls: 'obs-wiki-config-row obs-wiki-config-row--header' });
+		header.createEl('span', { text: ui('AI 工具', 'AI tool') });
+		header.createEl('span', { text: ui('连接', 'Connection') });
+		header.createEl('span', { text: ui('配置', 'Setup') });
+		header.createEl('span', { text: ui('验证', 'Verify') });
+		header.createEl('span', { text: ui('操作', 'Actions') });
+	}
+
 	private renderConfigCard(container: HTMLElement, config: GeneratedClientConfig): void {
 		const row = container.createDiv({ cls: 'obs-wiki-card obs-wiki-config-row' });
 		row.createDiv({ cls: 'obs-wiki-config-row__client' }).createEl('strong', { text: config.displayName });
-		const facts = row.createDiv({ cls: 'obs-wiki-client-meta' });
-		this.renderClientMeta(facts, ui('连接方式', 'Connection'), this.transportLabel(config.transport));
-		this.renderClientMeta(
-			facts,
-			ui('配置方式', 'Setup'),
-			config.supportsAutoConfigure ? ui('可自动配置', 'Auto setup available') : ui('复制配置', 'Copy config')
-		);
-		this.renderClientMeta(
-			facts,
-			ui('验证方式', 'Verify'),
-			config.restartRequired ? ui('重启工具', 'Restart tool') : ui('按工具提示验证', 'Use tool prompt')
-		);
+		this.renderConfigValue(row, ui('连接', 'Connection'), this.transportLabel(config.transport));
+		this.renderConfigValue(row, ui('配置', 'Setup'), config.supportsAutoConfigure ? ui('可自动配置', 'Auto setup available') : ui('复制配置', 'Copy config'));
+		this.renderConfigValue(row, ui('验证', 'Verify'), config.restartRequired ? ui('重启工具', 'Restart tool') : ui('按工具提示验证', 'Use tool prompt'));
 		const actions = row.createDiv({ cls: 'obs-wiki-config-row__actions obs-wiki-action-row' });
 		const copy = actions.createEl('button', { text: ui('复制配置', 'Copy config') });
 		copy.addEventListener('click', () => {
@@ -3013,6 +3014,12 @@ class ObsWikiAgentConnectionsView extends ItemView {
 				new ClientConfigPreviewModal(this.app, this.plugin, config, 'remove').open();
 			});
 		}
+	}
+
+	private renderConfigValue(container: HTMLElement, label: string, value: string): void {
+		const item = container.createDiv({ cls: 'obs-wiki-config-value' });
+		item.createEl('span', { text: label });
+		item.createEl('strong', { text: value });
 	}
 
 	private renderAdvancedConfigRow(container: HTMLElement, config: GeneratedClientConfig): void {
@@ -3048,12 +3055,6 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		copy.addEventListener('click', () => {
 			void this.plugin.copyToClipboard(value, notice);
 		});
-	}
-
-	private renderClientMeta(container: HTMLElement, label: string, value: string): void {
-		const item = container.createDiv({ cls: 'obs-wiki-client-meta__row' });
-		item.createEl('span', { text: label });
-		item.createEl('strong', { text: value });
 	}
 
 	private transportLabel(transport: ConnectionTransport): string {
