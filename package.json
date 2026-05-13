@@ -14,5 +14,6 @@
 		"test": "npm run test --workspaces --if-present",
 		"package": "npm run package --workspace apps/obsidian-plugin",
 		"verify": "bash ./scripts/verify.sh"
-	}
+	},
+	"license": "MIT"
 }
