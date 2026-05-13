@@ -1,7 +1,7 @@
 {
   "name": "wiki-weaver-plugin",
   "version": "0.1.0",
-  "description": "Compile raw notes, sources, and AI conversations into a linked Markdown wiki with reviewable updates.",
+  "description": "Build and review an AI-assisted wiki from your vault.",
   "private": true,
   "main": "main.js",
   "scripts": {

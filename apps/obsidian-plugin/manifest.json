@@ -3,7 +3,7 @@
   "name": "Wiki Weaver",
   "version": "0.1.0",
   "minAppVersion": "1.6.0",
-  "description": "Compile raw notes, sources, and AI conversations into a linked Markdown wiki with reviewable updates.",
+  "description": "Build and review an AI-assisted wiki from your vault.",
   "author": "sparkwild",
   "authorUrl": "https://github.com/sparkwild",
   "isDesktopOnly": false,

@@ -8,6 +8,7 @@ This directory keeps the current Wiki Weaver product documentation. Historical e
 - [Obsidian plugin](./PLUGIN.md)
 - [MCP and permissions](./MCP.md)
 - [Client auto-configuration](./CLIENT_AUTO_CONFIGURATION.md)
+- [Development and release notes](./DEVELOPMENT.md)
 - [Roadmap](./ROADMAP.md)
 
 ## Core Boundary
