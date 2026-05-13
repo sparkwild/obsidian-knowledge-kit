@@ -2980,9 +2980,6 @@ class ObsWikiAgentConnectionsView extends ItemView {
 	private renderConfigCard(container: HTMLElement, config: GeneratedClientConfig): void {
 		const row = container.createDiv({ cls: 'obs-wiki-card obs-wiki-config-row' });
 		row.createDiv({ cls: 'obs-wiki-config-row__client' }).createEl('strong', { text: config.displayName });
-		this.renderConfigValue(row, ui('连接', 'Connection'), this.transportLabel(config.transport));
-		this.renderConfigValue(row, ui('配置', 'Setup'), config.supportsAutoConfigure ? ui('可自动配置', 'Auto setup available') : ui('复制配置', 'Copy config'));
-		this.renderConfigValue(row, ui('验证', 'Verify'), config.restartRequired ? ui('重启工具', 'Restart tool') : ui('按工具提示验证', 'Use tool prompt'));
 		const actions = row.createDiv({ cls: 'obs-wiki-config-row__actions obs-wiki-action-row' });
 		const copy = actions.createEl('button', { text: ui('复制配置', 'Copy config') });
 		copy.addEventListener('click', () => {
@@ -3004,12 +3001,6 @@ class ObsWikiAgentConnectionsView extends ItemView {
 				new ClientConfigPreviewModal(this.app, this.plugin, config, 'remove').open();
 			});
 		}
-	}
-
-	private renderConfigValue(container: HTMLElement, label: string, value: string): void {
-		const item = container.createDiv({ cls: 'obs-wiki-config-value' });
-		item.createEl('span', { text: label });
-		item.createEl('strong', { text: value });
 	}
 
 	private renderAdvancedConfigRow(container: HTMLElement, config: GeneratedClientConfig): void {

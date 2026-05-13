@@ -100,7 +100,7 @@
 
 .obs-wiki-config-row {
 	display: grid;
-	grid-template-columns: minmax(110px, 0.8fr) minmax(100px, 0.8fr) minmax(110px, 0.8fr) minmax(120px, 0.9fr) auto;
+	grid-template-columns: minmax(120px, 1fr) auto;
 	gap: 10px;
 	align-items: center;
 	margin-top: 0;
@@ -119,19 +119,6 @@
 .obs-wiki-config-row__actions {
 	justify-content: flex-end;
 	min-width: fit-content;
-}
-
-.obs-wiki-config-value {
-	min-width: 0;
-}
-
-.obs-wiki-config-value span {
-	display: none;
-}
-
-.obs-wiki-config-value strong {
-	display: block;
-	overflow-wrap: anywhere;
 }
 
 .obs-wiki-card__header {
@@ -347,18 +334,6 @@
 	.obs-wiki-config-row {
 		grid-template-columns: 1fr;
 		align-items: start;
-	}
-
-	.obs-wiki-config-value {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-
-	.obs-wiki-config-value span {
-		display: block;
-		color: var(--text-muted);
-		font-size: 12px;
 	}
 
 	.obs-wiki-config-row__actions {
