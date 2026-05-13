@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+run_root_script() {
+  local script="$1"
+  printf '\n>>> root: npm run %s\n' "$script"
+  (cd "$ROOT" && npm run "$script")
+}
+
+run_root_script typecheck
+run_root_script build
+run_root_script test
+run_root_script package
+
+if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  printf '\n>>> root: git diff --check\n'
+  git -C "$ROOT" diff --check
+fi
+
+printf '\nPhase 11 verification finished.\n'

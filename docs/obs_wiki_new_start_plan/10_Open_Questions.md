@@ -2,27 +2,17 @@
 
 这些问题不阻塞 Phase 0 / Phase 1，但会影响后续设计。
 
-## 1. 旧代码处理方式
-
-选项：
-
-1. 归档旧 Codex plugin 目录到 `legacy/`。
-2. 直接删除旧 Codex plugin 目录。
-3. 保留一段时间，但 README 明确 legacy。
-
-建议：Phase 0 先归档，不立即删除；等 Obsidian 插件 MVP 能跑后再清理。
-
-## 2. 技术栈确认
+## 1. 技术栈确认
 
 推荐：TypeScript monorepo。
 
 需要确认：
 
-- 是否接受 pnpm / npm workspace？
+- 是否长期使用 npm workspace？
 - 是否接受 SQLite 作为本地索引？
 - 是否先不引入 Rust/Go？
 
-## 3. Obsidian 插件发布策略
+## 2. Obsidian 插件发布策略
 
 选项：
 
@@ -32,7 +22,7 @@
 
 建议：MVP 用 GitHub release / BRAT，稳定后再社区发布。
 
-## 4. MCP 生命周期
+## 3. MCP 生命周期
 
 默认建议：Agent-session stdio。
 
@@ -40,7 +30,7 @@
 
 建议：第一版不做 background daemon。
 
-## 5. Source Analysis 能力范围
+## 4. Source Analysis 能力范围
 
 MVP 支持：
 
@@ -53,7 +43,7 @@ MVP 支持：
 
 建议：PDF 放 Phase 9 或以后。
 
-## 6. 是否内置 LLM Provider
+## 5. 是否内置 LLM Provider
 
 选择：
 
@@ -63,13 +53,13 @@ MVP 支持：
 
 建议：MVP 不内置模型，只做 Agent-first MCP。
 
-## 7. 用户偏好记忆策略
+## 6. 用户偏好记忆策略
 
 需要确认：是否任何 preference memory 都必须手动批准？
 
 建议：必须手动批准，且可过期、可撤销。
 
-## 8. 插件名称大小写
+## 7. 插件名称大小写
 
 推荐：
 
@@ -80,11 +70,7 @@ MVP 支持：
 
 需要确认是否要更品牌化大小写如 `ObsWiki`。
 
-## 9. 是否保留 Vaultwright 文档作为历史参考
-
-建议：保留在 `legacy/` 或 docs archive，不作为新主线。
-
-## 10. 第一版目标用户
+## 8. 第一版目标用户
 
 选择：
 

@@ -4,49 +4,48 @@ Thanks for contributing to `obs-wiki`.
 
 ## Scope
 
-This repository contains two tightly coupled surfaces:
+This repository contains the Obsidian-native obs-wiki monorepo:
 
-- the root toolkit source (`skills/`, `lib/`, `scripts/`)
-- the packaged Codex plugin (`plugins/obs-wiki/`)
+- `apps/obsidian-plugin/` for the Obsidian governance plugin.
+- `apps/mcp-server/` for the Agent-facing MCP server.
+- `packages/core/` for shared TypeScript memory/runtime primitives.
+- `docs/` for current product and architecture docs.
 
-Changes should keep both surfaces consistent.
+Do not reintroduce the removed Codex local plugin package, root skills, or Python runtime as a primary product path.
 
 ## Setup
 
 1. Clone the repository.
-2. Make changes in the root source directories first.
-3. Sync the plugin package after changing root `skills/` or `lib/`:
-
-```bash
-python3 scripts/sync_plugin_package.py
-```
+2. Install dependencies inside the affected workspace if needed.
+3. Run root verification before sending changes for review.
 
 ## Validation
 
 Run these checks before opening a PR:
 
 ```bash
-python3 -B -m py_compile $(find lib scripts skills plugins/obs-wiki/lib plugins/obs-wiki/skills -name '*.py')
-python3 scripts/check_codex_plugin.py --json
+npm run verify
 ```
 
-If you changed startup or distill behavior, also verify:
+For narrower checks:
 
 ```bash
-python3 scripts/load_knowledge_context.py --json
-python3 scripts/render_session_skeleton.py --json
+npm run typecheck
+npm run build
+npm run test
+npm run package
 ```
 
 ## Pull Requests
 
 - Keep changes focused.
 - Explain user-facing behavior changes clearly.
-- Mention whether the plugin package was re-synced.
-- Mention any manual Codex UI verification you performed.
+- Mention MCP or Obsidian plugin boundary changes explicitly.
+- Mention the verification commands you ran.
 
 ## Design Constraints
 
-- Keep the plugin package self-contained.
-- Do not reintroduce symlinked `skills/` or external `lib/` dependencies inside the plugin package.
-- Prefer activity-vault-aware behavior through `obsidian vault info=path`.
-- Do not silently change top-level knowledge-base structure assumptions.
+- Agent is the only operation entry for URL/file submission, source analysis, context packs, lint, distill, and proposal generation.
+- Obsidian plugin commands must remain governance/review/status oriented.
+- MCP tools must stay vault-scoped and follow `docs/MCP_Tool_Permission_Matrix.md`.
+- Do not write to a real Obsidian vault unless a task explicitly asks for it.

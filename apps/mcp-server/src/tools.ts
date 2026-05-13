@@ -30,6 +30,7 @@ const REVIEW_QUEUE_PREFIX = '01_inbox/review_queue';
 const AUDIT_LOG_PATH = '00_control/audit_log.md';
 const MAX_LIST_QUEUE_ITEMS = 20;
 const MAX_AUDIT_ITEMS = 20;
+const MAX_APPROVED_WRITEBACKS = 20;
 const CONTEXT_PACK_DIR = '06_outputs/context_packs';
 const SESSION_NOTE_DIR = '02_timeline/sessions';
 const SOURCE_REQUESTS_DIR = '01_inbox/agent_requests';
@@ -111,6 +112,19 @@ interface ProposeMemoryArgs extends ToolArgs {
 	title?: unknown;
 }
 
+interface ListApprovedWritebacksArgs extends ToolArgs {
+	scope?: unknown;
+	max_items?: unknown;
+	limit?: unknown;
+}
+
+interface ApplyApprovedWritebackArgs extends ToolArgs {
+	proposal_id?: unknown;
+	proposal_path?: unknown;
+	path?: unknown;
+	dry_run?: unknown;
+}
+
 interface ListSourceRequestsArgs extends ToolArgs {
 	max_items?: unknown;
 	status?: unknown;
@@ -149,6 +163,28 @@ interface AuditEventInput {
 
 interface AuditEventOutput {
 	path: string;
+}
+
+interface MemoryProposalDocument {
+	absolutePath: string;
+	path: string;
+	proposalId: string;
+	proposalKind: string;
+	approvalStatus: string;
+	targetNote: string;
+	riskLevel: string;
+	taskId: string;
+	body: string;
+	text: string;
+	frontmatter: Record<string, unknown>;
+}
+
+interface WritebackPlan {
+	proposal: MemoryProposalDocument;
+	targetNote: string;
+	writebackContent: string;
+	ready: boolean;
+	reason?: string;
 }
 
 function toolResult(payload: unknown, isError = false): McpStructuredToolResult {
@@ -384,6 +420,244 @@ function readSourceRequest(vaultRoot: string, requestPath: string): SourceReques
 	};
 }
 
+function stripYamlQuotes(value: string): string {
+	const trimmed = value.trim();
+	if (
+		(trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+		(trimmed.startsWith("'") && trimmed.endsWith("'"))
+	) {
+		return trimmed.slice(1, -1).trim();
+	}
+	return trimmed;
+}
+
+function assertReviewQueuePath(relativePath: string): void {
+	if (!relativePath.startsWith(`${REVIEW_QUEUE_PREFIX}/`)) {
+		throw new ToolInputError(`Memory proposal path must be under ${REVIEW_QUEUE_PREFIX}.`);
+	}
+}
+
+function readProposalApprovalStatus(frontmatter: Record<string, unknown>): string {
+	return stripYamlQuotes(
+		readFrontmatterString(frontmatter, ['approval_status', 'approvalStatus', 'status']) || 'pending'
+	)
+		.toLowerCase()
+		.replace(/\s+/g, '_');
+}
+
+function isMemoryProposalFrontmatter(frontmatter: Record<string, unknown>): boolean {
+	const type = stripYamlQuotes(readFrontmatterString(frontmatter, ['type'])).toLowerCase();
+	if (!type) {
+		return Boolean(readFrontmatterString(frontmatter, ['proposal_kind', 'proposalKind']));
+	}
+	return type.includes('memory-proposal') || type.includes('memory_proposal');
+}
+
+function readMemoryProposal(vaultRoot: string, proposalPath: string): MemoryProposalDocument {
+	const normalized = normalizeNotePath(proposalPath);
+	const absolutePath = resolveSafeNotePath(vaultRoot, normalized);
+	const relative = relativeFromAbsolute(vaultRoot, absolutePath);
+	assertReviewQueuePath(relative);
+
+	const text = fs.readFileSync(absolutePath, 'utf8');
+	const parsed = parseMarkdown(text);
+	const frontmatter = parsed.frontmatter.fields;
+	if (!isMemoryProposalFrontmatter(frontmatter)) {
+		throw new ToolInputError(`Review Queue note is not a memory proposal: ${relative}`);
+	}
+
+	return {
+		absolutePath,
+		path: relative,
+		proposalId:
+			stripYamlQuotes(readFrontmatterString(frontmatter, ['proposal_id', 'proposalId'])) ||
+			path.basename(relative, path.extname(relative)),
+		proposalKind: stripYamlQuotes(readFrontmatterString(frontmatter, ['proposal_kind', 'proposalKind'])) || 'unknown',
+		approvalStatus: readProposalApprovalStatus(frontmatter),
+		targetNote: stripYamlQuotes(readFrontmatterString(frontmatter, ['target_note', 'targetNote'])),
+		riskLevel: stripYamlQuotes(readFrontmatterString(frontmatter, ['risk_level', 'riskLevel'])) || 'unknown',
+		taskId: stripYamlQuotes(readFrontmatterString(frontmatter, ['task_id', 'taskId'])),
+		body: parsed.body,
+		text,
+		frontmatter,
+	};
+}
+
+function findMemoryProposalPathById(vaultRoot: string, proposalId: string): string {
+	const normalizedId = stripYamlQuotes(proposalId);
+	if (!normalizedId) {
+		throw new ToolInputError('proposal_id is required.');
+	}
+
+	const scan = scanVault(vaultRoot);
+	const match = scan.notes.find((note) => {
+		if (!note.relativePath.startsWith(`${REVIEW_QUEUE_PREFIX}/`)) {
+			return false;
+		}
+		const noteProposalId =
+			stripYamlQuotes(readFrontmatterString(note.frontmatter, ['proposal_id', 'proposalId'])) ||
+			path.basename(note.relativePath, path.extname(note.relativePath));
+		return noteProposalId === normalizedId || note.relativePath === normalizedId;
+	});
+
+	if (!match) {
+		throw new ToolInputError(`Approved writeback proposal not found: ${normalizedId}`);
+	}
+	return match.relativePath;
+}
+
+function resolveMemoryProposalFromArgs(
+	vaultRoot: string,
+	rawArgs: ApplyApprovedWritebackArgs
+): MemoryProposalDocument {
+	const explicitPath = coerceOptionalString(rawArgs.proposal_path) || coerceOptionalString(rawArgs.path);
+	if (explicitPath) {
+		return readMemoryProposal(vaultRoot, explicitPath);
+	}
+
+	const proposalId = coerceOptionalString(rawArgs.proposal_id);
+	if (!proposalId) {
+		throw new ToolInputError('proposal_id or proposal_path is required.');
+	}
+	return readMemoryProposal(vaultRoot, findMemoryProposalPathById(vaultRoot, proposalId));
+}
+
+function extractMarkdownSection(body: string, allowedHeadings: string[]): string {
+	const allowed = new Set(allowedHeadings.map((heading) => heading.toLowerCase()));
+	const lines = body.replace(/\r\n/g, '\n').split('\n');
+	const collected: string[] = [];
+	let capturing = false;
+
+	for (const line of lines) {
+		const headingMatch = line.match(/^#{2,6}\s+(.+?)\s*$/);
+		if (headingMatch) {
+			const heading = (headingMatch[1] || '').trim().toLowerCase();
+			if (capturing) {
+				break;
+			}
+			if (allowed.has(heading)) {
+				capturing = true;
+			}
+			continue;
+		}
+
+		if (capturing) {
+			collected.push(line);
+		}
+	}
+
+	return collected.join('\n').trim();
+}
+
+function buildWritebackPlan(proposal: MemoryProposalDocument): WritebackPlan {
+	const frontmatterWriteback = stripYamlQuotes(
+		readFrontmatterString(proposal.frontmatter, ['writeback_content', 'writebackContent'])
+	);
+	const writebackContent =
+		frontmatterWriteback ||
+		extractMarkdownSection(proposal.body, ['writeback', 'approved writeback', 'writeback content']);
+
+	if (proposal.approvalStatus !== 'approved') {
+		return {
+			proposal,
+			targetNote: proposal.targetNote,
+			writebackContent,
+			ready: false,
+			reason: `proposal approval_status/status is ${proposal.approvalStatus}`,
+		};
+	}
+	if (!proposal.targetNote) {
+		return {
+			proposal,
+			targetNote: proposal.targetNote,
+			writebackContent,
+			ready: false,
+			reason: 'target_note is required',
+		};
+	}
+	if (!writebackContent) {
+		return {
+			proposal,
+			targetNote: proposal.targetNote,
+			writebackContent,
+			ready: false,
+			reason: 'approved proposal must include ## Writeback content',
+		};
+	}
+
+	return {
+		proposal,
+		targetNote: proposal.targetNote,
+		writebackContent,
+		ready: true,
+	};
+}
+
+function formatFrontmatterUpdateValue(value: string): string {
+	if (/^[A-Za-z0-9._/-]+$/.test(value)) {
+		return value;
+	}
+	return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`;
+}
+
+function updateFrontmatterFields(content: string, fields: Record<string, string>): string {
+	const normalized = content.replace(/\r\n/g, '\n');
+	const lines = normalized.split('\n');
+	const renderedFields = Object.entries(fields).map(
+		([key, value]) => `${key}: ${formatFrontmatterUpdateValue(value)}`
+	);
+
+	if (lines.length === 0 || lines[0].trim() !== '---') {
+		return ['---', ...renderedFields, '---', normalized].join('\n');
+	}
+
+	let end = -1;
+	for (let index = 1; index < lines.length; index += 1) {
+		if (lines[index].trim() === '---') {
+			end = index;
+			break;
+		}
+	}
+	if (end < 0) {
+		return ['---', ...renderedFields, '---', normalized].join('\n');
+	}
+
+	const pending = new Map(Object.entries(fields));
+	const frontmatterLines = lines.slice(1, end).map((line) => {
+		const pair = line.match(/^(\s*)([^:#]+):\s*(.*)$/);
+		if (!pair) {
+			return line;
+		}
+		const key = pair[2]?.trim() || '';
+		const nextValue = pending.get(key);
+		if (nextValue === undefined) {
+			return line;
+		}
+		pending.delete(key);
+		return `${pair[1] || ''}${key}: ${formatFrontmatterUpdateValue(nextValue)}`;
+	});
+
+	for (const [key, value] of pending) {
+		frontmatterLines.push(`${key}: ${formatFrontmatterUpdateValue(value)}`);
+	}
+
+	return ['---', ...frontmatterLines, '---', ...lines.slice(end + 1)].join('\n');
+}
+
+function assertAllowedWritebackTarget(relativePath: string): void {
+	const forbiddenPrefixes = [
+		'00_control/',
+		'01_inbox/',
+		'03_sources/',
+		'06_outputs/',
+	];
+	for (const prefix of forbiddenPrefixes) {
+		if (relativePath.startsWith(prefix)) {
+			throw new ToolInputError(`Approved writeback target is protected from direct apply: ${relativePath}`);
+		}
+	}
+}
+
 function extractSelectionText(sourceBody: string): string {
 	const marker = '## Selected Text';
 	const markerIndex = sourceBody.indexOf(marker);
@@ -556,12 +830,9 @@ function parseAuditSections(content: string) {
 }
 
 function isPendingProposal(note: ReturnType<typeof scanVault>['notes'][number]) {
-	const rawStatus = note.frontmatter.status;
-	if (typeof rawStatus === 'string') {
-		const status = rawStatus.toLowerCase();
-		if (!['pending', 'todo', 'open', 'review'].some((token) => status.includes(token))) {
-			return false;
-		}
+	const status = readProposalApprovalStatus(note.frontmatter);
+	if (!['pending', 'todo', 'open', 'review'].some((token) => status.includes(token))) {
+		return false;
 	}
 
 	const proposalKind = note.frontmatter.proposal_kind;
@@ -690,7 +961,7 @@ export function toolDefinitions(): McpToolDefinition[] {
 		{
 			name: 'obs_wiki.status',
 			title: 'obs_wiki.status',
-			description: 'Scan vault and return read-only summary counts.',
+			description: '[read-only] Scan vault and return summary counts.',
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -705,7 +976,7 @@ export function toolDefinitions(): McpToolDefinition[] {
 		{
 			name: 'obs_wiki.start_task',
 			title: 'obs_wiki.start_task',
-			description: 'Create a read-only task context pack summary and deterministic task id.',
+			description: '[read-only] Create a task context pack summary and deterministic task id.',
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -730,7 +1001,7 @@ export function toolDefinitions(): McpToolDefinition[] {
 		{
 			name: 'obs_wiki.recall',
 			title: 'obs_wiki.recall',
-			description: 'Scan vault and return matching notes for a recall query.',
+			description: '[read-only] Scan vault and return matching notes for a recall query.',
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -757,7 +1028,7 @@ export function toolDefinitions(): McpToolDefinition[] {
 		{
 			name: 'obs_wiki.read_note',
 			title: 'obs_wiki.read_note',
-			description: 'Read markdown/text content of one note in vault.',
+			description: '[read-only] Read markdown/text content of one note in vault.',
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -780,7 +1051,7 @@ export function toolDefinitions(): McpToolDefinition[] {
 		{
 			name: 'obs_wiki.list_review_queue',
 			title: 'obs_wiki.list_review_queue',
-			description: 'Read pending memory proposal notes under 01_inbox/review_queue.',
+			description: '[read-only] Read pending memory proposal notes under 01_inbox/review_queue.',
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -799,7 +1070,7 @@ export function toolDefinitions(): McpToolDefinition[] {
 		{
 			name: 'obs_wiki.list_source_requests',
 			title: 'obs_wiki.list_source_requests',
-			description: 'Read pending source-analysis agent requests under 01_inbox/agent_requests.',
+			description: '[read-only] Read pending source-analysis agent requests under 01_inbox/agent_requests.',
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -824,9 +1095,39 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
+			name: 'obs_wiki.list_approved_writebacks',
+			title: 'obs_wiki.list_approved_writebacks',
+			description: '[read-only] Read approved Review Queue proposals that are candidates for runtime writeback.',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					vaultRoot: {
+						type: 'string',
+						description: 'Vault root path. If omitted, uses server configured --vault-root.',
+					},
+					scope: {
+						type: 'string',
+						description: 'Optional proposal kind or target-note prefix filter.',
+					},
+					max_items: {
+						type: 'integer',
+						description: 'Maximum number of approved writebacks to return.',
+					},
+					limit: {
+						type: 'integer',
+						description: 'Alias of max_items.',
+					},
+				},
+				additionalProperties: false,
+			},
+			annotations: {
+				readOnlyHint: true,
+			},
+		},
+		{
 			name: 'obs_wiki.audit_recent',
 			title: 'obs_wiki.audit_recent',
-			description: 'Read parsed sections from 00_control/audit_log.md.',
+			description: '[read-only] Read parsed sections from 00_control/audit_log.md.',
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -848,7 +1149,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 		{
 			name: 'obs_wiki.analyze_source_request',
 			title: 'obs_wiki.analyze_source_request',
-			description: 'Analyze one pending source request and write source note, report, and review proposals.',
+			description:
+				'[low-risk write] Analyze one pending source request and write source note, report, review proposals, request status, and audit entry.',
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -880,9 +1182,44 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
+			name: 'obs_wiki.apply_approved_writeback',
+			title: 'obs_wiki.apply_approved_writeback',
+			description:
+				'[review-gated apply] Apply an approved Review Queue proposal by appending explicit writeback content to its target note.',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					vaultRoot: {
+						type: 'string',
+						description: 'Vault root path. If omitted, uses server configured --vault-root.',
+					},
+					proposal_id: {
+						type: 'string',
+						description: 'Proposal id to apply.',
+					},
+					proposal_path: {
+						type: 'string',
+						description: 'Vault-relative proposal note path.',
+					},
+					path: {
+						type: 'string',
+						description: 'Alias of proposal_path.',
+					},
+					dry_run: {
+						type: 'boolean',
+						description: 'When true, return the writeback plan without modifying files.',
+					},
+				},
+				additionalProperties: false,
+			},
+			annotations: {
+				destructiveHint: true,
+			},
+		},
+		{
 			name: 'obs_wiki.write_context_pack',
 			title: 'obs_wiki.write_context_pack',
-			description: 'Create a new context-pack note under 06_outputs/context_packs.',
+			description: '[low-risk write] Create a new context-pack note under 06_outputs/context_packs.',
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -905,7 +1242,7 @@ export function toolDefinitions(): McpToolDefinition[] {
 		{
 			name: 'obs_wiki.write_session_note',
 			title: 'obs_wiki.write_session_note',
-			description: 'Create a new session note under 02_timeline/sessions.',
+			description: '[low-risk write] Create a new session note under 02_timeline/sessions.',
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -927,7 +1264,7 @@ export function toolDefinitions(): McpToolDefinition[] {
 		{
 			name: 'obs_wiki.capture_source',
 			title: 'obs_wiki.capture_source',
-			description: 'Capture source metadata/content under 03_sources with mode control.',
+			description: '[low-risk write] Capture source metadata/content under 03_sources with mode control.',
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -960,7 +1297,7 @@ export function toolDefinitions(): McpToolDefinition[] {
 		{
 			name: 'obs_wiki.propose_memory',
 			title: 'obs_wiki.propose_memory',
-			description: 'Create a memory proposal note under 01_inbox/review_queue.',
+			description: '[low-risk write] Create a memory proposal note under 01_inbox/review_queue.',
 			inputSchema: {
 				type: 'object',
 				properties: {
@@ -1013,10 +1350,14 @@ export function callTool(name: string, rawParams: unknown, context: ToolContext)
 				return toolResult(handleReviewQueue(rawParams as ListReviewQueueArgs, context));
 			case 'obs_wiki.list_source_requests':
 				return toolResult(handleListSourceRequests(rawParams as ListSourceRequestsArgs, context));
+			case 'obs_wiki.list_approved_writebacks':
+				return toolResult(handleListApprovedWritebacks(rawParams as ListApprovedWritebacksArgs, context));
 			case 'obs_wiki.audit_recent':
 				return toolResult(handleAuditRecent(rawParams as AuditRecentArgs, context));
 			case 'obs_wiki.analyze_source_request':
 				return toolResult(handleAnalyzeSourceRequest(rawParams as AnalyzeSourceRequestArgs, context));
+			case 'obs_wiki.apply_approved_writeback':
+				return toolResult(handleApplyApprovedWriteback(rawParams as ApplyApprovedWritebackArgs, context));
 			case 'obs_wiki.write_context_pack':
 				return toolResult(handleWriteContextPack(rawParams as WriteContextPackArgs, context));
 			case 'obs_wiki.write_session_note':
@@ -1504,7 +1845,7 @@ function handleReviewQueue(rawArgs: ListReviewQueueArgs, context: ToolContext) {
 			path: note.relativePath,
 			title: note.title,
 			modifiedAt: note.modifiedAt,
-			status: typeof note.frontmatter.status === 'string' ? note.frontmatter.status : 'pending',
+			status: readProposalApprovalStatus(note.frontmatter),
 			proposal_kind: note.frontmatter.proposal_kind || null,
 			risk_level: note.frontmatter.risk_level || null,
 		}));
@@ -1515,6 +1856,130 @@ function handleReviewQueue(rawArgs: ListReviewQueueArgs, context: ToolContext) {
 		vault_root: vaultRoot,
 		count: pending.length,
 		entries: pending,
+	};
+}
+
+function handleListApprovedWritebacks(rawArgs: ListApprovedWritebacksArgs, context: ToolContext) {
+	const vaultRoot = vaultRootFromArgs(rawArgs, context);
+	const rawLimit = rawArgs.max_items ?? rawArgs.limit;
+	const maxItems = coercePositiveInt(rawLimit, MAX_APPROVED_WRITEBACKS, 1, MAX_APPROVED_WRITEBACKS);
+	const scope = coerceOptionalString(rawArgs.scope);
+	const scan = scanVault(vaultRoot);
+	const candidates: ReturnType<typeof buildWritebackPlan>[] = [];
+
+	for (const note of scan.notes) {
+		if (!note.relativePath.startsWith(`${REVIEW_QUEUE_PREFIX}/`)) {
+			continue;
+		}
+		if (readProposalApprovalStatus(note.frontmatter) !== 'approved') {
+			continue;
+		}
+		if (scope) {
+			const proposalKind = stripYamlQuotes(readFrontmatterString(note.frontmatter, ['proposal_kind', 'proposalKind']));
+			const targetNote = stripYamlQuotes(readFrontmatterString(note.frontmatter, ['target_note', 'targetNote']));
+			if (!proposalKind.includes(scope) && !targetNote.startsWith(scope)) {
+				continue;
+			}
+		}
+		const proposal = readMemoryProposal(vaultRoot, note.relativePath);
+		candidates.push(buildWritebackPlan(proposal));
+	}
+
+	const entries = candidates
+		.sort((a, b) => a.proposal.path.localeCompare(b.proposal.path))
+		.slice(0, maxItems)
+		.map((plan) => ({
+			proposal_id: plan.proposal.proposalId,
+			proposal_path: plan.proposal.path,
+			proposal_kind: plan.proposal.proposalKind,
+			target_note: plan.targetNote || null,
+			risk_level: plan.proposal.riskLevel,
+			task_id: plan.proposal.taskId || null,
+			ready_to_apply: plan.ready,
+			blocker: plan.ready ? null : plan.reason || 'not ready',
+		}));
+
+	return {
+		ok: true,
+		read_only: true,
+		vault_root: vaultRoot,
+		count: entries.length,
+		entries,
+	};
+}
+
+function handleApplyApprovedWriteback(rawArgs: ApplyApprovedWritebackArgs, context: ToolContext) {
+	const vaultRoot = vaultRootFromArgs(rawArgs, context);
+	const dryRun = coerceBoolean(rawArgs.dry_run, 'dry_run', false);
+	const proposal = resolveMemoryProposalFromArgs(vaultRoot, rawArgs);
+	const plan = buildWritebackPlan(proposal);
+	const now = new Date().toISOString();
+
+	if (!plan.ready) {
+		throw new ToolInputError(plan.reason || 'approved writeback is not ready to apply.');
+	}
+
+	const targetAbsolute = resolveSafeNotePath(vaultRoot, plan.targetNote);
+	const targetRelative = relativeFromAbsolute(vaultRoot, targetAbsolute);
+	assertAllowedWritebackTarget(targetRelative);
+
+	const writebackBlock = [
+		`## Approved Writeback: ${proposal.proposalId}`,
+		'',
+		plan.writebackContent,
+		'',
+		`^writeback-${proposal.proposalId.replace(/[^A-Za-z0-9._-]/g, '-')}`,
+	].join('\n');
+
+	if (dryRun) {
+		return {
+			ok: true,
+			read_only: true,
+			dry_run: true,
+			permission_level: 'review-gated apply',
+			proposal_id: proposal.proposalId,
+			proposal_path: proposal.path,
+			target_note: targetRelative,
+			touched_notes: [targetRelative, proposal.path, AUDIT_LOG_PATH],
+			writeback_preview: writebackBlock,
+		};
+	}
+
+	const currentTarget = fs.readFileSync(targetAbsolute, 'utf8');
+	const targetWithWriteback = `${currentTarget.replace(/\s*$/, '')}\n\n${writebackBlock}\n`;
+	fs.writeFileSync(targetAbsolute, targetWithWriteback, 'utf8');
+
+	const updatedProposal = updateFrontmatterFields(proposal.text, {
+		approval_status: 'applied',
+		status: 'applied',
+		writeback_applied_at: now,
+		writeback_target: targetRelative,
+	});
+	fs.writeFileSync(proposal.absolutePath, updatedProposal, 'utf8');
+
+	const audit = appendAuditEvent(vaultRoot, {
+		tool: 'obs_wiki.apply_approved_writeback',
+		targetPath: targetRelative,
+		status: 'written',
+		taskId: proposal.taskId || null,
+		metadata: {
+			action: 'writeback.apply',
+			proposal_id: proposal.proposalId,
+			proposal_path: proposal.path,
+			permission_level: 'review-gated apply',
+		},
+	});
+
+	return {
+		ok: true,
+		read_only: false,
+		permission_level: 'review-gated apply',
+		status: 'applied',
+		proposal_id: proposal.proposalId,
+		proposal_path: proposal.path,
+		target_note: targetRelative,
+		touched_notes: [targetRelative, proposal.path, audit.path],
+		audit_path: audit.path,
 	};
 }
 

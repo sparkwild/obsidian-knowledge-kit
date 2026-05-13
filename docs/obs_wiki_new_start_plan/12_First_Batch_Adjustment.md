@@ -2,7 +2,7 @@
 
 ## Scope
 
-This batch aligns the existing plan and Obsidian plugin scaffold with the Agent-first boundary from `docs/obs_wiki_agent_entry_obsidian_review_codex_brief.md`.
+This batch aligns the existing plan and Obsidian plugin scaffold with the Agent-first and Obsidian governance boundary.
 
 ## Product Boundary
 
@@ -49,5 +49,4 @@ Removed from plugin entry points:
 ## Deferred
 
 - Full MCP Server redesign.
-- Runtime-backed `apply_approved_writeback`.
 - Complete Memory Inspector, Audit Log, Runtime Status, and Permission Policy views.

@@ -644,9 +644,10 @@ export default class ObsWikiPlugin extends Plugin {
 		const parsed = this.readFrontmatter(content);
 		const data = parsed.fields;
 		const proposalType = this.firstString(data, ['type']);
+		const normalizedProposalType = proposalType.toLowerCase().replace(/_/g, '-');
 		if (
 			proposalType &&
-			!proposalType.toLowerCase().includes('memory-proposal')
+			!normalizedProposalType.includes('memory-proposal')
 		) {
 			return null;
 		}
@@ -1050,6 +1051,13 @@ export default class ObsWikiPlugin extends Plugin {
 				.split(',')
 				.map((item) => this.trimText(item.replace(/^['"]|['"]$/g, '')))
 				.filter(Boolean);
+		}
+
+		if (
+			(trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+			(trimmed.startsWith("'") && trimmed.endsWith("'"))
+		) {
+			return trimmed.slice(1, -1);
 		}
 
 		return trimmed;
@@ -1671,7 +1679,7 @@ class ObsWikiReviewQueueView extends ItemView {
 						cls: 'mod-cta',
 					});
 					apply.addEventListener('click', () => {
-						new Notice('Approved writeback must be applied by the Runtime. Runtime trigger wiring is planned for the next batch.');
+						new Notice('Approved writeback is applied by Runtime through obs_wiki.apply_approved_writeback. The plugin does not write protected memory directly.');
 					});
 				}
 			}
@@ -1878,17 +1886,69 @@ class ObsWikiPermissionPolicyView extends ItemView {
 
 		contentEl.createEl('h2', { text: 'Permission Policy', cls: 'obs-wiki-view__title' });
 		contentEl.createEl('p', {
-			text: 'Scaffold placeholder: policy display for Agent write allowlist, protected folders, and review requirements will be added later.',
+			text: 'Runtime policy is read-only by default, with controlled writes for working records and review-gated apply for protected memory writeback.',
 			cls: 'obs-wiki-view__description',
 		});
 
-		const section = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-		section.createEl('h3', { text: 'Planned controls' });
-		const list = section.createEl('ul', { cls: 'obs-wiki-view__list' });
-		list.createEl('li', { text: 'Agent read scope', cls: 'obs-wiki-view__item' });
-		list.createEl('li', { text: 'Agent write scope', cls: 'obs-wiki-view__item' });
-		list.createEl('li', { text: 'Source capture policy', cls: 'obs-wiki-view__item' });
-		list.createEl('li', { text: 'Protected folders', cls: 'obs-wiki-view__item' });
+		const sections = [
+			{
+				title: 'Read-only tools',
+				items: [
+					'obs_wiki.status',
+					'obs_wiki.start_task',
+					'obs_wiki.recall',
+					'obs_wiki.read_note',
+					'obs_wiki.list_review_queue',
+					'obs_wiki.list_source_requests',
+					'obs_wiki.list_approved_writebacks',
+					'obs_wiki.audit_recent',
+				],
+			},
+			{
+				title: 'Low-risk write tools',
+				items: [
+					'obs_wiki.write_context_pack -> 06_outputs/context_packs/',
+					'obs_wiki.write_session_note -> 02_timeline/sessions/',
+					'obs_wiki.capture_source -> 03_sources/',
+					'obs_wiki.propose_memory -> 01_inbox/review_queue/',
+					'obs_wiki.analyze_source_request -> source, analysis, proposal, request status, audit',
+				],
+			},
+			{
+				title: 'Review-gated apply',
+				items: [
+					'obs_wiki.apply_approved_writeback requires approval_status=approved',
+					'Runtime appends explicit ## Writeback content to an existing target note',
+					'Proposal status becomes applied and an audit event is written',
+				],
+			},
+			{
+				title: 'Forbidden actions',
+				items: [
+					'No shell execution or package installation through MCP',
+					'No vault-outside or .obsidian access',
+					'No delete, rename, move, or bulk rewrite tools',
+					'No direct protected memory write without Review Queue approval',
+					'No Obsidian plugin entry for source submission or maintenance actions',
+				],
+			},
+		];
+
+		for (const policySection of sections) {
+			const section = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
+			section.createEl('h3', { text: policySection.title });
+			const list = section.createEl('ul', { cls: 'obs-wiki-view__list' });
+			for (const item of policySection.items) {
+				list.createEl('li', { text: item, cls: 'obs-wiki-view__item' });
+			}
+		}
+
+		const source = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
+		source.createEl('h3', { text: 'Policy source' });
+		source.createEl('p', {
+			text: 'docs/MCP_Tool_Permission_Matrix.md',
+			cls: 'obs-wiki-view__description',
+		});
 	}
 }
 

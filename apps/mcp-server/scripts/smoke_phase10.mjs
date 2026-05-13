@@ -140,6 +140,7 @@ async function main() {
 		fs.mkdirSync(vaultRoot, { recursive: true });
 		writeNote(vaultRoot, '00_control/system.md', '# System\n');
 		writeNote(vaultRoot, '00_control/audit_log.md', '# Audit Log\n');
+		writeNote(vaultRoot, '04_projects/demo/project_overview.md', '# Demo Project\n\nInitial project memory.');
 		writeNote(vaultRoot, '01_inbox/agent_requests/local-source-request.md', [
 			'---',
 			'type: agent-request',
@@ -152,6 +153,23 @@ async function main() {
 			'',
 			'## Selected Text',
 			'Source request body used for deterministic smoke flow.',
+			'',
+		].join('\n'));
+		writeNote(vaultRoot, '01_inbox/review_queue/approved-writeback.md', [
+			'---',
+			'type: memory-proposal',
+			'proposal_id: prop_smoke_apply',
+			'proposal_kind: project_update',
+			'approval_status: approved',
+			'target_note: 04_projects/demo/project_overview.md',
+			'risk_level: medium',
+			'---',
+			'',
+			'# Approved Writeback Proposal',
+			'',
+			'## Writeback',
+			'',
+			'- Runtime-approved memory from smoke test.',
 			'',
 		].join('\n'));
 		writeNote(vaultRoot, '03_sources/local-source.md', '# Source\n\nThis is source content for mcp smoke source-analysis test.');
@@ -175,12 +193,14 @@ async function main() {
 			'obs_wiki.recall',
 			'obs_wiki.read_note',
 			'obs_wiki.list_review_queue',
+			'obs_wiki.list_approved_writebacks',
 			'obs_wiki.audit_recent',
 			'obs_wiki.write_context_pack',
 			'obs_wiki.write_session_note',
 			'obs_wiki.capture_source',
 			'obs_wiki.propose_memory',
 			'obs_wiki.analyze_source_request',
+			'obs_wiki.apply_approved_writeback',
 		]);
 
 		const resources = await client.call('resources/list');
@@ -257,6 +277,40 @@ async function main() {
 		assert.ok(fs.existsSync(path.join(vaultRoot, analyze.source_note.path)));
 		assert.ok(fs.existsSync(path.join(vaultRoot, analyze.report.path)));
 		assert.ok(fs.readFileSync(fixturePath, 'utf8').includes('status: completed'));
+
+		const approvedWritebacks = buildStructured(await client.call('tools/call', {
+			name: 'obs_wiki.list_approved_writebacks',
+			arguments: {},
+		}));
+		assert.equal(approvedWritebacks.ok, true);
+		assert.equal(approvedWritebacks.count, 1);
+		assert.equal(approvedWritebacks.entries[0].ready_to_apply, true);
+
+		const dryRunApply = buildStructured(await client.call('tools/call', {
+			name: 'obs_wiki.apply_approved_writeback',
+			arguments: {
+				proposal_id: 'prop_smoke_apply',
+				dry_run: true,
+			},
+		}));
+		assert.equal(dryRunApply.ok, true);
+		assert.equal(dryRunApply.read_only, true);
+		assert.equal(dryRunApply.target_note, '04_projects/demo/project_overview.md');
+
+		const applied = buildStructured(await client.call('tools/call', {
+			name: 'obs_wiki.apply_approved_writeback',
+			arguments: {
+				proposal_id: 'prop_smoke_apply',
+			},
+		}));
+		assert.equal(applied.ok, true);
+		assert.equal(applied.status, 'applied');
+		const targetText = fs.readFileSync(path.join(vaultRoot, '04_projects/demo/project_overview.md'), 'utf8');
+		assert.ok(targetText.includes('## Approved Writeback: prop_smoke_apply'));
+		assert.ok(targetText.includes('Runtime-approved memory from smoke test.'));
+		const proposalText = fs.readFileSync(path.join(vaultRoot, '01_inbox/review_queue/approved-writeback.md'), 'utf8');
+		assert.ok(proposalText.includes('approval_status: applied'));
+		assert.ok(proposalText.includes('status: applied'));
 
 		console.log(JSON.stringify({ result: 'pass', vaultRoot }, null, 2));
 	} finally {

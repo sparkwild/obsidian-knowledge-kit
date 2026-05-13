@@ -1,4 +1,0 @@
-interface:
-  display_name: "obs-wiki Lint"
-  short_description: "Check knowledge quality inside an Obsidian vault"
-  default_prompt: "Run the obs-wiki knowledge lint workflow against the active Obsidian vault, keep it read-only by default, and report broken links, missing sources, stale concepts, orphan notes, and weak log trails."

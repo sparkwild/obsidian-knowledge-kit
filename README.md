@@ -4,7 +4,7 @@
 
 obs-wiki is an Agent-first memory system that uses an Obsidian vault as the durable knowledge layer and an Obsidian plugin as the human governance surface.
 
-The current product direction is being reset from the older Codex plugin-first workflow to an Obsidian-native and Agent-first architecture. Agent clients are the only operation entry for URL/file submission, source analysis, context packs, lint, distill, and memory proposals. The Obsidian plugin is the user's review, audit, permission, status, and approval interface. MCP is the primary interface for agents. The vault remains the only source of truth for durable memory and knowledge.
+The current product line is Obsidian-native and Agent-first. Agent clients are the only operation entry for URL/file submission, source analysis, context packs, lint, distill, and memory proposals. The Obsidian plugin is the user's review, audit, permission, status, and approval interface. MCP is the primary interface for agents. The vault remains the only source of truth for durable memory and knowledge.
 
 ## Current Direction
 
@@ -17,33 +17,22 @@ The current product direction is being reset from the older Codex plugin-first w
 - Obsidian plugin role: Agent Activity, Review Queue, Audit Log, Memory Inspector, Runtime Status, and Permission Policy.
 - Removed from Obsidian plugin entry points: Analyze URL, Analyze Local File, Capture Source, Build Context Pack, Run Lint, Run Distill, and other source submission or maintenance actions.
 
-This repository still contains the previous Codex local plugin package and Python runtime. Treat that code as legacy reference while the new Obsidian-native product line is built. It is currently retained as an archive candidate for migration rollback.
+The previous Codex local plugin package, Python runtime, root skills, benchmark scaffold, and transition-only brief documents have been removed from this repository. New implementation work belongs under `apps/`, `packages/`, and current `docs/`.
 
-Current migration decision: see [docs/obs_wiki_new_start_plan/11_Migration_Decision.md](./docs/obs_wiki_new_start_plan/11_Migration_Decision.md).
-
-## Phase 10 Verification
+## Verification
 
 ```bash
 cd /Users/zhangjie/AgentProjects/sparkwild/obs-wiki
-
-npm run --prefix packages/core typecheck
-npm run --prefix packages/core build
-npm run --prefix packages/core test
-
-npm run --prefix apps/mcp-server typecheck
-npm run --prefix apps/mcp-server build
-npm run --prefix apps/mcp-server smoke
-npm run --prefix apps/mcp-server test
-
-npm run --prefix apps/obsidian-plugin typecheck
-npm run --prefix apps/obsidian-plugin build
-npm run --prefix apps/obsidian-plugin package
+npm run verify
 ```
 
-or:
+Root workspace scripts are available for narrower checks:
 
 ```bash
-./scripts/verify_phase10.sh
+npm run typecheck
+npm run build
+npm run test
+npm run package
 ```
 
 ## Product Principles
@@ -53,7 +42,7 @@ or:
 - Review-first: agents may propose long-term memory, but high-risk memory should not be silently committed.
 - Evidence-first: important claims should trace back to sources, evidence blocks, and review state.
 - Audit-first: critical agent reads and writes should be visible and reviewable in Obsidian.
-- MCP-first for agent access: expose memory semantics, not arbitrary filesystem operations.
+- MCP-first for agent access: expose memory semantics, not arbitrary filesystem operations. The MCP server is read-only by default with controlled write tools for bounded working records.
 - Human Governance in Obsidian: Obsidian is the UI for review, approval, rejection, revision requests, audit, permissions, and status.
 
 ## Target Architecture
@@ -101,7 +90,7 @@ The first implementation track follows [docs/obs_wiki_new_start_plan](./docs/obs
 5. Review Queue and human approval actions.
 6. Agent-created source status visibility.
 7. Memory Runtime v0.
-8. Read-only MCP server MVP.
+8. Read-only-by-default MCP server MVP with controlled write tools and review-gated apply.
 
 The first coding milestone is a buildable Obsidian plugin scaffold with:
 
@@ -126,20 +115,17 @@ The first coding milestone is a buildable Obsidian plugin scaffold with:
 - [Codex Task Prompts](./docs/obs_wiki_new_start_plan/08_Codex_Task_Prompts.md)
 - [Acceptance Checklists](./docs/obs_wiki_new_start_plan/09_Acceptance_Checklists.md)
 - [Open Questions](./docs/obs_wiki_new_start_plan/10_Open_Questions.md)
-- [Migration Decision](./docs/obs_wiki_new_start_plan/11_Migration_Decision.md)
 - [First Batch Adjustment](./docs/obs_wiki_new_start_plan/12_First_Batch_Adjustment.md)
+- [MCP Tool Permission Matrix](./docs/MCP_Tool_Permission_Matrix.md)
 - [Implementation Manifest](./docs/obs_wiki_new_start_plan/IMPLEMENTATION_MANIFEST.json)
 
-## Legacy Reference
+## Repository Scope
 
-Existing `skills/`, `plugins/obs-wiki/`, `lib/obs_wiki_shared/`, and `scripts/` files belong to the previous Codex plugin-first implementation. They are useful references for context packs, lint, evidence scaffolding, MCP boundaries, and vault-only rules, but they are not the new product's primary user interface.
-
-Until the migration decision is made:
-
-- Do not remove legacy code by default.
-- Do not optimize old skills or commands as the main product path.
-- Do not write to a real Obsidian vault unless a task explicitly asks for it.
-- Keep new Obsidian-native work under `apps/` and `packages/`.
+- `apps/obsidian-plugin/`: Obsidian governance plugin.
+- `apps/mcp-server/`: Agent-facing MCP server.
+- `packages/core/`: shared TypeScript memory/runtime primitives.
+- `docs/obs_wiki_new_start_plan/`: current planning and acceptance docs.
+- `scripts/`: repository verification scripts only.
 
 ## License
 

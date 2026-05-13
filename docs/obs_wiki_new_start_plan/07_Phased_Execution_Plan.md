@@ -18,10 +18,10 @@ feat/obs-wiki-obsidian-plugin-reset
 
 1. 更新 README，明确新定位。
 2. 新增 docs：Product Vision、Architecture、Memory Model、Agent Memory API。
-3. 标记旧 Codex plugin 目录为 legacy 或 archive 候选。
+3. 清理旧 Codex plugin、root skills、Python runtime 和过渡文档。
 4. 明确 Agent 是 URL / 文件 / source analysis / context pack / lint / distill 的唯一操作入口。
 5. 明确 Obsidian 插件只提供审核、批准、拒绝、审计、状态和权限界面。
-6. 不立即删除旧代码，除非用户明确确认；但不要再以旧结构作为产品主线。
+6. 不再以旧结构作为产品主线。
 
 验收：
 
@@ -216,7 +216,7 @@ feat/obs-wiki-obsidian-plugin-reset
 - 用户投喂 URL / file 后，Agent 能生成 source note + proposals。
 - 结果进入 Review Queue。
 
-## Phase 10：Packaging / Tests / Migration Decision
+## Phase 10：Packaging / Tests / Legacy Cleanup
 
 目标：形成可持续开发基础。
 
@@ -226,7 +226,7 @@ feat/obs-wiki-obsidian-plugin-reset
 2. 增加 plugin build。
 3. 增加 MCP smoke test。
 4. 增加 path safety tests。
-5. 决策旧 Codex plugin 是 archive 还是删除。
+5. 清理旧 Codex plugin、root skills、Python runtime 和旧文档。
 
 验收：
 

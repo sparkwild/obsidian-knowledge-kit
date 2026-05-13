@@ -1,4 +1,0 @@
-interface:
-  display_name: "obs-wiki Init"
-  short_description: "Bootstrap an Obsidian vault into an obs-wiki system"
-  default_prompt: "Initialize the active Obsidian vault into an obs-wiki knowledge system after verifying the Obsidian environment and official obsidian-skills dependencies, without creating any external raw/wiki directory structure."

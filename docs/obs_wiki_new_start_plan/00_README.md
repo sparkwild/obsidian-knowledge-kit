@@ -41,7 +41,6 @@
 - `08_Codex_Task_Prompts.md`：可复制给 Codex 的任务提示词。
 - `09_Acceptance_Checklists.md`：验收清单。
 - `10_Open_Questions.md`：需要和用户继续沟通的问题。
-- `11_Migration_Decision.md`：旧 Codex plugin 的保留/归档决策。
 - `12_First_Batch_Adjustment.md`：Agent 发起、Obsidian 审核的第一批调整记录。
 - `IMPLEMENTATION_MANIFEST.json`：机器可读的阶段清单。
 
