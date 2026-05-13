@@ -11,7 +11,7 @@
     "IMPLEMENTATION_MANIFEST.json"
   ],
   "core_principles": [
-    "obs-wiki is the product and plugin name.",
+    "obs-wiki is the product, plugin id, and MCP server name; Obswiki is the plugin listing name.",
     "Agent is the only operation entry.",
     "Obsidian plugin is human governance, review, audit, permission, status, and connection center.",
     "No Analyze URL/File/Capture/Context/Lint/Distill entrypoints inside Obsidian plugin.",

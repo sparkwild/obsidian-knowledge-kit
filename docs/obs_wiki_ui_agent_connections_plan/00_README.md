@@ -25,7 +25,7 @@
 
 ## 核心边界
 
-1. 插件 id 保持 `obs-wiki`，用户可见显示名使用 `知识库` / `Obswiki`。
+1. 插件 id 保持 `obs-wiki`，社区/插件列表展示名使用 `Obswiki`，中文界面内部显示 `知识库`。
 2. Agent 是唯一操作入口：URL / 文件提交、source analysis、context pack、lint、distill、proposal generation 都由 Agent 通过 MCP 发起。
 3. Obsidian 插件是人类治理入口：Activity、Review Queue、Audit、Runtime Status、Permission Policy、Agent Connections。
 4. Obsidian 插件不提供 Analyze URL / Analyze File / Capture Source / Build Context Pack / Run Lint / Run Distill 入口。

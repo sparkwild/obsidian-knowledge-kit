@@ -32,7 +32,7 @@
 目标：
 1. 新增 apps/obsidian-plugin。
 2. 插件 id 使用 obs-wiki。
-3. 插件 id 使用 obs-wiki，显示名使用 知识库 / Obswiki。
+3. 插件 id 使用 obs-wiki，插件列表展示名使用 Obswiki，中文界面内部显示名使用 知识库。
 4. TypeScript 实现。
 5. 包含 manifest.json、package.json、main.ts、styles.css。
 6. 增加设置页。

@@ -18,7 +18,7 @@
 
 - [x] `apps/obsidian-plugin/manifest.json` 存在。
 - [x] 插件 id 是 `obs-wiki`。
-- [x] 插件展示名是 `知识库`；插件内部英文显示名是 `Obswiki`。
+- [x] 插件列表展示名是 `Obswiki`；插件内部中文显示名是 `知识库`，英文显示名是 `Obswiki`。
 - [x] 插件可构建。
 - [x] 插件可加载。
 - [x] SettingsTab 可保存配置。
