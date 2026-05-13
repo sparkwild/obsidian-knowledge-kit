@@ -24,7 +24,7 @@ obs-wiki Obsidian 插件是：
 
 ```text
 Plugin ID: obs-wiki
-Display Name: obs-wiki
+Display Name: 知识库 / Obswiki
 ```
 
 ## 核心界面

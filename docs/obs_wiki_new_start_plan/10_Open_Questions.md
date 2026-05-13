@@ -63,12 +63,12 @@ MVP 支持：
 
 已确定：
 
-- Display Name: `obs-wiki`
+- Display Name: `知识库` / `Obswiki`
 - Plugin ID: `obs-wiki`
 - MCP Prefix: `obs_wiki`
 - CLI: `obs-wiki`
 
-说明：`obs-wiki` 同时作为稳定 id、目录名、MCP/CLI 命名、仓库名和 Obsidian 插件展示名。
+说明：`obs-wiki` 作为稳定 id、目录名、MCP/CLI 命名和仓库名；用户可见插件名称与稳定 id 分离。
 
 ## 8. 第一版目标用户
 

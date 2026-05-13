@@ -58,13 +58,13 @@ const MAX_ACTIVITY_SOURCE_CAPTURE_ROWS = 5;
 const MAX_ACTIVITY_PROPOSAL_ROWS = 5;
 const MAX_AGENT_CONNECTION_ROWS = 8;
 const MAX_AGENT_TOOL_CALL_ROWS = 12;
-const PLUGIN_DISPLAY_NAME_ZH = 'obs-wiki';
-const PLUGIN_DISPLAY_NAME_EN = 'obs-wiki';
+const PLUGIN_DISPLAY_NAME_ZH = '知识库';
+const PLUGIN_DISPLAY_NAME_EN = 'Obswiki';
 const DEFAULT_MCP_HTTP_ENDPOINT = 'http://127.0.0.1:37241/mcp';
 const DEFAULT_MCP_SSE_ENDPOINT = 'http://127.0.0.1:37241/sse';
 const DEFAULT_MCP_STDIO_COMMAND = 'obs-wiki-mcp';
-const DEFAULT_STATUS_MESSAGE_ZH = '欢迎使用 obs-wiki。';
-const DEFAULT_STATUS_MESSAGE_EN = 'Welcome to obs-wiki.';
+const DEFAULT_STATUS_MESSAGE_ZH = '欢迎使用知识库。';
+const DEFAULT_STATUS_MESSAGE_EN = 'Welcome to Obswiki.';
 const isChineseLanguage = (language: string): boolean => {
 	const normalized = language.toLowerCase();
 	return normalized === 'zh' || normalized.startsWith('zh-') || normalized.startsWith('zh_');

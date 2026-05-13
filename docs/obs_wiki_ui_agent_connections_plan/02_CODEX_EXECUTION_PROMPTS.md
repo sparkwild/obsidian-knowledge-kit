@@ -13,7 +13,7 @@
 - apps/obsidian-plugin/package.json
 
 核心边界：
-1. 插件名保持 obs-wiki。
+1. 插件 id 保持 obs-wiki，用户可见显示名使用 知识库 / Obswiki。
 2. Agent 是唯一操作入口。
 3. 不要新增 Analyze URL / Analyze File / Capture Source / Build Context Pack / Run Lint / Run Distill 等 Obsidian 插件入口。
 4. Obsidian 插件可以作为治理界面展示 Agent Activity、Review Queue、Audit、Runtime、Permission、Agent Connections。
