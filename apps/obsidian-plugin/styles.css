@@ -150,8 +150,21 @@
 	min-width: 0;
 }
 
+.wiki-weaver-config-row__title {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+}
+
 .wiki-weaver-config-row__client strong {
+	overflow-wrap: anywhere;
+}
+
+.wiki-weaver-config-row__client small {
 	display: block;
+	margin-top: 3px;
+	color: var(--text-muted);
 	overflow-wrap: anywhere;
 }
 
@@ -221,6 +234,21 @@
 .wiki-weaver-badge--risk-medium {
 	border-color: var(--text-warning);
 	color: var(--text-warning);
+}
+
+.wiki-weaver-badge--success {
+	border-color: var(--text-success, var(--color-green));
+	color: var(--text-success, var(--color-green));
+}
+
+.wiki-weaver-badge--warning {
+	border-color: var(--text-warning);
+	color: var(--text-warning);
+}
+
+.wiki-weaver-badge--muted {
+	border-color: var(--background-modifier-border);
+	color: var(--text-muted);
 }
 
 .wiki-weaver-filter-tabs {
