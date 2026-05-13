@@ -2,7 +2,7 @@
 
 [English README](./README.md)
 
-在 Obsidian 中构建 AI 辅助的 wiki。Wiki Weaver 通过本地 MCP server 把 AI 助手连接到你的 vault，并在写入前由你审核候选知识更新。
+在桌面端 Obsidian 中构建 AI 辅助的 wiki。Wiki Weaver 通过 Obsidian 托管的本机 MCP Runtime 把 AI 助手连接到你的 vault，并在写入前由你审核候选知识更新。
 
 ## 核心能力
 
@@ -10,10 +10,11 @@
 - wiki 与长期记忆候选内容先进入 Review Queue，由用户审核后再写回。
 - 在 Obsidian 内查看 agent activity、待审核内容、审计日志、runtime 状态和客户端连接。
 - 写入范围限制在 vault 内，长期记忆变更必须经过批准。
+- Streamable HTTP MCP Runtime 只在桌面端 Obsidian 开启时运行。
 
 ## 开始使用
 
-Wiki Weaver 正在准备提交到 Obsidian 官方社区插件目录。审核通过前，需要先使用打包产物手动安装。
+Wiki Weaver 是桌面端插件，因为 MCP Runtime 依赖本机 HTTP server。项目正在准备提交到 Obsidian 官方社区插件目录；审核通过前，需要先使用打包产物手动安装。
 
 - [Obsidian 插件设置](./docs/PLUGIN.md)
 - [MCP 与权限](./docs/MCP.md)

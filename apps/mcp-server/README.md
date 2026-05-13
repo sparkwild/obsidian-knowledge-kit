@@ -1,6 +1,6 @@
 # Wiki Weaver MCP Server
 
-MCP server for Wiki Weaver operations. It is read-only by default and exposes controlled write tooling only for low-risk working records.
+Streamable HTTP MCP Runtime for Wiki Weaver operations. It is read-only by default and exposes controlled write tooling only for low-risk working records.
 
 ## JSON-RPC methods
 
@@ -66,16 +66,18 @@ Security constraints:
 
 ## Run
 
+The production Runtime is hosted by the desktop Obsidian plugin. The standalone command is for local development checks only:
+
 ```bash
 cd <repo>/apps/mcp-server
 npm install --cache /private/tmp/wiki-weaver-npm-cache
 npm run typecheck
 npm run build
 npm run test
-node dist/server.js --vault-root <vault>
+node dist/server.js --vault-root <vault> --port 58437 --token <token>
 ```
 
-Then send one JSON object per line over stdin (JSON-RPC 2.0).
+Then send Streamable HTTP JSON-RPC requests to `http://127.0.0.1:58437/mcp?token=<token>`.
 
 ## Package scripts
 
@@ -88,6 +90,7 @@ npm run smoke
 
 `npm run test`/`npm run smoke` executes `./scripts/smoke.mjs` against a temporary, non-network vault fixture and validates:
 
+- token, origin, and session enforcement
 - initialize/tools/list/resources/list/prompts/list
 - read_note and status paths
 - controlled write tools

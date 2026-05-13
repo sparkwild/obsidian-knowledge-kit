@@ -21,6 +21,7 @@ const MAX_AUDIT_ITEMS = 20;
 const MAX_APPROVED_WRITEBACKS = 20;
 const CONTEXT_PACK_DIR = '06_outputs/context_packs';
 const SESSION_NOTE_DIR = '02_timeline/sessions';
+const AGENT_TASK_DIR = '02_timeline/agent_tasks';
 const SOURCE_REQUESTS_DIR = '01_inbox/agent_requests';
 const SOURCES_DIR = '03_sources';
 const SOURCE_ANALYSIS_REPORT_DIR = '06_outputs/source_analysis';
@@ -28,7 +29,6 @@ const MEMORY_PROPOSAL_DIR = '01_inbox/review_queue';
 const MAX_SOURCE_EXCERPT_LENGTH = 1000;
 const READ_ONLY_TOOL_NAMES = new Set([
     'wiki_weaver.status',
-    'wiki_weaver.start_task',
     'wiki_weaver.recall',
     'wiki_weaver.read_note',
     'wiki_weaver.list_review_queue',
@@ -39,6 +39,7 @@ const READ_ONLY_TOOL_NAMES = new Set([
 ]);
 const REVIEW_GATED_TOOL_NAMES = new Set(['wiki_weaver.apply_approved_writeback']);
 const LOW_RISK_TOOL_NAMES = new Set([
+    'wiki_weaver.start_task',
     'wiki_weaver.analyze_source_request',
     'wiki_weaver.write_context_pack',
     'wiki_weaver.build_context_pack',
@@ -302,6 +303,7 @@ function readSourceRequest(vaultRoot, requestPath) {
         relatedProject: readFrontmatterString(frontmatter, ['related_project', 'relatedProject']),
         analysisMode: readFrontmatterString(frontmatter, ['analysis_mode', 'analysisMode']) || 'default',
         status,
+        taskId: readFrontmatterString(frontmatter, ['task_id', 'taskId']),
         created: readFrontmatterString(frontmatter, ['created']) || '',
         content: parsed.body,
         filename: requestPathRelative,
@@ -712,6 +714,105 @@ function buildAndWriteNote(vaultRoot, toolName, allowedDir, filename, frontmatte
         warnings: [],
     };
 }
+function buildTaskNotePath(taskId) {
+    const safeId = taskId
+        .trim()
+        .replace(/[^A-Za-z0-9._-]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 120);
+    if (!safeId) {
+        throw new safety_1.ToolInputError('task_id must contain at least one safe filename character.');
+    }
+    return `${AGENT_TASK_DIR}/${safeId}.md`;
+}
+function readFrontmatterStringList(frontmatter, key) {
+    const value = frontmatter[key];
+    if (Array.isArray(value)) {
+        return value
+            .map((entry) => toText(entry))
+            .flatMap((entry) => entry.split(/[\n,]/g))
+            .map((entry) => entry.trim())
+            .filter(Boolean);
+    }
+    return toText(value)
+        .split(/[\n,]/g)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+}
+function mergeFrontmatterList(frontmatter, key, values) {
+    const merged = new Set(readFrontmatterStringList(frontmatter, key));
+    for (const value of values) {
+        const trimmed = value.trim();
+        if (trimmed) {
+            merged.add(trimmed);
+        }
+    }
+    return Array.from(merged).join(', ');
+}
+function updateAgentTaskRecord(vaultRoot, taskId, fields, references = {}, appendBody = '') {
+    if (!taskId) {
+        return null;
+    }
+    let absolute = '';
+    try {
+        absolute = (0, safety_1.resolveSafeNotePath)(vaultRoot, buildTaskNotePath(taskId));
+    }
+    catch (error) {
+        if (error instanceof safety_1.ToolInputError || error instanceof core_1.VaultPathError) {
+            return null;
+        }
+        throw error;
+    }
+    const current = node_fs_1.default.readFileSync(absolute, 'utf8');
+    const frontmatter = (0, core_1.parseMarkdown)(current).frontmatter.fields;
+    const nextFields = { ...fields };
+    for (const [key, values] of Object.entries(references)) {
+        const merged = mergeFrontmatterList(frontmatter, key, values);
+        if (merged) {
+            nextFields[key] = merged;
+        }
+    }
+    let next = updateFrontmatterFields(current, nextFields);
+    if (appendBody.trim()) {
+        next = `${next.replace(/\s*$/, '')}\n\n${appendBody.trim()}\n`;
+    }
+    node_fs_1.default.writeFileSync(absolute, next, 'utf8');
+    return (0, safety_1.relativeFromAbsolute)(vaultRoot, absolute);
+}
+function createAgentTaskRecord(vaultRoot, input) {
+    const now = new Date().toISOString();
+    const clientName = input.client || input.context.clientName || '';
+    const body = [
+        '# Agent Task',
+        '',
+        '## Objective',
+        input.goal,
+        '',
+        '## Context Pack Summary',
+        `- query: ${input.contextPack.query}`,
+        `- generated_at: ${input.contextPack.generatedAt}`,
+        `- relevant_notes: ${input.contextPack.relevantNotes.length}`,
+        `- source_candidates: ${input.contextPack.sourceCandidates.length}`,
+        `- gaps: ${input.contextPack.gaps.length}`,
+    ].join('\n');
+    return buildAndWriteNote(vaultRoot, 'wiki_weaver.start_task', AGENT_TASK_DIR, buildTaskNotePath(input.taskId).slice(`${AGENT_TASK_DIR}/`.length), {
+        tool: 'wiki_weaver.start_task',
+        type: 'agent-task',
+        title: `Task ${input.taskId}`,
+        task_id: input.taskId,
+        status: 'active',
+        agent: input.context.agentId || clientName || 'unknown',
+        client: clientName || null,
+        session_id: input.context.sessionId || null,
+        objective: input.goal,
+        related_project: input.projectHint || null,
+        started_at: now,
+    }, body, input.taskId, {
+        target_type: 'agent_task',
+        task_stage: 'start',
+    });
+}
 function ensureAuditLog(vaultRoot) {
     const safeAuditPath = (0, safety_1.normalizeNotePath)(AUDIT_LOG_PATH);
     const absolute = node_path_1.default.resolve(vaultRoot, safeAuditPath);
@@ -743,6 +844,9 @@ function appendAuditEvent(vaultRoot, input) {
     }
     if (input.agentId) {
         eventLines.push(`- agent_id: ${sanitizeYamlValue(input.agentId)}`);
+    }
+    if (input.sessionId) {
+        eventLines.push(`- session_id: ${sanitizeYamlValue(input.sessionId)}`);
     }
     if (input.clientName !== undefined) {
         eventLines.push(`- client_name: ${sanitizeYamlValue(input.clientName || null)}`);
@@ -973,6 +1077,7 @@ function appendConnectionAuditEvent(vaultRoot, input) {
         actor: input.agentId,
         timestamp: now,
         agentId: input.agentId,
+        sessionId: input.sessionId,
         clientName: input.clientName,
         transport: input.transport,
         runtimeVersion: input.runtimeVersion,
@@ -988,6 +1093,7 @@ function recordToolCallAuditEvent(vaultRoot, input) {
         timestamp: now,
         tool: input.toolName,
         agentId: input.agentId,
+        sessionId: input.sessionId,
         clientName: input.clientName,
         resultStatus: input.resultStatus,
         targetPaths: input.targetPaths,
@@ -1045,7 +1151,7 @@ function toolDefinitions() {
         {
             name: 'wiki_weaver.start_task',
             title: 'wiki_weaver.start_task',
-            description: '[read-only] Create a task context pack summary and deterministic task id.',
+            description: '[low-risk write] Create an active task record and return a context summary.',
             inputSchema: {
                 type: 'object',
                 properties: {
@@ -1064,7 +1170,7 @@ function toolDefinitions() {
                 additionalProperties: false,
             },
             annotations: {
-                readOnlyHint: true,
+                destructiveHint: true,
             },
         },
         {
@@ -1234,6 +1340,10 @@ function toolDefinitions() {
                         type: 'string',
                         description: 'Alias of request_path.',
                     },
+                    task_id: {
+                        type: 'string',
+                        description: 'Optional task id to update with generated source/proposal paths.',
+                    },
                     update_request_status: {
                         type: 'boolean',
                         description: 'Whether to update request status to completed/failed. Defaults to true.',
@@ -1271,6 +1381,10 @@ function toolDefinitions() {
                     path: {
                         type: 'string',
                         description: 'Alias of proposal_path.',
+                    },
+                    task_id: {
+                        type: 'string',
+                        description: 'Optional task id to update with the applied writeback target.',
                     },
                     dry_run: {
                         type: 'boolean',
@@ -1571,6 +1685,7 @@ function callTool(name, rawParams, context = {}) {
     const args = rawParams;
     const startTime = Date.now();
     const agentId = context.agentId || 'unknown session id';
+    const sessionId = context.sessionId;
     const clientName = context.clientName ?? null;
     const auditVaultRoot = resolveAuditVaultRoot(args, context);
     let toolResult = toolError(`Unknown tool: ${requestName}`);
@@ -1660,6 +1775,7 @@ function callTool(name, rawParams, context = {}) {
                     durationMs: Date.now() - startTime,
                     riskLevel: getToolRiskLevel(requestName),
                     agentId,
+                    sessionId,
                     clientName,
                     transport: context.transport,
                     runtimeVersion: context.runtimeVersion,
@@ -1707,9 +1823,20 @@ function handleStartTask(rawArgs, context) {
         .filter((note) => note.relativePath.startsWith('05_projects/'))
         .slice(0, 10)
         .map((note) => ({ path: note.relativePath, title: note.title }));
+    const task = createAgentTaskRecord(vaultRoot, {
+        taskId,
+        goal,
+        client,
+        projectHint,
+        context,
+        contextPack,
+    });
     return {
         ok: true,
+        read_only: false,
         task_id: taskId,
+        path: task.path,
+        audit_path: task.audit_path,
         client: client || null,
         project_hint: projectHint || null,
         vault_root: vaultRoot,
@@ -1934,6 +2061,7 @@ function handleAnalyzeSourceRequest(rawArgs, context) {
     const now = new Date().toISOString();
     try {
         const request = readSourceRequest(vaultRoot, requestPathAlias);
+        const taskId = coerceOptionalString(rawArgs.task_id) || request.taskId || null;
         if (!request.type.toLowerCase().includes('agent-request')) {
             throw new safety_1.ToolInputError('Request note is not an agent-request note.');
         }
@@ -1968,7 +2096,8 @@ function handleAnalyzeSourceRequest(rawArgs, context) {
             request_path: request.path,
             mode,
             created_at: now,
-        }, buildSourceNoteContent(request, mode, sourceText, analysis, resolvedSourcePath), null, { target_type: 'source', mode, request_path: request.path });
+            task_id: taskId,
+        }, buildSourceNoteContent(request, mode, sourceText, analysis, resolvedSourcePath), taskId, { target_type: 'source', mode, request_path: request.path });
         const reportFilename = buildSafeFilename(`${runToken}-report`, 'source-report');
         const report = buildAndWriteNote(vaultRoot, 'wiki_weaver.analyze_source_request', SOURCE_ANALYSIS_REPORT_DIR, reportFilename, {
             tool: 'wiki_weaver.analyze_source_request',
@@ -1980,7 +2109,8 @@ function handleAnalyzeSourceRequest(rawArgs, context) {
             request_path: request.path,
             source_note: sourceNote.path,
             created_at: now,
-        }, buildReportContent(request, mode, sourceText, analysis, sourceNote.path, warnings), null, { target_type: 'source_analysis_report', request_path: request.path });
+            task_id: taskId,
+        }, buildReportContent(request, mode, sourceText, analysis, sourceNote.path, warnings), taskId, { target_type: 'source_analysis_report', request_path: request.path });
         const proposalPaths = analysis.proposalDrafts.map((entry) => {
             const proposalNote = buildAndWriteNote(vaultRoot, 'wiki_weaver.analyze_source_request', MEMORY_PROPOSAL_DIR, buildSafeFilename(`proposal-${runToken}-${entry.proposalKind}`, entry.proposalKind), {
                 tool: 'wiki_weaver.analyze_source_request',
@@ -1993,8 +2123,8 @@ function handleAnalyzeSourceRequest(rawArgs, context) {
                 target_note: report.path,
                 risk_level: entry.riskLevel || null,
                 created_at: now,
-                task_id: null,
-            }, `## Source analysis proposal\n\n- evidence: ${entry.evidence}\n\n${entry.content}\n`, null, {
+                task_id: taskId,
+            }, `## Source analysis proposal\n\n- evidence: ${entry.evidence}\n\n${entry.content}\n`, taskId, {
                 target_type: 'memory_proposal',
                 proposal_kind: entry.proposalKind,
                 request_path: request.path,
@@ -2009,7 +2139,7 @@ function handleAnalyzeSourceRequest(rawArgs, context) {
                 tool: 'wiki_weaver.analyze_source_request',
                 targetPath: request.path,
                 status: 'written',
-                taskId: null,
+                taskId,
                 metadata: {
                     action: 'source.request.completed',
                     source_note: sourceNote.path,
@@ -2018,6 +2148,10 @@ function handleAnalyzeSourceRequest(rawArgs, context) {
                 },
             }).path;
         }
+        updateAgentTaskRecord(vaultRoot, taskId, {}, {
+            source_captures: [sourceNote.path, report.path],
+            proposals: proposalPaths,
+        });
         return {
             ok: true,
             read_only: false,
@@ -2048,7 +2182,7 @@ function handleAnalyzeSourceRequest(rawArgs, context) {
                     tool: 'wiki_weaver.analyze_source_request',
                     targetPath: requestPathAlias,
                     status: 'failed',
-                    taskId: null,
+                    taskId: coerceOptionalString(rawArgs.task_id) || null,
                     metadata: {
                         action: 'source.request.failed',
                         error: error instanceof Error ? error.message : String(error),
@@ -2136,6 +2270,7 @@ function handleApplyApprovedWriteback(rawArgs, context) {
     const vaultRoot = vaultRootFromArgs(rawArgs, context);
     const dryRun = coerceBoolean(rawArgs.dry_run, 'dry_run', false);
     const proposal = resolveMemoryProposalFromArgs(vaultRoot, rawArgs);
+    const taskId = coerceOptionalString(rawArgs.task_id) || proposal.taskId || null;
     const plan = buildWritebackPlan(proposal);
     const now = new Date().toISOString();
     if (!plan.ready) {
@@ -2183,13 +2318,17 @@ function handleApplyApprovedWriteback(rawArgs, context) {
         tool: 'wiki_weaver.apply_approved_writeback',
         targetPath: targetRelative,
         status: 'written',
-        taskId: proposal.taskId || null,
+        taskId,
         metadata: {
             action: 'writeback.apply',
             proposal_id: proposal.proposalId,
             proposal_path: proposal.path,
             permission_level: 'review-gated apply',
         },
+    });
+    updateAgentTaskRecord(vaultRoot, taskId, {}, {
+        memory_writes: [targetRelative],
+        proposals: [proposal.path],
     });
     return {
         ok: true,
@@ -2246,6 +2385,11 @@ function handleWriteContextPack(rawArgs, context) {
         created_at: now,
         task_id: taskId || null,
     }, content, taskId, { target_type: 'context_pack', tool: 'wiki_weaver.write_context_pack' });
+    updateAgentTaskRecord(vaultRoot, taskId, {
+        context_pack: note.path,
+    }, {
+        context_packs: [note.path],
+    });
     return makeToolResultForWrite('wiki_weaver.write_context_pack', note);
 }
 function handleWriteSessionNote(rawArgs, context) {
@@ -2263,6 +2407,9 @@ function handleWriteSessionNote(rawArgs, context) {
         created_at: now,
         task_id: taskId || null,
     }, content, taskId, { target_type: 'session_note', tool: 'wiki_weaver.write_session_note' });
+    updateAgentTaskRecord(vaultRoot, taskId, {}, {
+        memory_writes: [note.path],
+    });
     return makeToolResultForWrite('wiki_weaver.write_session_note', note);
 }
 function handleCaptureSource(rawArgs, context) {
@@ -2319,6 +2466,9 @@ function handleCaptureSource(rawArgs, context) {
         created_at: now,
         task_id: taskId || null,
     }, body, taskId, { target_type: 'source_capture', mode });
+    updateAgentTaskRecord(vaultRoot, taskId, {}, {
+        source_captures: [note.path],
+    });
     return {
         ok: true,
         tool: 'wiki_weaver.capture_source',
@@ -2373,6 +2523,9 @@ function handleProposeMemory(rawArgs, context) {
         target_type: 'memory_proposal',
         proposal_kind: proposalKind,
         risk_level: riskLevel || null,
+    });
+    updateAgentTaskRecord(vaultRoot, taskId, {}, {
+        proposals: [note.path],
     });
     return makeToolResultForWrite('wiki_weaver.propose_memory', note);
 }
@@ -2446,6 +2599,11 @@ function handleBuildContextPack(rawArgs, context) {
     }, contextMarkdown, taskId || null, {
         target_type: 'context_pack',
         output_format: 'markdown',
+    });
+    updateAgentTaskRecord(vaultRoot, taskId || null, {
+        context_pack: note.path,
+    }, {
+        context_packs: [note.path],
     });
     return {
         ok: true,
@@ -2568,10 +2726,30 @@ function handleFinishTask(rawArgs, context) {
         target_type: 'session_note',
         task_stage: 'finish',
     });
+    const taskPath = updateAgentTaskRecord(vaultRoot, taskId, {
+        status: 'completed',
+        finished_at: now,
+        summary,
+        session_note: note.path,
+        outcomes: outcomes.join(', '),
+        next_actions: nextActions.join(', '),
+    }, {
+        memory_writes: [note.path],
+    }, [
+        '## Completion Summary',
+        summary,
+        '',
+        '## Outcomes',
+        ...formatListMarkdown(outcomes).split('\n'),
+        '',
+        '## Next Actions',
+        ...formatListMarkdown(nextActions).split('\n'),
+    ].join('\n'));
     return {
         ok: true,
         read_only: false,
         task_id: taskId,
+        task_path: taskPath,
         path: note.path,
         audit_path: note.audit_path,
         outcome_count: outcomes.length,
@@ -2618,6 +2796,12 @@ function handleDistillSession(rawArgs, context) {
         const proposal = createDistillProposal(vaultRoot, taskId, 'distill_preferences', 'Possible Preferences', possiblePreferences);
         proposals.push(proposal.path);
     }
+    updateAgentTaskRecord(vaultRoot, taskId, {
+        session_note: note.path,
+    }, {
+        memory_writes: [note.path],
+        proposals,
+    });
     return {
         ok: true,
         read_only: false,

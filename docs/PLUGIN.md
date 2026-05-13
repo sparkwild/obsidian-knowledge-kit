@@ -6,7 +6,7 @@
 - Display name: `Wiki Weaver`
 - Chinese in-plugin display: `知识库`
 - Version: `0.1.0`
-- Mobile declaration: `isDesktopOnly: false`
+- Desktop-only declaration: `isDesktopOnly: true`
 
 ## User Surface
 
@@ -37,12 +37,11 @@ The plugin does not provide maintenance entry points such as Analyze URL, Analyz
 The plugin settings are intentionally user-controlled:
 
 - Welcome/status text
-- AI tool MCP URL
-- Legacy SSE URL
-- stdio command name
+- MCP Runtime port
+- Local connection token rotation
 - Agent scope label
 
-The plugin ships with local Runtime defaults: `http://127.0.0.1:58437/mcp` and legacy `http://127.0.0.1:58437/sse`. Users can override them when their Runtime uses another address or port, and custom text or connection settings include restore-default controls.
+The plugin is desktop-only because it hosts a local Streamable HTTP Runtime on `127.0.0.1`. The default endpoint is `http://127.0.0.1:58437/mcp`, and generated client configuration includes a local token. The Runtime starts with Obsidian and stops when Obsidian or the plugin closes.
 
 ## Local Install
 

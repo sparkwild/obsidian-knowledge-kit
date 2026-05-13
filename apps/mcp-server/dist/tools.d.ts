@@ -4,12 +4,14 @@ interface ToolContext {
 }
 export interface ToolInvocationContext extends ToolContext {
     agentId?: string;
+    sessionId?: string;
     clientName?: string | null;
     transport?: string;
     runtimeVersion?: string;
 }
 interface ConnectionAuditEventInput {
     agentId: string;
+    sessionId?: string;
     clientName: string | null;
     transport: string;
     runtimeVersion: string;
@@ -21,6 +23,7 @@ interface ToolCallAuditEventInput {
     durationMs: number;
     riskLevel: string;
     agentId: string;
+    sessionId?: string;
     clientName: string | null;
     transport?: string;
     runtimeVersion?: string;

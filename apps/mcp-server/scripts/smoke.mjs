@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { StreamableHttpMcpRuntime } = require('../dist/http-runtime.js');
 
 function writeNote(vaultRoot, relativePath, content) {
 	const target = path.join(vaultRoot, relativePath);
@@ -63,40 +66,20 @@ function assertContainsNoSensitiveText(log, values) {
 class McpTestClient {
 	constructor(vaultRoot) {
 		this.vaultRoot = vaultRoot;
-		this.serverPath = path.join(process.cwd(), 'dist', 'server.js');
+		this.token = 'wiki-weaver-smoke-token';
 		this.nextId = 1;
-		this.pending = new Map();
+		this.sessionId = '';
 	}
 
-	start() {
-		this.proc = spawn(process.execPath, [this.serverPath, '--vault-root', this.vaultRoot], {
-			stdio: ['pipe', 'pipe', 'pipe'],
+	async start() {
+		this.runtime = new StreamableHttpMcpRuntime({
+			host: '127.0.0.1',
+			port: 0,
+			token: this.token,
+			defaultVaultRoot: this.vaultRoot,
 		});
-
-		this.proc.stdout.on('data', (chunk) => {
-			const text = chunk.toString();
-			const lines = text.split('\n');
-			for (const line of lines) {
-				const trimmed = line.trim();
-				if (!trimmed) {
-					continue;
-				}
-				const message = decodeResponse(trimmed);
-				if (!message || typeof message !== 'object' || !('id' in message)) {
-					continue;
-				}
-				const resolver = this.pending.get(message.id);
-				if (resolver) {
-					this.pending.delete(message.id);
-					resolver(message);
-				}
-			}
-		});
-
-		return new Promise((resolve, reject) => {
-			this.proc.once('error', reject);
-			this.proc.once('spawn', resolve);
-		});
+		const status = await this.runtime.start();
+		this.endpoint = `${status.endpoint}?token=${encodeURIComponent(this.token)}`;
 	}
 
 	async call(method, params = {}) {
@@ -109,46 +92,89 @@ class McpTestClient {
 			params,
 		};
 
-		const result = new Promise((resolve, reject) => {
-			const timer = setTimeout(() => {
-				this.pending.delete(id);
-				reject(new Error(`Timeout waiting for response #${id} ${method}`));
-			}, 20000);
-
-				this.pending.set(id, (response) => {
-					const structured = buildStructured(response.result);
-					clearTimeout(timer);
-					if (response.error) {
-						reject(new Error(response.error.message || `JSON-RPC error for ${method}`));
-						return;
-					}
-					if (response.result && response.result.isError) {
-						reject(new Error(response.result.structuredContent?.error || `Tool error for ${method}`));
-						return;
-					}
-					if (structured && structured.isError) {
-						reject(new Error(structured.error || `Tool error for ${method}`));
-						return;
-					}
-				if (!response.result) {
-					reject(new Error(`Missing result for ${method} #${id}`));
-					return;
-				}
-				resolve(response.result);
-			});
-			this.proc.stdin.write(`${JSON.stringify(payload)}\n`);
+		const headers = {
+			'content-type': 'application/json',
+			accept: 'application/json, text/event-stream',
+		};
+		if (this.sessionId) {
+			headers['mcp-session-id'] = this.sessionId;
+		}
+		const response = await fetch(this.endpoint, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify(payload),
 		});
-		return result;
+		if (method === 'initialize') {
+			this.sessionId = response.headers.get('mcp-session-id') || '';
+			assert.ok(this.sessionId, 'initialize should return Mcp-Session-Id');
+		}
+		const json = await response.json();
+		const structured = buildStructured(json.result);
+		if (json.error) {
+			throw new Error(json.error.message || `JSON-RPC error for ${method}`);
+		}
+		if (json.result && json.result.isError) {
+			throw new Error(json.result.structuredContent?.error || `Tool error for ${method}`);
+		}
+		if (structured && structured.isError) {
+			throw new Error(structured.error || `Tool error for ${method}`);
+		}
+		if (!json.result) {
+			throw new Error(`Missing result for ${method} #${id}`);
+		}
+		return json.result;
+	}
+
+	async expectHttpStatus({ token = this.token, origin = '', sessionId = this.sessionId, method = 'tools/list', status }) {
+		const endpoint = `${this.runtime.getStatus().endpoint}?token=${encodeURIComponent(token)}`;
+		const headers = {
+			'content-type': 'application/json',
+			accept: 'application/json, text/event-stream',
+		};
+		if (origin) {
+			headers.origin = origin;
+		}
+		if (sessionId) {
+			headers['mcp-session-id'] = sessionId;
+		}
+		const response = await fetch(endpoint, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({
+				jsonrpc: '2.0',
+				id: this.nextId++,
+				method,
+				params: {},
+			}),
+		});
+		assert.equal(response.status, status);
+	}
+
+	async assertEventStream() {
+		const response = await fetch(this.endpoint, {
+			method: 'GET',
+			headers: {
+				accept: 'text/event-stream',
+				'mcp-session-id': this.sessionId,
+			},
+		});
+		assert.equal(response.status, 200);
+		assert.match(response.headers.get('content-type') || '', /text\/event-stream/);
+		await response.body?.cancel();
+	}
+
+	async deleteSession() {
+		const response = await fetch(this.endpoint, {
+			method: 'DELETE',
+			headers: {
+				'mcp-session-id': this.sessionId,
+			},
+		});
+		assert.equal(response.status, 204);
 	}
 
 	close() {
-		if (!this.proc || this.proc.killed) {
-			return Promise.resolve();
-		}
-		this.proc.kill();
-		return new Promise((resolve) => {
-			this.proc.once('exit', () => resolve());
-		});
+		return this.runtime ? this.runtime.stop() : Promise.resolve();
 	}
 }
 
@@ -235,10 +261,15 @@ async function main() {
 			},
 		});
 		assert.equal(initialize.capabilities.tools.listChanged, false);
+		await client.expectHttpStatus({ token: 'wrong-token', status: 401 });
+		await client.expectHttpStatus({ origin: 'https://example.com', status: 403 });
+		await client.expectHttpStatus({ sessionId: '', status: 400 });
+		await client.assertEventStream();
 		const initAudit = readAuditLog(vaultRoot);
 		assert.ok(hasSectionWithValues(initAudit, ['- type: connection', '- event: connection', '- agent_id:']));
+		assert.ok(hasSectionWithValues(initAudit, ['- session_id:']));
 		assert.ok(hasSectionWithValues(initAudit, ['- timestamp:']));
-		assert.ok(hasSectionWithValues(initAudit, ['- transport:']));
+		assert.ok(hasSectionWithValues(initAudit, ['- transport: "streamable-http"']));
 
 		const tools = await client.call('tools/list');
 		ensureToolNames(tools, [
@@ -284,7 +315,7 @@ async function main() {
 		assertToolCallEvent(afterReadAudit, 'wiki_weaver.read_note', 'success');
 
 		const sensitiveText = 'SENSITIVE_TOKEN_123ABC456DEF';
-		await client.call('tools/call', {
+		const startTask = buildStructured(await client.call('tools/call', {
 			name: 'wiki_weaver.start_task',
 			arguments: {
 				goal: 'Smoke sensitive summary',
@@ -296,10 +327,27 @@ async function main() {
 				cookie: `cookie=${sensitiveText}`,
 				token: `token_${sensitiveText}`,
 			},
-		});
+		}));
+		assert.equal(startTask.ok, true);
+		assert.equal(startTask.read_only, false);
+		assert.ok(startTask.task_id, 'start_task should return task_id');
+		assert.ok(startTask.path, 'start_task should return task path');
+		assert.ok(fs.existsSync(path.join(vaultRoot, startTask.path)));
+		const taskId = startTask.task_id;
+		const activeTaskText = fs.readFileSync(path.join(vaultRoot, startTask.path), 'utf8');
+		assert.ok(activeTaskText.includes('status: "active"'));
+		assert.ok(activeTaskText.includes(`task_id: "${taskId}"`));
 
 		const afterSensitiveAudit = readAuditLog(vaultRoot);
 		assertToolCallEvent(afterSensitiveAudit, 'wiki_weaver.start_task', 'success');
+		assert.ok(
+			hasToolCallSection(afterSensitiveAudit, 'wiki_weaver.start_task', 'success', [
+				'- session_id:',
+				'- client_name: "wiki-weaver-smoke"',
+				'- transport: "streamable-http"',
+			]),
+			'start_task audit should include session/client/transport'
+		);
 		assertContainsNoSensitiveText(afterSensitiveAudit, [
 			sensitiveText,
 			`secret_${sensitiveText}`,
@@ -318,6 +366,7 @@ async function main() {
 				filename: 'smoke-context-pack',
 				content: '# Context Pack\n\nSmoke content',
 				title: 'Smoke context pack',
+				task_id: taskId,
 			},
 		}));
 		assert.equal(writeContext.ok, true);
@@ -344,6 +393,7 @@ async function main() {
 				write: true,
 				filename: 'smoke-context-pack-auto',
 				title: 'Smoke build context pack',
+				task_id: taskId,
 			},
 		}));
 		assert.equal(buildContextWrite.ok, true);
@@ -351,6 +401,9 @@ async function main() {
 		assert.ok(fs.existsSync(path.join(vaultRoot, buildContextWrite.artifact.path)));
 		assert.ok(buildContextWrite.artifact.path.startsWith('06_outputs/context_packs/'));
 		assert.ok(buildContextWrite.artifact.path.endsWith('.md'));
+		let taskText = fs.readFileSync(path.join(vaultRoot, startTask.path), 'utf8');
+		assert.ok(taskText.includes(writeContext.path), 'task should reference written context pack');
+		assert.ok(taskText.includes(buildContextWrite.artifact.path), 'task should reference generated context pack');
 
 		const lintResult = buildStructured(await client.call('tools/call', {
 			name: 'wiki_weaver.lint',
@@ -367,7 +420,7 @@ async function main() {
 		const finishTask = buildStructured(await client.call('tools/call', {
 			name: 'wiki_weaver.finish_task',
 			arguments: {
-				task_id: 'task-smoke-finish',
+				task_id: taskId,
 				summary: 'Smoke task finish session.',
 				outcomes: ['Complete smoke validation'],
 				next_actions: ['Run lint and distill'],
@@ -376,11 +429,14 @@ async function main() {
 		assert.equal(finishTask.ok, true);
 		assert.equal(finishTask.read_only, false);
 		assert.ok(fs.existsSync(path.join(vaultRoot, finishTask.path)));
+		taskText = fs.readFileSync(path.join(vaultRoot, startTask.path), 'utf8');
+		assert.ok(taskText.includes('status: completed') || taskText.includes('status: "completed"'));
+		assert.ok(taskText.includes(finishTask.path));
 
 		const distillSession = buildStructured(await client.call('tools/call', {
 			name: 'wiki_weaver.distill_session',
 			arguments: {
-				task_id: 'task-smoke-distill',
+				task_id: taskId,
 				summary: 'Smoke distill session.',
 				decisions: ['Prefer deterministic artifacts'],
 				possible_preferences: ['Prefer markdown session notes'],
@@ -396,25 +452,50 @@ async function main() {
 		for (const proposal of distillSession.proposals) {
 			assert.ok(fs.existsSync(path.join(vaultRoot, proposal.path)));
 		}
+		taskText = fs.readFileSync(path.join(vaultRoot, startTask.path), 'utf8');
+		for (const proposal of distillSession.proposals) {
+			assert.ok(taskText.includes(proposal.path), 'task should reference distilled proposal');
+		}
 
 		const writeSession = buildStructured(await client.call('tools/call', {
 			name: 'wiki_weaver.write_session_note',
 			arguments: {
 				filename: 'smoke-session',
 				content: '# Session\n\nSmoke session note',
+				task_id: taskId,
 			},
 		}));
 		assert.equal(writeSession.ok, true);
 		assert.ok(fs.existsSync(path.join(vaultRoot, writeSession.path)));
 
-		await client.call('tools/call', {
+		const proposedMemory = buildStructured(await client.call('tools/call', {
+			name: 'wiki_weaver.propose_memory',
+			arguments: {
+				proposal_kind: 'smoke_memory',
+				content: 'Smoke proposal content.',
+				evidence: 'smoke test',
+				target_note: '04_projects/demo/project_overview.md',
+				risk_level: 'medium',
+				task_id: taskId,
+			},
+		}));
+		assert.equal(proposedMemory.ok, true);
+		assert.ok(fs.existsSync(path.join(vaultRoot, proposedMemory.path)));
+
+		const captureSource = buildStructured(await client.call('tools/call', {
 			name: 'wiki_weaver.capture_source',
 			arguments: {
 				source: '03_sources/local-source.md',
 				mode: 'local_copy',
 				content: '# Source\n\ncopied content.',
+				task_id: taskId,
 			},
-		});
+		}));
+		assert.equal(captureSource.ok, true);
+		taskText = fs.readFileSync(path.join(vaultRoot, startTask.path), 'utf8');
+		assert.ok(taskText.includes(writeSession.path), 'task should reference written session');
+		assert.ok(taskText.includes(proposedMemory.path), 'task should reference proposed memory');
+		assert.ok(taskText.includes(captureSource.path), 'task should reference captured source');
 
 		await assert.rejects(
 			() =>
@@ -433,7 +514,10 @@ async function main() {
 
 		const analyze = buildStructured(await client.call('tools/call', {
 			name: 'wiki_weaver.analyze_source_request',
-			arguments: { request_path: '01_inbox/agent_requests/local-source-request.md' },
+			arguments: {
+				request_path: '01_inbox/agent_requests/local-source-request.md',
+				task_id: taskId,
+			},
 		}));
 		assert.equal(analyze.ok, true);
 		assert.equal(analyze.status, 'completed');
@@ -442,6 +526,9 @@ async function main() {
 		assert.ok(fs.existsSync(path.join(vaultRoot, analyze.source_note.path)));
 		assert.ok(fs.existsSync(path.join(vaultRoot, analyze.report.path)));
 		assert.ok(fs.readFileSync(fixturePath, 'utf8').includes('status: completed'));
+		taskText = fs.readFileSync(path.join(vaultRoot, startTask.path), 'utf8');
+		assert.ok(taskText.includes(analyze.source_note.path), 'task should reference analyzed source note');
+		assert.ok(taskText.includes(analyze.report.path), 'task should reference analyzed source report');
 
 		const approvedWritebacks = buildStructured(await client.call('tools/call', {
 			name: 'wiki_weaver.list_approved_writebacks',
@@ -456,6 +543,7 @@ async function main() {
 			arguments: {
 				proposal_id: 'prop_smoke_apply',
 				dry_run: true,
+				task_id: taskId,
 			},
 		}));
 		assert.equal(dryRunApply.ok, true);
@@ -466,6 +554,7 @@ async function main() {
 			name: 'wiki_weaver.apply_approved_writeback',
 			arguments: {
 				proposal_id: 'prop_smoke_apply',
+				task_id: taskId,
 			},
 		}));
 		assert.equal(applied.ok, true);
@@ -476,6 +565,8 @@ async function main() {
 		const proposalText = fs.readFileSync(path.join(vaultRoot, '01_inbox/review_queue/approved-writeback.md'), 'utf8');
 		assert.ok(proposalText.includes('approval_status: applied'));
 		assert.ok(proposalText.includes('status: applied'));
+		taskText = fs.readFileSync(path.join(vaultRoot, startTask.path), 'utf8');
+		assert.ok(taskText.includes('04_projects/demo/project_overview.md'), 'task should reference applied writeback target');
 
 		writeNote(vaultRoot, '01_inbox/review_queue/approved-secret-writeback.md', [
 			'---',
@@ -505,6 +596,8 @@ async function main() {
 			/Refusing to write potential secret/,
 			'should reject approved writeback content that looks like a secret'
 		);
+		await client.deleteSession();
+		await client.expectHttpStatus({ status: 404 });
 
 		console.log(JSON.stringify({ result: 'pass', vaultRoot }, null, 2));
 	} finally {

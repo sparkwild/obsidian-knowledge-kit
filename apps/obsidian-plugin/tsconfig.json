@@ -8,7 +8,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["obsidian"]
+    "types": ["obsidian", "node"]
   },
   "include": ["src/**/*.ts"]
 }

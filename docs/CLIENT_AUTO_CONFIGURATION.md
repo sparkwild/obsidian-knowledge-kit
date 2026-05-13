@@ -6,21 +6,20 @@ The Agent Connections view helps users connect AI tools to Wiki Weaver without e
 
 - Do not point clients to the source tree.
 - Do not hardcode a vault path.
-- Use the built-in loopback Runtime defaults unless the user changes them.
-- Prefer the MCP URL from plugin settings.
-- Use SSE only for legacy clients that explicitly need it.
-- Use stdio only when a client asks for command/args configuration.
+- Use the Obsidian-hosted Streamable HTTP Runtime URL.
+- Include the generated local token in client configuration.
+- Do not offer SSE or stdio connection modes.
 - Never auto-configure from an agent call; configuration writes are user-triggered in Obsidian only.
 
 ## Supported Client Profiles
 
 | Client | Preferred connection | Auto-config status |
 | --- | --- | --- |
-| Codex | MCP URL | User-confirmed config file merge when supported. |
-| Claude Code | CLI command | Copy command for user execution. |
-| Claude Desktop | MCP URL | User-confirmed JSON merge when supported. |
-| Cursor | MCP URL | Copy config until a stable write target is available. |
-| Custom | MCP URL or stdio | Copy config only. |
+| Codex | Streamable HTTP URL | User-confirmed config file merge when supported. |
+| Claude Code | Streamable HTTP CLI command | Copy command for user execution. |
+| Claude Desktop | Streamable HTTP URL | User-confirmed JSON merge when supported. |
+| Cursor | Streamable HTTP URL | Copy config until a stable write target is available. |
+| Custom | Streamable HTTP URL | Copy config only. |
 
 ## Safe Write Flow
 
@@ -37,6 +36,6 @@ The Agent Connections view helps users connect AI tools to Wiki Weaver without e
 
 Removal uses the same confirmation and backup flow. It deletes only the `wiki-weaver` MCP server block and never deletes the whole client config file.
 
-## Mobile Behavior
+## Runtime Dependency
 
-On mobile or unsupported platforms, the plugin should show copyable instructions only. It should not attempt local config file writes.
+Client configuration only works while desktop Obsidian is open and the Wiki Weaver plugin is enabled, because the MCP Runtime is hosted by Obsidian.

@@ -11,9 +11,14 @@ import {
 	TFolder,
 	WorkspaceLeaf,
 	getLanguage,
-	requestUrl,
 	setIcon,
 } from 'obsidian';
+import { randomBytes } from 'node:crypto';
+import {
+	StreamableHttpMcpRuntime,
+	type StreamableHttpRuntimeStatus,
+	type RuntimeState,
+} from '../../mcp-server/src/http-runtime';
 
 const WIKI_WEAVER_ACTIVITY_VIEW = 'wiki-weaver-activity';
 const WIKI_WEAVER_SOURCE_STATUS_VIEW = 'wiki-weaver-source-status';
@@ -61,11 +66,10 @@ const MAX_AGENT_TOOL_CALL_ROWS = 12;
 const PLUGIN_DISPLAY_NAME_ZH = '知识库';
 const PLUGIN_DISPLAY_NAME_EN = 'Wiki Weaver';
 const DEFAULT_MCP_PORT = 58437;
-const DEFAULT_MCP_HTTP_ENDPOINT = `http://127.0.0.1:${DEFAULT_MCP_PORT}/mcp`;
-const DEFAULT_MCP_SSE_ENDPOINT = `http://127.0.0.1:${DEFAULT_MCP_PORT}/sse`;
+const DEFAULT_MCP_HOST = '127.0.0.1';
+const DEFAULT_MCP_PATH = '/mcp';
+const DEFAULT_MCP_HTTP_ENDPOINT = `http://${DEFAULT_MCP_HOST}:${DEFAULT_MCP_PORT}${DEFAULT_MCP_PATH}`;
 const LEGACY_DEFAULT_MCP_HTTP_ENDPOINTS = ['http://127.0.0.1:37241/mcp'];
-const LEGACY_DEFAULT_MCP_SSE_ENDPOINTS = ['http://127.0.0.1:37241/sse'];
-const DEFAULT_MCP_STDIO_COMMAND = 'wiki-weaver-mcp';
 const DEFAULT_STATUS_MESSAGE_ZH = '欢迎使用知识库。';
 const DEFAULT_STATUS_MESSAGE_EN = 'Welcome to Wiki Weaver.';
 const isChineseLanguage = (language: string): boolean => {
@@ -112,6 +116,18 @@ interface MemoryInitializationPlan {
 	foldersToCreate: string[];
 	filesToCreate: string[];
 	missingAuditLog: boolean;
+}
+
+type StructureState = 'initialized' | 'partial' | 'missing';
+
+interface WikiWeaverStructureStatus {
+	state: StructureState;
+	label: string;
+	detail: string;
+	missingFolders: string[];
+	missingFiles: string[];
+	missingCount: number;
+	totalCount: number;
 }
 
 interface AgentTaskRecord {
@@ -164,6 +180,7 @@ interface SourceRequestRecord {
 	relatedProject: string;
 	analysisMode: string;
 	status: string;
+	taskId: string;
 	created: string;
 	summary: string;
 	sortTimestamp: number;
@@ -224,6 +241,7 @@ interface AuditEventRecord {
 	snippet: string;
 	eventType: string;
 	agentId: string;
+	sessionId: string;
 	clientName: string;
 	toolName: string;
 	resultStatus: string;
@@ -257,10 +275,13 @@ interface MemoryReviewQueueSnapshot {
 }
 
 interface AgentActivitySnapshot {
+	runtimeStatus: RuntimeViewStatus;
+	structureStatus: WikiWeaverStructureStatus;
 	currentTask: AgentTaskRecord | null;
 	recentTasks: AgentTaskRecord[];
 	recentContextPacks: ContextPackRecord[];
 	recentSourceCaptures: SourceCaptureRecord[];
+	recentSourceRequests: SourceRequestRecord[];
 	recentProposals: MemoryProposalRecord[];
 	recentAuditEvents: AuditEventRecord[];
 	missingTaskFolder: boolean;
@@ -270,6 +291,7 @@ interface AgentActivitySnapshot {
 
 interface AgentConnectionRecord {
 	agentId: string;
+	sessionId: string;
 	clientName: string;
 	transport: string;
 	status: string;
@@ -282,6 +304,7 @@ interface AgentConnectionRecord {
 
 interface AgentToolCallRecord {
 	agentId: string;
+	sessionId: string;
 	clientName: string;
 	toolName: string;
 	resultStatus: string;
@@ -293,23 +316,19 @@ interface AgentToolCallRecord {
 	sortTimestamp: number;
 }
 
-type LocalConnectionState =
-	| 'available'
-	| 'not_configured'
-	| 'service_not_running'
-	| 'needs_update'
-	| 'needs_restart'
-	| 'unsupported';
-
-type ConnectionTransport = 'streamable-http' | 'sse' | 'stdio';
+type ConnectionTransport = 'streamable-http';
 type ClientConfigState = 'configured' | 'needs_update' | 'not_configured' | 'unavailable';
 
-interface LocalConnectionStatus {
-	state: LocalConnectionState;
+interface RuntimeViewStatus {
+	state: RuntimeState;
 	label: string;
 	detail: string;
-	checkedAt: string;
-	statusCode?: number;
+	endpoint: string;
+	host: string;
+	port: number;
+	startedAt: string;
+	activeSessions: number;
+	lastError: string;
 }
 
 interface ClientProfile {
@@ -338,6 +357,14 @@ interface GeneratedClientConfig {
 	configStatusDetail: string;
 }
 
+interface ApprovedWritebackPreview {
+	proposal_id: string;
+	proposal_path: string;
+	target_note: string;
+	writeback_preview: string;
+	touched_notes: string[];
+}
+
 interface DesktopNodeApi {
 	fs: {
 		existsSync(path: string): boolean;
@@ -361,9 +388,8 @@ interface DesktopNodeApi {
 interface AgentConnectionsSnapshot {
 	vaultRoot: string;
 	httpEndpoint: string;
-	sseEndpoint: string;
-	stdioCommand: string;
-	localConnection: LocalConnectionStatus;
+	connectionUrl: string;
+	runtimeStatus: RuntimeViewStatus;
 	clientConfigs: GeneratedClientConfig[];
 	recentAgents: AgentConnectionRecord[];
 	recentToolCalls: AgentToolCallRecord[];
@@ -375,44 +401,38 @@ interface WikiWeaverSettings {
 	showWelcomeMessage: boolean;
 	defaultAgentScope: string;
 	statusMessage: string;
-	mcpHttpEndpoint: string;
-	mcpSseEndpoint: string;
-	mcpStdioCommand: string;
+	mcpPort: number;
+	runtimeToken: string;
 }
 
 const DEFAULT_SETTINGS: WikiWeaverSettings = {
 	showWelcomeMessage: true,
 	defaultAgentScope: 'vault',
 	statusMessage: '',
-	mcpHttpEndpoint: DEFAULT_MCP_HTTP_ENDPOINT,
-	mcpSseEndpoint: DEFAULT_MCP_SSE_ENDPOINT,
-	mcpStdioCommand: DEFAULT_MCP_STDIO_COMMAND,
+	mcpPort: DEFAULT_MCP_PORT,
+	runtimeToken: '',
 };
 
 export default class WikiWeaverPlugin extends Plugin {
 	settings: WikiWeaverSettings = DEFAULT_SETTINGS;
+	private mcpRuntime: StreamableHttpMcpRuntime | null = null;
+	private uiMcpSessionId = '';
+	private uiMcpRequestId = 1;
+	private runtimeStatus: StreamableHttpRuntimeStatus = {
+		state: 'stopped',
+		host: DEFAULT_MCP_HOST,
+		port: DEFAULT_MCP_PORT,
+		path: DEFAULT_MCP_PATH,
+		endpoint: DEFAULT_MCP_HTTP_ENDPOINT,
+		startedAt: '',
+		activeSessions: 0,
+		lastError: '',
+	};
 
 	async onload() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.settings = this.normalizeSettings(await this.loadData());
 		if (typeof this.settings.statusMessage !== 'string') {
 			this.settings.statusMessage = '';
-		}
-		if (
-			typeof this.settings.mcpHttpEndpoint !== 'string' ||
-			!this.settings.mcpHttpEndpoint.trim() ||
-			LEGACY_DEFAULT_MCP_HTTP_ENDPOINTS.includes(this.settings.mcpHttpEndpoint.trim())
-		) {
-			this.settings.mcpHttpEndpoint = DEFAULT_MCP_HTTP_ENDPOINT;
-		}
-		if (
-			typeof this.settings.mcpSseEndpoint !== 'string' ||
-			!this.settings.mcpSseEndpoint.trim() ||
-			LEGACY_DEFAULT_MCP_SSE_ENDPOINTS.includes(this.settings.mcpSseEndpoint.trim())
-		) {
-			this.settings.mcpSseEndpoint = DEFAULT_MCP_SSE_ENDPOINT;
-		}
-		if (typeof this.settings.mcpStdioCommand !== 'string' || !this.settings.mcpStdioCommand.trim()) {
-			this.settings.mcpStdioCommand = DEFAULT_MCP_STDIO_COMMAND;
 		}
 		const savedStatusMessage = this.settings.statusMessage.trim();
 		const isSavedDefaultMessage =
@@ -423,6 +443,8 @@ export default class WikiWeaverPlugin extends Plugin {
 			this.settings.statusMessage = '';
 			await this.saveSettings();
 		}
+		await this.saveSettings();
+		await this.startMcpRuntime();
 
 		this.registerView(
 			WIKI_WEAVER_SOURCE_STATUS_VIEW,
@@ -446,7 +468,7 @@ export default class WikiWeaverPlugin extends Plugin {
 		);
 		this.registerView(
 			WIKI_WEAVER_RUNTIME_STATUS_VIEW,
-			(leaf) => new WikiWeaverRuntimeStatusView(leaf)
+			(leaf) => new WikiWeaverRuntimeStatusView(leaf, this)
 		);
 		this.registerView(
 			WIKI_WEAVER_PERMISSION_POLICY_VIEW,
@@ -515,14 +537,110 @@ export default class WikiWeaverPlugin extends Plugin {
 			id: 'initialize-memory-structure',
 			name: ui('初始化记忆结构', 'Initialize memory structure'),
 			callback: () => {
-				void this.promptInitializeMemoryStructure();
+				void this.openInitializeMemoryStructureModal();
 			},
 		});
 
 		this.addSettingTab(new WikiWeaverSettingTab(this.app, this));
 	}
 
-	private async promptInitializeMemoryStructure(): Promise<void> {
+	async onunload(): Promise<void> {
+		await this.stopMcpRuntime();
+	}
+
+	private normalizeSettings(raw: unknown): WikiWeaverSettings {
+		const saved = raw && typeof raw === 'object' ? raw as Partial<WikiWeaverSettings> & Record<string, unknown> : {};
+		const next: WikiWeaverSettings = Object.assign({}, DEFAULT_SETTINGS, saved);
+		const legacyEndpoint = typeof saved.mcpHttpEndpoint === 'string' ? saved.mcpHttpEndpoint.trim() : '';
+		if (legacyEndpoint && !LEGACY_DEFAULT_MCP_HTTP_ENDPOINTS.includes(legacyEndpoint)) {
+			const legacyPort = this.portFromEndpoint(legacyEndpoint);
+			if (legacyPort) {
+				next.mcpPort = legacyPort;
+			}
+		}
+		next.mcpPort = this.normalizePort(next.mcpPort);
+		next.runtimeToken = typeof saved.runtimeToken === 'string' && saved.runtimeToken.trim()
+			? saved.runtimeToken.trim()
+			: this.generateRuntimeToken();
+		return next;
+	}
+
+	private normalizePort(value: unknown): number {
+		const parsed = typeof value === 'number' ? value : Number.parseInt(String(value || ''), 10);
+		if (!Number.isFinite(parsed) || parsed < 1 || parsed > 65535) {
+			return DEFAULT_MCP_PORT;
+		}
+		return parsed;
+	}
+
+	private portFromEndpoint(endpoint: string): number | null {
+		try {
+			const parsed = new URL(endpoint);
+			const port = Number.parseInt(parsed.port || String(DEFAULT_MCP_PORT), 10);
+			return this.normalizePort(port);
+		} catch (_error) {
+			return null;
+		}
+	}
+
+	private generateRuntimeToken(): string {
+		return randomBytes(24).toString('hex');
+	}
+
+	async restartMcpRuntime(): Promise<void> {
+		await this.stopMcpRuntime();
+		await this.startMcpRuntime();
+		await this.refreshGovernanceViews();
+	}
+
+	async regenerateRuntimeToken(): Promise<void> {
+		this.settings.runtimeToken = this.generateRuntimeToken();
+		await this.saveSettings();
+		new Notice(ui('本地连接令牌已重新生成，请更新已配置的 AI 工具。', 'Local connection token regenerated. Update configured AI tools.'));
+		await this.restartMcpRuntime();
+	}
+
+	private async startMcpRuntime(): Promise<void> {
+		this.uiMcpSessionId = '';
+		const vaultRoot = this.getVaultRoot();
+		const runtime = new StreamableHttpMcpRuntime({
+			host: DEFAULT_MCP_HOST,
+			port: this.settings.mcpPort,
+			path: DEFAULT_MCP_PATH,
+			token: this.settings.runtimeToken,
+			defaultVaultRoot: vaultRoot,
+		});
+		this.mcpRuntime = runtime;
+		try {
+			this.runtimeStatus = await runtime.start();
+		} catch (error) {
+			this.runtimeStatus = runtime.getStatus();
+			const message = error instanceof Error ? error.message : 'Unknown MCP Runtime error.';
+			console.error('wiki-weaver failed to start MCP Runtime', error);
+			new Notice(ui(`MCP Runtime 启动失败：${message}`, `MCP Runtime failed to start: ${message}`));
+		}
+	}
+
+	private async stopMcpRuntime(): Promise<void> {
+		this.uiMcpSessionId = '';
+		const runtime = this.mcpRuntime;
+		this.mcpRuntime = null;
+		if (runtime) {
+			await runtime.stop();
+		}
+		this.runtimeStatus = {
+			state: 'stopped',
+			host: DEFAULT_MCP_HOST,
+			port: this.settings.mcpPort,
+			path: DEFAULT_MCP_PATH,
+			endpoint: this.getMcpHttpEndpoint(),
+			startedAt: '',
+			activeSessions: 0,
+			lastError: '',
+		};
+	}
+
+	async openInitializeMemoryStructureModal(): Promise<void> {
 		const plan = this.buildInitializationPlan();
 		new InitializeMemoryStructureModal(this.app, {
 			plan,
@@ -555,6 +673,46 @@ export default class WikiWeaverPlugin extends Plugin {
 			foldersToCreate: missingFolders,
 			filesToCreate,
 			missingAuditLog,
+		};
+	}
+
+	getStructureStatus(): WikiWeaverStructureStatus {
+		const plan = this.buildInitializationPlan();
+		const totalFolders = this.getNormalizedFolderPlan().length;
+		const expectedFiles = new Set(CONTROL_FILES.map((file) => file.path));
+		expectedFiles.add(CONTROL_PATHS.auditLog);
+		const missingCount = plan.foldersToCreate.length + plan.filesToCreate.length;
+		const totalCount = totalFolders + expectedFiles.size;
+		const rootExists = this.app.vault.getAbstractFileByPath(CONTROL_PATHS.root) !== null;
+		const state: StructureState = missingCount === 0
+			? 'initialized'
+			: rootExists
+				? 'partial'
+				: 'missing';
+
+		if (state === 'initialized') {
+			return {
+				state,
+				label: ui('已初始化', 'Initialized'),
+				detail: ui('Wiki Weaver 管理结构完整。', 'The Wiki Weaver management structure is complete.'),
+				missingFolders: [],
+				missingFiles: [],
+				missingCount,
+				totalCount,
+			};
+		}
+
+		return {
+			state,
+			label: state === 'partial' ? ui('部分缺失', 'Partially missing') : ui('未初始化', 'Not initialized'),
+			detail: ui(
+				`缺少 ${missingCount} 个管理结构项，需要显式初始化后才能形成完整业务闭环。`,
+				`${missingCount} management structure items are missing. Initialize explicitly to complete the workflow.`
+			),
+			missingFolders: plan.foldersToCreate,
+			missingFiles: plan.filesToCreate,
+			missingCount,
+			totalCount,
 		};
 	}
 
@@ -653,6 +811,7 @@ export default class WikiWeaverPlugin extends Plugin {
 
 			await this.appendAuditEvent(plan);
 			new Notice(ui('知识库结构已初始化。', 'Wiki Weaver memory structure initialized.'));
+			await this.refreshGovernanceViews();
 		} catch (error) {
 			console.error('wiki-weaver failed to initialize memory structure', error);
 			new Notice(ui('知识库结构初始化失败。', 'Wiki Weaver failed to initialize memory structure.'));
@@ -791,18 +950,25 @@ export default class WikiWeaverPlugin extends Plugin {
 			};
 		}
 
-		const files = this.collectMarkdownFiles(folder);
-		const records = await Promise.all(files.map((file) => this.readSourceRequestFile(file)));
-		const requests = records
-			.filter((record): record is SourceRequestRecord => Boolean(record))
-			.sort((a, b) => b.sortTimestamp - a.sortTimestamp)
-			.slice(0, MAX_SOURCE_STATUS_ROWS);
-
 		return {
-			requests,
+			requests: await this.readRecentSourceRequests(MAX_SOURCE_STATUS_ROWS),
 			missingRequestFolder: false,
 			updatedAt: new Date().toISOString(),
 		};
+	}
+
+	private async readRecentSourceRequests(limit: number): Promise<SourceRequestRecord[]> {
+		const folder = this.app.vault.getAbstractFileByPath(SOURCE_REQUESTS_PATH);
+		if (!(folder instanceof TFolder)) {
+			return [];
+		}
+
+		const files = this.collectMarkdownFiles(folder);
+		const records = await Promise.all(files.map((file) => this.readSourceRequestFile(file)));
+		return records
+			.filter((record): record is SourceRequestRecord => Boolean(record))
+			.sort((a, b) => b.sortTimestamp - a.sortTimestamp)
+			.slice(0, limit);
 	}
 
 	private async readSourceRequestFile(file: TFile): Promise<SourceRequestRecord | null> {
@@ -823,7 +989,7 @@ export default class WikiWeaverPlugin extends Plugin {
 
 		const source = this.firstString(data, ['source']);
 		const status = this.firstString(data, ['status']);
-		if (!source || status.toLowerCase() !== 'pending') {
+		if (!source) {
 			return null;
 		}
 
@@ -838,7 +1004,8 @@ export default class WikiWeaverPlugin extends Plugin {
 			purpose: this.firstString(data, ['purpose']) || '',
 			relatedProject: this.firstString(data, ['related_project', 'relatedProject']) || '',
 			analysisMode: this.firstString(data, ['analysis_mode', 'analysisMode']) || 'default',
-			status,
+			status: status || 'pending',
+			taskId: this.firstString(data, ['task_id', 'taskId']),
 			created,
 			summary: this.snippetFromText(parsed.body, source),
 			sortTimestamp,
@@ -850,16 +1017,19 @@ export default class WikiWeaverPlugin extends Plugin {
 			recentTasks,
 			recentContextPacks,
 			recentSourceCaptures,
+			recentSourceRequests,
 			recentProposals,
 			recentAuditEvents,
 		] = await Promise.all([
 			this.readRecentAgentTasks(MAX_TASK_ROWS),
 			this.readRecentContextPacks(MAX_ACTIVITY_CONTEXT_PACK_ROWS),
 			this.readRecentSourceCaptures(MAX_ACTIVITY_SOURCE_CAPTURE_ROWS),
+			this.readRecentSourceRequests(MAX_SOURCE_STATUS_ROWS),
 			this.readRecentMemoryProposals(MAX_ACTIVITY_PROPOSAL_ROWS),
 			this.readRecentAuditEvents(MAX_AUDIT_ROWS),
 		]);
 		const currentTask = this.pickCurrentTask(recentTasks);
+		const structureStatus = this.getStructureStatus();
 		const taskFolderMissing =
 			this.app.vault.getAbstractFileByPath(AGENT_TASKS_PATH) === null;
 		const auditLogMissing =
@@ -868,10 +1038,13 @@ export default class WikiWeaverPlugin extends Plugin {
 			this.app.vault.getAbstractFileByPath(CONTROL_PATHS.auditDir) === null;
 
 		return {
+			runtimeStatus: this.getRuntimeViewStatus(),
+			structureStatus,
 			currentTask,
 			recentTasks,
 			recentContextPacks,
 			recentSourceCaptures,
+			recentSourceRequests,
 			recentProposals,
 			recentAuditEvents,
 			missingTaskFolder: taskFolderMissing,
@@ -895,17 +1068,15 @@ export default class WikiWeaverPlugin extends Plugin {
 			.slice(0, MAX_AGENT_CONNECTION_ROWS);
 		const vaultRoot = this.getVaultRoot();
 		const httpEndpoint = this.getMcpHttpEndpoint();
-		const sseEndpoint = this.getMcpSseEndpoint();
-		const stdioCommand = this.buildMcpStdioCommand(vaultRoot);
-		const localConnection = await this.checkLocalConnectionStatus(httpEndpoint);
+		const connectionUrl = this.getMcpConnectionUrl();
+		const runtimeStatus = this.getRuntimeViewStatus();
 
 		return {
 			vaultRoot,
 			httpEndpoint,
-			sseEndpoint,
-			stdioCommand,
-			localConnection,
-			clientConfigs: this.buildClientConfigs(vaultRoot),
+			connectionUrl,
+			runtimeStatus,
+			clientConfigs: this.buildClientConfigs(),
 			recentAgents,
 			recentToolCalls: toolCalls,
 			missingAuditSources: auditLogMissing && auditDirMissing,
@@ -918,11 +1089,7 @@ export default class WikiWeaverPlugin extends Plugin {
 		return adapter.basePath || ui('当前知识库路径不可用', 'Current knowledge base path unavailable');
 	}
 
-	private buildMcpStdioCommand(vaultRoot: string): string {
-		return `${this.getMcpStdioCommand()} --vault-root "${vaultRoot}"`;
-	}
-
-	private buildClientConfigs(vaultRoot: string): GeneratedClientConfig[] {
+	private buildClientConfigs(): GeneratedClientConfig[] {
 		return this.getClientProfiles().map((profile) => {
 			const status = this.readClientConfigStatus(profile);
 			return {
@@ -930,7 +1097,7 @@ export default class WikiWeaverPlugin extends Plugin {
 				displayName: profile.displayName,
 				description: profile.description,
 				transport: profile.preferredTransport,
-				configText: this.buildClientConfigText(profile, vaultRoot),
+				configText: this.buildClientConfigText(profile),
 				supportsAutoConfigure: profile.supportsAutoConfigure,
 				restartRequired: profile.restartRequired,
 				configFormat: profile.configFormat,
@@ -1032,60 +1199,29 @@ export default class WikiWeaverPlugin extends Plugin {
 				restartRequired: true,
 				configFormat: 'copy-only',
 			},
-			{
-				id: 'local-command',
-				displayName: ui('命令启动配置', 'Command startup config'),
-				description: ui('只有当 AI 工具要求填写 command 和 args 时使用。', 'Use only when an AI tool asks for command and args.'),
-				preferredTransport: 'stdio',
-				supportsAutoConfigure: false,
-				restartRequired: true,
-				configFormat: 'copy-only',
-			},
 		];
 	}
 
-	private buildClientConfigText(profile: ClientProfile, vaultRoot: string): string {
-		const httpEndpoint = this.getMcpHttpEndpoint();
-		if (!httpEndpoint && profile.preferredTransport !== 'stdio') {
-			return ui('请先在设置中填写 AI 工具连接地址。', 'Set the AI tool connection URL in settings first.');
-		}
+	private buildClientConfigText(profile: ClientProfile): string {
+		const connectionUrl = this.getMcpConnectionUrl();
 		if (profile.id === 'codex') {
 			return [
 				'[mcp_servers.wiki-weaver]',
-				`url = ${JSON.stringify(httpEndpoint)}`,
+				`url = ${JSON.stringify(connectionUrl)}`,
 			].join('\n');
 		}
 
 		if (profile.id === 'claude-code') {
-			return `claude mcp add --transport http wiki-weaver ${httpEndpoint} --scope user`;
-		}
-
-		if (profile.preferredTransport === 'stdio') {
-			return this.buildMcpStdioConfig(vaultRoot);
+			return `claude mcp add --transport http wiki-weaver ${connectionUrl} --scope user`;
 		}
 
 		const config = {
 			mcpServers: {
 				'wiki-weaver': {
-					url: httpEndpoint,
+					url: connectionUrl,
 				},
 			},
 			client: profile.id,
-		};
-		return JSON.stringify(config, null, 2);
-	}
-
-	private buildMcpStdioConfig(vaultRoot: string): string {
-		const config = {
-			mcpServers: {
-				'wiki-weaver': {
-					command: this.getMcpStdioCommand(),
-					args: [
-						'--vault-root',
-						vaultRoot,
-					],
-				},
-			},
 		};
 		return JSON.stringify(config, null, 2);
 	}
@@ -1101,17 +1237,32 @@ export default class WikiWeaverPlugin extends Plugin {
 				};
 			}
 			const configuredUrl = this.readTomlStringValue(block.join('\n'), 'url');
-			if (configuredUrl && configuredUrl !== this.getMcpHttpEndpoint()) {
+			const configuredCommand = this.readTomlStringValue(block.join('\n'), 'command');
+			if (configuredCommand) {
 				return {
 					state: 'needs_update',
-					label: ui('已配置', 'Configured'),
-					detail: ui('已配置，但连接地址与当前设置不同。', 'Configured, but the URL differs from the current setting.'),
+					label: ui('需更新', 'Needs update'),
+					detail: ui('检测到旧版命令启动配置，需要更新为本机 MCP 地址。', 'Old command startup config detected. Update it to the local MCP URL.'),
+				};
+			}
+			if (!configuredUrl) {
+				return {
+					state: 'needs_update',
+					label: ui('需更新', 'Needs update'),
+					detail: ui('已存在 Wiki Weaver 配置，但缺少连接地址。', 'Wiki Weaver config exists but has no connection URL.'),
+				};
+			}
+			if (configuredUrl !== this.getMcpConnectionUrl()) {
+				return {
+					state: 'needs_update',
+					label: ui('需更新', 'Needs update'),
+					detail: ui('已配置，但连接地址或本地令牌与当前设置不同。', 'Configured, but the URL or local token differs from the current setting.'),
 				};
 			}
 			return {
 				state: 'configured',
 				label: ui('已配置', 'Configured'),
-				detail: ui('连接配置已写入，重启 AI 工具后生效。', 'Connection config is written. Restart the AI tool to use it.'),
+				detail: ui('连接配置已写入，保持 Obsidian 开启后即可使用。', 'Connection config is written. Keep Obsidian open to use it.'),
 			};
 		}
 
@@ -1127,17 +1278,32 @@ export default class WikiWeaverPlugin extends Plugin {
 					};
 				}
 				const url = (server as { url?: unknown }).url;
-				if (typeof url === 'string' && url.trim() && url.trim() !== this.getMcpHttpEndpoint()) {
+				const command = (server as { command?: unknown }).command;
+				if (typeof command === 'string' && command.trim()) {
 					return {
 						state: 'needs_update',
-						label: ui('已配置', 'Configured'),
-						detail: ui('已配置，但连接地址与当前设置不同。', 'Configured, but the URL differs from the current setting.'),
+						label: ui('需更新', 'Needs update'),
+						detail: ui('检测到旧版命令启动配置，需要更新为本机 MCP 地址。', 'Old command startup config detected. Update it to the local MCP URL.'),
+					};
+				}
+				if (typeof url !== 'string' || !url.trim()) {
+					return {
+						state: 'needs_update',
+						label: ui('需更新', 'Needs update'),
+						detail: ui('已存在 Wiki Weaver 配置，但缺少连接地址。', 'Wiki Weaver config exists but has no connection URL.'),
+					};
+				}
+				if (url.trim() !== this.getMcpConnectionUrl()) {
+					return {
+						state: 'needs_update',
+						label: ui('需更新', 'Needs update'),
+						detail: ui('已配置，但连接地址或本地令牌与当前设置不同。', 'Configured, but the URL or local token differs from the current setting.'),
 					};
 				}
 				return {
 					state: 'configured',
 					label: ui('已配置', 'Configured'),
-					detail: ui('连接配置已写入，重启 AI 工具后生效。', 'Connection config is written. Restart the AI tool to use it.'),
+					detail: ui('连接配置已写入，保持 Obsidian 开启后即可使用。', 'Connection config is written. Keep Obsidian open to use it.'),
 				};
 			} catch (error) {
 				console.error('wiki-weaver failed to parse client config status', error);
@@ -1194,105 +1360,185 @@ export default class WikiWeaverPlugin extends Plugin {
 	}
 
 	getMcpHttpEndpoint(): string {
-		return (this.settings.mcpHttpEndpoint || DEFAULT_MCP_HTTP_ENDPOINT).trim();
+		return `http://${DEFAULT_MCP_HOST}:${this.settings.mcpPort || DEFAULT_MCP_PORT}${DEFAULT_MCP_PATH}`;
 	}
 
-	private getMcpSseEndpoint(): string {
-		return (this.settings.mcpSseEndpoint || DEFAULT_MCP_SSE_ENDPOINT).trim();
+	getMcpConnectionUrl(): string {
+		const token = this.settings.runtimeToken || '';
+		const endpoint = this.getMcpHttpEndpoint();
+		return token ? `${endpoint}?token=${encodeURIComponent(token)}` : endpoint;
 	}
 
-	private getMcpStdioCommand(): string {
-		return (this.settings.mcpStdioCommand || DEFAULT_MCP_STDIO_COMMAND).trim();
+	getRuntimeViewStatus(): RuntimeViewStatus {
+		const status = this.mcpRuntime?.getStatus() || this.runtimeStatus;
+		const label = this.runtimeStateLabel(status.state);
+		return {
+			state: status.state,
+			label,
+			detail: this.runtimeStateDetail(status),
+			endpoint: this.getMcpHttpEndpoint(),
+			host: DEFAULT_MCP_HOST,
+			port: this.settings.mcpPort || DEFAULT_MCP_PORT,
+			startedAt: status.startedAt,
+			activeSessions: status.activeSessions,
+			lastError: status.lastError,
+		};
 	}
 
-	private async checkLocalConnectionStatus(httpEndpoint: string): Promise<LocalConnectionStatus> {
-		const checkedAt = new Date().toISOString();
-		if (!httpEndpoint.trim()) {
-			return {
-				state: 'not_configured',
-				label: ui('未配置', 'Not configured'),
-				detail: ui(
-					'请检查设置中的知识库本机连接地址；默认地址用于本机 Runtime。',
-					'Check the local Wiki Weaver connection URL in settings; the default is for the local Runtime.'
-				),
-				checkedAt,
-			};
+	private runtimeStateLabel(state: RuntimeState): string {
+		switch (state) {
+			case 'running':
+				return ui('运行中', 'Running');
+			case 'starting':
+				return ui('启动中', 'Starting');
+			case 'port_conflict':
+				return ui('端口被占用', 'Port in use');
+			case 'failed':
+				return ui('启动失败', 'Failed');
+			case 'stopped':
+			default:
+				return ui('未运行', 'Not running');
 		}
-		if (Platform.isMobileApp || Platform.isMobile) {
-			return {
-				state: 'unsupported',
-				label: ui('手动配置', 'Manual setup'),
-				detail: ui(
-					'移动端不能检测这台电脑上的连接地址，请在桌面端复制配置到 AI 工具。',
-					'Mobile cannot check this computer\'s connection address; copy the config into a desktop AI tool.'
-				),
-				checkedAt,
-			};
-		}
+	}
 
-		if (!this.isLoopbackHttpEndpoint(httpEndpoint)) {
-			return {
-				state: 'needs_update',
-				label: ui('建议检查地址', 'Check address'),
-				detail: ui(
-					'当前地址不是本机地址。只有在你明确需要远程连接时才建议这样配置。',
-					'The current URL is not a loopback address. Use it only when you intentionally need a remote connection.'
-				),
-				checkedAt,
-			};
+	private runtimeStateDetail(status: StreamableHttpRuntimeStatus): string {
+		switch (status.state) {
+			case 'running':
+				return ui('Obsidian 已托管本机 MCP Runtime，AI 工具可在 Obsidian 开启时连接。', 'Obsidian is hosting the local MCP Runtime. AI tools can connect while Obsidian is open.');
+			case 'starting':
+				return ui('MCP Runtime 正在启动。', 'The MCP Runtime is starting.');
+			case 'port_conflict':
+				return ui(`端口 ${this.settings.mcpPort} 已被占用，请修改端口或关闭占用程序。`, `Port ${this.settings.mcpPort} is already in use. Change the port or close the process using it.`);
+			case 'failed':
+				return status.lastError
+					? ui(`MCP Runtime 启动失败：${status.lastError}`, `MCP Runtime failed to start: ${status.lastError}`)
+					: ui('MCP Runtime 启动失败，请检查 Obsidian 控制台。', 'MCP Runtime failed to start. Check the Obsidian console.');
+			case 'stopped':
+			default:
+				return ui('MCP Runtime 未运行。插件启用且 Obsidian 打开后会自动启动。', 'The MCP Runtime is not running. It starts automatically when the plugin is enabled and Obsidian is open.');
 		}
+	}
 
-		try {
-			const response = await requestUrl({
-				url: httpEndpoint,
-				method: 'OPTIONS',
-				throw: false,
-			});
-			if (response.status === 404) {
-				return {
-					state: 'needs_update',
-					label: ui('地址需检查', 'Address needs review'),
-					detail: ui(
-						'这台电脑有响应，但不是知识库的 AI 工具连接地址。请检查地址是否填错。',
-						'This computer responded, but not as the Wiki Weaver AI tool connection address. Check whether the URL is correct.'
-					),
-					checkedAt,
-					statusCode: response.status,
-				};
+	private isRecord(value: unknown): value is Record<string, unknown> {
+		return typeof value === 'object' && value !== null && !Array.isArray(value);
+	}
+
+	private async ensureUiMcpSession(): Promise<void> {
+		if (this.uiMcpSessionId) {
+			return;
+		}
+		const result = await this.postLocalMcp('initialize', {
+			protocolVersion: '2025-06-18',
+			capabilities: {},
+			clientInfo: {
+				name: 'wiki-weaver-plugin-ui',
+				version: '0.1.0',
+			},
+		}, false);
+		if (!this.isRecord(result)) {
+			throw new Error('MCP initialize returned an invalid response.');
+		}
+	}
+
+	private async postLocalMcp(method: string, params: Record<string, unknown>, includeSession = true): Promise<unknown> {
+		const headers: Record<string, string> = {
+			'content-type': 'application/json',
+			accept: 'application/json, text/event-stream',
+		};
+		if (includeSession) {
+			headers['mcp-session-id'] = this.uiMcpSessionId;
+		}
+		const response = await fetch(this.getMcpConnectionUrl(), {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({
+				jsonrpc: '2.0',
+				id: this.uiMcpRequestId++,
+				method,
+				params,
+			}),
+		});
+		const payload = await response.json().catch(() => null);
+		if (method === 'initialize') {
+			this.uiMcpSessionId = response.headers.get('mcp-session-id') || '';
+		}
+		const errorMessage = this.isRecord(payload) && this.isRecord(payload.error)
+			? String(payload.error.message || '')
+			: '';
+		if (!response.ok) {
+			throw new Error(errorMessage || `MCP request failed with HTTP ${response.status}.`);
+		}
+		if (errorMessage) {
+			throw new Error(errorMessage);
+		}
+		if (!this.isRecord(payload)) {
+			throw new Error('MCP request returned an invalid JSON-RPC response.');
+		}
+		return payload.result;
+	}
+
+	async callLocalMcpTool(name: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+		for (let attempt = 0; attempt < 2; attempt += 1) {
+			try {
+				await this.ensureUiMcpSession();
+				const result = await this.postLocalMcp('tools/call', {
+					name,
+					arguments: args,
+				});
+				const structured = this.isRecord(result) && this.isRecord(result.structuredContent)
+					? result.structuredContent
+					: result;
+				if (this.isRecord(result) && result.isError) {
+					const message = this.isRecord(structured) ? String(structured.error || '') : '';
+					throw new Error(message || `${name} failed.`);
+				}
+				if (!this.isRecord(structured)) {
+					throw new Error(`${name} returned an invalid result.`);
+				}
+				if (structured.ok === false) {
+					throw new Error(String(structured.error || `${name} failed.`));
+				}
+				return structured;
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				if (attempt === 0 && /session|Mcp-Session-Id/i.test(message)) {
+					this.uiMcpSessionId = '';
+					continue;
+				}
+				throw error;
 			}
-			if (response.status >= 500) {
-				return {
-					state: 'service_not_running',
-					label: ui('连接异常', 'Connection error'),
-					detail: ui(
-						'知识库地址有响应但返回异常。请重启知识库服务后再刷新。',
-						'The Wiki Weaver address responded with an error. Restart Wiki Weaver and refresh.'
-					),
-					checkedAt,
-					statusCode: response.status,
-				};
-			}
-			return {
-				state: 'available',
-				label: ui('可连接', 'Available'),
-				detail: ui(
-					'AI 工具连接地址可访问，可以继续配置工具。',
-					'The AI tool connection address is reachable; you can continue configuring the tool.'
-				),
-				checkedAt,
-				statusCode: response.status,
-			};
-		} catch (_error) {
-			return {
-				state: 'service_not_running',
-				label: ui('未运行', 'Not running'),
-				detail: ui(
-					'地址已配置，但暂时无法连接。请确认知识库本机服务已启动，或检查设置中的地址。',
-					'The URL is configured but not reachable. Confirm the local Wiki Weaver service is running or check the setting.'
-				),
-				checkedAt,
-			};
 		}
+		throw new Error(`${name} failed.`);
+	}
+
+	async processSourceRequest(request: SourceRequestRecord): Promise<void> {
+		const args: Record<string, unknown> = { request_path: request.path };
+		if (request.taskId) {
+			args.task_id = request.taskId;
+		}
+		await this.callLocalMcpTool('wiki_weaver.analyze_source_request', args);
+		await this.refreshGovernanceViews();
+	}
+
+	async previewApprovedWriteback(proposal: MemoryProposalRecord): Promise<ApprovedWritebackPreview> {
+		const args: Record<string, unknown> = {
+			proposal_path: proposal.path,
+			dry_run: true,
+		};
+		if (proposal.taskId) {
+			args.task_id = proposal.taskId;
+		}
+		const result = await this.callLocalMcpTool('wiki_weaver.apply_approved_writeback', args);
+		return result as unknown as ApprovedWritebackPreview;
+	}
+
+	async applyApprovedWriteback(proposal: MemoryProposalRecord): Promise<void> {
+		const args: Record<string, unknown> = { proposal_path: proposal.path };
+		if (proposal.taskId) {
+			args.task_id = proposal.taskId;
+		}
+		await this.callLocalMcpTool('wiki_weaver.apply_approved_writeback', args);
+		await this.refreshGovernanceViews();
 	}
 
 	async applyClientConfig(config: GeneratedClientConfig): Promise<void> {
@@ -1382,7 +1628,7 @@ export default class WikiWeaverPlugin extends Plugin {
 		if (config.configFormat === 'mcp-json') {
 			const parsed = this.parseMcpJsonConfig(original);
 			parsed.mcpServers['wiki-weaver'] = {
-				url: this.getMcpHttpEndpoint(),
+				url: this.getMcpConnectionUrl(),
 			};
 			return `${JSON.stringify(parsed, null, 2)}\n`;
 		}
@@ -1507,15 +1753,6 @@ export default class WikiWeaverPlugin extends Plugin {
 		};
 	}
 
-	private isLoopbackHttpEndpoint(endpoint: string): boolean {
-		try {
-			const parsed = new URL(endpoint);
-			return parsed.protocol === 'http:' && ['127.0.0.1', 'localhost', '::1'].includes(parsed.hostname);
-		} catch (_error) {
-			return false;
-		}
-	}
-
 	private isToolCallAuditEvent(event: AuditEventRecord): boolean {
 		return event.eventType === 'tool-call'
 			|| event.eventType === 'agent-tool-call'
@@ -1529,6 +1766,7 @@ export default class WikiWeaverPlugin extends Plugin {
 	private toAgentToolCallRecord(event: AuditEventRecord): AgentToolCallRecord {
 		return {
 			agentId: event.agentId || 'unknown',
+			sessionId: event.sessionId || event.agentId || 'unknown',
 			clientName: event.clientName || 'unknown',
 			toolName: event.toolName || event.action || 'unknown',
 			resultStatus: event.resultStatus || 'unknown',
@@ -1546,16 +1784,17 @@ export default class WikiWeaverPlugin extends Plugin {
 		toolCalls: AgentToolCallRecord[]
 	): AgentConnectionRecord[] {
 		const agents = new Map<string, AgentConnectionRecord>();
-		const upsertAgent = (agentId: string, clientName: string, timestamp: string, sortTimestamp: number) => {
-			const key = `${clientName || 'unknown'}::${agentId || 'unknown'}`;
+		const upsertAgent = (agentId: string, sessionId: string, clientName: string, timestamp: string, sortTimestamp: number) => {
+			const key = `${clientName || 'unknown'}::${sessionId || agentId || 'unknown'}`;
 			const existing = agents.get(key);
 			if (existing && existing.sortTimestamp >= sortTimestamp) {
 				return existing;
 			}
 			const next = existing || {
 				agentId: agentId || 'unknown',
+				sessionId: sessionId || agentId || 'unknown',
 				clientName: clientName || 'unknown',
-				transport: 'stdio',
+				transport: 'streamable-http',
 				status: 'seen',
 				lastSeen: timestamp,
 				lastToolCall: '',
@@ -1570,14 +1809,14 @@ export default class WikiWeaverPlugin extends Plugin {
 		};
 
 		for (const event of auditEvents.filter((item) => this.isConnectionAuditEvent(item))) {
-			const agent = upsertAgent(event.agentId, event.clientName, event.timestamp, event.sortTimestamp);
+			const agent = upsertAgent(event.agentId, event.sessionId, event.clientName, event.timestamp, event.sortTimestamp);
 			agent.transport = event.transport || agent.transport;
 			agent.runtimeVersion = event.runtimeVersion || agent.runtimeVersion;
 			agent.status = event.resultStatus || 'connected';
 		}
 
 		for (const call of toolCalls) {
-			const agent = upsertAgent(call.agentId, call.clientName, call.timestamp, call.sortTimestamp);
+			const agent = upsertAgent(call.agentId, call.sessionId, call.clientName, call.timestamp, call.sortTimestamp);
 			agent.lastToolCall = call.toolName;
 			agent.status = call.resultStatus === 'failed' ? 'warning' : 'active';
 		}
@@ -1953,6 +2192,7 @@ export default class WikiWeaverPlugin extends Plugin {
 					snippet: this.snippetFromText(parsed.body, this.trimText(file.basename)),
 					eventType: this.firstString(data, ['type']),
 					agentId: this.firstString(data, ['agent_id', 'agentId', 'session_id', 'sessionId']),
+					sessionId: this.firstString(data, ['session_id', 'sessionId']),
 					clientName: this.firstString(data, ['client_name', 'clientName', 'client']),
 					toolName: this.firstString(data, ['tool_name', 'toolName', 'tool']),
 					resultStatus: this.firstString(data, ['result_status', 'resultStatus', 'status']),
@@ -2012,6 +2252,7 @@ export default class WikiWeaverPlugin extends Plugin {
 				snippet: this.snippetFromText(bodyLines.join('\n')),
 				eventType: this.firstString(row, ['type']),
 				agentId: this.firstString(row, ['agent_id', 'agentId', 'session_id', 'sessionId']),
+				sessionId: this.firstString(row, ['session_id', 'sessionId']),
 				clientName: this.firstString(row, ['client_name', 'clientName', 'client']),
 				toolName: this.firstString(row, ['tool_name', 'toolName', 'tool']),
 				resultStatus: this.firstString(row, ['result_status', 'resultStatus', 'status']),
@@ -2460,8 +2701,8 @@ class WikiWeaverSourceStatusView extends ItemView {
 		if (snapshot.requests.length === 0) {
 			contentEl.createEl('p', {
 				text: ui(
-					'当前没有待处理的资料请求。',
-					'No pending material requests yet.'
+					'当前没有资料请求。',
+					'No material requests yet.'
 				),
 				cls: 'wiki-weaver-view__description',
 			});
@@ -2490,7 +2731,34 @@ class WikiWeaverSourceStatusView extends ItemView {
 				item.createEl('div', { text: this.plugin.trimText(request.summary, 140) });
 			}
 			item.createEl('small', { text: `${ui('文件', 'File')}: ${request.path}` });
+			if (this.isPendingRequest(request.status)) {
+				const actionRow = item.createDiv({ cls: 'wiki-weaver-action-row' });
+				const processButton = actionRow.createEl('button', {
+					text: ui('处理资料请求', 'Process request'),
+					cls: 'mod-cta',
+				});
+				processButton.addEventListener('click', async () => {
+					processButton.disabled = true;
+					processButton.setText(ui('处理中...', 'Processing...'));
+					try {
+						await this.plugin.processSourceRequest(request);
+						new Notice(ui('资料请求已处理。', 'Source request processed.'));
+						await this.refresh();
+					} catch (error) {
+						console.error('wiki-weaver failed to process source request', error);
+						new Notice(ui('处理资料请求失败。', 'Failed to process source request.'));
+					} finally {
+						processButton.disabled = false;
+						processButton.setText(ui('处理资料请求', 'Process request'));
+					}
+				});
+			}
 		}
+	}
+
+	private isPendingRequest(status: string): boolean {
+		const normalized = status.toLowerCase().trim();
+		return !normalized || normalized === 'pending' || normalized === 'queued' || normalized === 'todo';
 	}
 
 	async refresh(): Promise<void> {
@@ -2567,6 +2835,14 @@ class WikiWeaverActivityView extends ItemView {
 				new Notice(ui('刷新活动记录失败。', 'Failed to refresh activity.'));
 			}
 		});
+		if (snapshot.structureStatus.state !== 'initialized') {
+			const initializeButton = actions.createEl('button', {
+				text: ui('初始化知识库结构', 'Initialize structure'),
+			});
+			initializeButton.addEventListener('click', () => {
+				void this.plugin.openInitializeMemoryStructureModal();
+			});
+		}
 		const reviewButton = actions.createEl('button', {
 			text: ui('打开审核列表', 'Open review list'),
 		});
@@ -2581,27 +2857,41 @@ class WikiWeaverActivityView extends ItemView {
 		});
 
 		const statusBar = contentEl.createDiv({ cls: 'wiki-weaver-status-bar' });
-		this.renderStatusItem(statusBar, ui('连接', 'Connection'), snapshot.recentAuditEvents.some((event) => event.toolName) ? ui('已有活动', 'Activity seen') : ui('等待连接', 'Waiting'));
-		this.renderStatusItem(statusBar, ui('记录', 'Records'), snapshot.missingTaskFolder ? ui('待初始化', 'Setup needed') : ui('可读取', 'Readable'));
-		this.renderStatusItem(statusBar, ui('知识库', 'Knowledge base'), snapshot.missingTaskFolder ? ui('结构缺失', 'Missing structure') : ui('已初始化', 'Initialized'));
+		this.renderStatusItem(statusBar, 'MCP Runtime', snapshot.runtimeStatus.label);
+		this.renderStatusItem(statusBar, ui('记录', 'Records'), snapshot.structureStatus.state === 'initialized' ? ui('可读取', 'Readable') : snapshot.structureStatus.label);
+		this.renderStatusItem(statusBar, ui('知识库', 'Knowledge base'), snapshot.structureStatus.label);
 		this.renderStatusItem(statusBar, ui('权限', 'Permission'), ui('先审核再写入', 'Review before writing'));
 		this.renderStatusItem(statusBar, ui('刷新', 'Refresh'), this.plugin.formatDisplayTime(Date.parse(snapshot.updatedAt)));
 
 		const metrics = contentEl.createDiv({ cls: 'wiki-weaver-metric-grid' });
 		this.renderMetricCard(metrics, ui('当前任务', 'Active task'), snapshot.currentTask ? snapshot.currentTask.status : ui('无', 'None'), snapshot.currentTask?.taskId || ui('等待 AI 助手开始记录任务', 'Waiting for the AI assistant to start a task'));
 		this.renderMetricCard(metrics, ui('待审核', 'Pending review'), String(snapshot.recentProposals.filter((proposal) => proposal.approvalStatus === 'pending').length), ui('需要你确认的记忆更新', 'Memory updates waiting for your review'));
-		this.renderMetricCard(metrics, ui('来源请求', 'Source requests'), String(snapshot.recentSourceCaptures.length), ui('最近来源捕获记录', 'Recent source capture records'));
+		this.renderMetricCard(metrics, ui('来源请求', 'Source requests'), String(snapshot.recentSourceRequests.filter((request) => this.isSourceRequestPending(request.status)).length), ui('待处理资料请求', 'Pending material requests'));
 		this.renderMetricCard(metrics, ui('工具使用', 'Tool usage'), String(snapshot.recentAuditEvents.filter((event) => event.toolName).length), ui('最近连接操作记录', 'Recent connection activity'));
+
+		if (snapshot.structureStatus.state !== 'initialized') {
+			const structurePanel = contentEl.createDiv({ cls: 'wiki-weaver-card' });
+			structurePanel.createEl('h3', { text: ui('知识库结构', 'Wiki Weaver structure') });
+			structurePanel.createEl('p', { text: snapshot.structureStatus.detail, cls: 'wiki-weaver-view__description' });
+			if (snapshot.structureStatus.missingCount > 0) {
+				structurePanel.createEl('small', {
+					text: ui(
+						`缺少文件夹 ${snapshot.structureStatus.missingFolders.length} 个，文件 ${snapshot.structureStatus.missingFiles.length} 个。`,
+						`Missing ${snapshot.structureStatus.missingFolders.length} folders and ${snapshot.structureStatus.missingFiles.length} files.`
+					),
+				});
+			}
+		}
 
 		const currentSection = contentEl.createDiv({ cls: 'wiki-weaver-card' });
 		currentSection.createEl('h3', { text: ui('当前任务', 'Current task') });
 		if (!snapshot.currentTask) {
 			this.renderEmptyState(
 				currentSection,
-				snapshot.missingTaskFolder
+				snapshot.structureStatus.state !== 'initialized'
 					? ui('还没有任务记录。', 'No task records yet.')
 					: ui('还没有 AI 助手活动。', 'No AI assistant activity yet.'),
-				snapshot.missingTaskFolder
+				snapshot.structureStatus.state !== 'initialized'
 					? ui('请先初始化知识库文件结构，之后 AI 助手的任务记录会显示在这里。', 'Initialize the Wiki Weaver file structure first; task records will appear here afterward.')
 					: ui('从 AI 助手开始一次任务后，这里会显示目标、来源和最近动作。', 'Start a task from your AI assistant to show goals, sources, and recent actions here.')
 			);
@@ -2633,6 +2923,14 @@ class WikiWeaverActivityView extends ItemView {
 				meta: source.mode || source.type,
 				body: source.source || source.snippet,
 				path: source.path,
+			})),
+			...snapshot.recentSourceRequests.map((request) => ({
+				time: request.sortTimestamp,
+				type: ui('来源请求', 'Source request'),
+				title: request.sourceKind,
+				meta: request.status,
+				body: request.source || request.summary,
+				path: request.path,
 			})),
 			...snapshot.recentProposals.map((proposal) => ({
 				time: proposal.sortTimestamp,
@@ -2729,6 +3027,11 @@ class WikiWeaverActivityView extends ItemView {
 				text: this.plugin.trimText(task.snippet, 140),
 			});
 		}
+	}
+
+	private isSourceRequestPending(status: string): boolean {
+		const normalized = status.toLowerCase().trim();
+		return !normalized || normalized === 'pending' || normalized === 'queued' || normalized === 'todo';
 	}
 
 	private renderTaskSummary(container: HTMLElement, task: AgentTaskRecord): void {
@@ -2985,10 +3288,9 @@ class WikiWeaverReviewQueueView extends ItemView {
 				cls: 'mod-cta',
 			});
 			apply.addEventListener('click', () => {
-				new Notice(ui(
-					'这条内容已批准。请让 AI 助手应用已批准的写回；插件不会直接改写受保护记忆。',
-					'This item is approved. Ask your AI assistant to apply the approved writeback; the plugin will not directly edit protected memory.'
-				));
+				new ApprovedWritebackApplyModal(this.app, this.plugin, proposal, () => {
+					void this.refresh();
+				}).open();
 			});
 		}
 	}
@@ -2997,6 +3299,83 @@ class WikiWeaverReviewQueueView extends ItemView {
 		const empty = container.createDiv({ cls: 'wiki-weaver-empty-state' });
 		empty.createEl('strong', { text: title });
 		empty.createEl('p', { text: detail });
+	}
+}
+
+class ApprovedWritebackApplyModal extends Modal {
+	constructor(
+		app: App,
+		private plugin: WikiWeaverPlugin,
+		private proposal: MemoryProposalRecord,
+		private onApplied: () => void
+	) {
+		super(app);
+	}
+
+	onOpen(): void {
+		super.onOpen();
+		this.titleEl.setText(ui('应用已批准写回', 'Apply approved writeback'));
+		void this.renderPreview();
+	}
+
+	private async renderPreview(): Promise<void> {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl('p', {
+			text: ui('正在生成写回预览...', 'Generating writeback preview...'),
+		});
+		try {
+			const preview = await this.plugin.previewApprovedWriteback(this.proposal);
+			this.renderReady(preview);
+		} catch (error) {
+			console.error('wiki-weaver failed to preview approved writeback', error);
+			contentEl.empty();
+			contentEl.createEl('p', {
+				text: ui('生成写回预览失败，请检查该提案是否仍处于已批准状态。', 'Failed to generate writeback preview. Check whether this proposal is still approved.'),
+			});
+			const actions = contentEl.createDiv({ cls: 'modal-button-container' });
+			actions.createEl('button', { text: ui('关闭', 'Close') }).addEventListener('click', () => this.close());
+		}
+	}
+
+	private renderReady(preview: ApprovedWritebackPreview): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl('p', {
+			text: ui('请确认以下内容将写入目标笔记。', 'Confirm the content that will be written to the target note.'),
+		});
+		const facts = contentEl.createDiv({ cls: 'wiki-weaver-detail-grid' });
+		this.renderDetail(facts, ui('提案', 'Proposal'), preview.proposal_id || this.proposal.proposalId);
+		this.renderDetail(facts, ui('目标笔记', 'Target note'), preview.target_note || this.proposal.targetNote);
+		this.renderDetail(facts, ui('涉及文件', 'Touched notes'), (preview.touched_notes || []).join(', '));
+		const previewBox = contentEl.createEl('pre');
+		previewBox.setText(preview.writeback_preview || '');
+
+		const actions = contentEl.createDiv({ cls: 'modal-button-container' });
+		const cancel = actions.createEl('button', { text: ui('取消', 'Cancel'), cls: 'mod-warning' });
+		cancel.addEventListener('click', () => this.close());
+		const confirm = actions.createEl('button', { text: ui('确认写回', 'Apply writeback'), cls: 'mod-cta' });
+		confirm.addEventListener('click', async () => {
+			confirm.disabled = true;
+			confirm.setText(ui('写回中...', 'Applying...'));
+			try {
+				await this.plugin.applyApprovedWriteback(this.proposal);
+				new Notice(ui('已应用写回。', 'Approved writeback applied.'));
+				this.onApplied();
+				this.close();
+			} catch (error) {
+				console.error('wiki-weaver failed to apply approved writeback', error);
+				new Notice(ui('应用写回失败。', 'Failed to apply writeback.'));
+				confirm.disabled = false;
+				confirm.setText(ui('确认写回', 'Apply writeback'));
+			}
+		});
+	}
+
+	private renderDetail(container: HTMLElement, label: string, value: string): void {
+		const item = container.createDiv({ cls: 'wiki-weaver-detail' });
+		item.createEl('span', { text: label });
+		item.createEl('strong', { text: value || ui('未指定', 'Not specified') });
 	}
 }
 
@@ -3060,8 +3439,8 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 		});
 
 		const statusBar = contentEl.createDiv({ cls: 'wiki-weaver-status-bar' });
-		this.renderStatusItem(statusBar, ui('连接位置', 'Connection location'), ui('这台电脑', 'This computer'));
-		this.renderStatusItem(statusBar, ui('连接状态', 'Connection status'), snapshot.localConnection.label);
+		this.renderStatusItem(statusBar, 'MCP Runtime', snapshot.runtimeStatus.label);
+		this.renderStatusItem(statusBar, ui('绑定范围', 'Binding'), '127.0.0.1');
 		this.renderStatusItem(statusBar, ui('当前知识库', 'Current knowledge base'), snapshot.vaultRoot);
 		this.renderStatusItem(statusBar, ui('最近连接', 'Recent connections'), String(snapshot.recentAgents.length));
 		this.renderStatusItem(statusBar, ui('使用记录', 'Usage records'), String(snapshot.recentToolCalls.length));
@@ -3070,40 +3449,42 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 		connectionPanel.createEl('h3', { text: ui('AI 工具连接', 'AI tool connections') });
 
 		const connectionCheck = connectionPanel.createDiv({ cls: 'wiki-weaver-connection-check' });
-		connectionCheck.createEl('h4', { text: ui('连接检查', 'Connection check') });
+		connectionCheck.createEl('h4', { text: 'MCP Runtime' });
 		connectionCheck.createEl('p', {
 			text: ui(
-				'这里检查知识库本机连接地址是否可用；默认连接本机 Runtime。',
-				'This checks the local Wiki Weaver connection URL; by default it targets the local Runtime.'
+				'MCP Runtime 随 Obsidian 启动和关闭；保持 Obsidian 开启时，AI 工具可以连接本机地址。',
+				'The MCP Runtime starts and stops with Obsidian; AI tools can connect to the local URL while Obsidian is open.'
 			),
 			cls: 'wiki-weaver-view__description',
 		});
 		const endpointGrid = connectionCheck.createDiv({ cls: 'wiki-weaver-detail-grid wiki-weaver-connection-detail-grid' });
-		this.renderDetail(endpointGrid, ui('当前状态', 'Current status'), snapshot.localConnection.label);
-		this.renderDetail(endpointGrid, ui('建议操作', 'Suggested action'), snapshot.localConnection.detail, 'description');
+		this.renderDetail(endpointGrid, ui('运行状态', 'Runtime status'), snapshot.runtimeStatus.label);
+		this.renderDetail(endpointGrid, ui('状态说明', 'Status detail'), snapshot.runtimeStatus.detail, 'description');
 		this.renderCopyableDetail(
 			endpointGrid,
-			ui('AI 工具连接地址', 'AI tool URL'),
-			snapshot.httpEndpoint || ui('未配置', 'Not configured'),
+			ui('连接地址', 'Connection URL'),
+			snapshot.connectionUrl || ui('未配置', 'Not configured'),
 			ui('复制连接地址', 'Copy URL'),
 			ui('已复制 AI 工具连接地址。', 'AI tool URL copied.'),
-			Boolean(snapshot.httpEndpoint)
+			Boolean(snapshot.connectionUrl)
 		);
-		this.renderDetail(
-			endpointGrid,
-			ui('最近检测时间', 'Last checked'),
-			this.plugin.formatDisplayTime(Date.parse(snapshot.localConnection.checkedAt))
-		);
-		if (snapshot.localConnection.statusCode) {
-			this.renderDetail(endpointGrid, ui('响应状态', 'Response status'), String(snapshot.localConnection.statusCode));
+		this.renderDetail(endpointGrid, ui('绑定范围', 'Binding'), ui('仅本机 127.0.0.1', 'Localhost only, 127.0.0.1'));
+		this.renderDetail(endpointGrid, ui('生命周期', 'Lifecycle'), ui('随 Obsidian 启动和关闭', 'Starts and stops with Obsidian'));
+		if (snapshot.runtimeStatus.startedAt) {
+			this.renderDetail(
+				endpointGrid,
+				ui('启动时间', 'Started at'),
+				this.plugin.formatDisplayTime(Date.parse(snapshot.runtimeStatus.startedAt))
+			);
 		}
+		this.renderDetail(endpointGrid, ui('活跃会话', 'Active sessions'), String(snapshot.runtimeStatus.activeSessions));
 
 		const coreClientIds = new Set(['codex', 'claude-code', 'claude-desktop', 'cursor']);
 		const coreClientConfigs = snapshot.clientConfigs.filter((config) => coreClientIds.has(config.clientId));
 		const advancedClientConfigs = snapshot.clientConfigs.filter((config) => !coreClientIds.has(config.clientId));
 
 		const commonConnections = connectionPanel.createDiv({ cls: 'wiki-weaver-connection-section' });
-		commonConnections.createEl('h4', { text: ui('常用连接方式', 'Common connection methods') });
+		commonConnections.createEl('h4', { text: ui('客户端配置', 'Client configuration') });
 		const configGrid = commonConnections.createDiv({ cls: 'wiki-weaver-config-grid' });
 		for (const clientConfig of coreClientConfigs) {
 			this.renderConfigCard(configGrid, clientConfig);
@@ -3113,8 +3494,8 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 			advanced.createEl('h4', { text: ui('更多连接方式', 'More connection methods') });
 			advanced.createEl('p', {
 				text: ui(
-					'上方列表没有你的 AI 工具时再使用。多数工具只需要连接地址；只有工具要求 command 和 args 时才使用命令启动配置。',
-					'Use this only when your AI tool is not listed above. Most tools only need the URL; use the command config only when a tool asks for command and args.'
+					'上方列表没有你的 AI 工具时再使用；当前只提供 Streamable HTTP 连接地址。',
+					'Use this only when your AI tool is not listed above; Wiki Weaver now exposes only a Streamable HTTP URL.'
 				),
 				cls: 'wiki-weaver-view__description',
 			});
@@ -3124,15 +3505,6 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 			for (const clientConfig of advancedClientConfigs) {
 				this.renderAdvancedConfigRow(advancedList, clientConfig);
 			}
-			this.renderManualCopyRow(
-				advancedList,
-				ui('旧版 SSE 地址', 'Legacy SSE URL'),
-				ui('只有 AI 工具明确要求 SSE 地址时使用。', 'Use only when an AI tool specifically asks for an SSE URL.'),
-				ui('复制 SSE 地址', 'Copy SSE URL'),
-				snapshot.sseEndpoint || ui('未配置', 'Not configured'),
-				ui('已复制旧版 SSE 地址。', 'Legacy SSE URL copied.'),
-				Boolean(snapshot.sseEndpoint)
-			);
 			summary.addClass('wiki-weaver-advanced-summary');
 		}
 
@@ -3247,7 +3619,6 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 
 		if (config.configState !== 'configured') {
 			const copy = actions.createEl('button', { text: ui('复制配置', 'Copy config') });
-			copy.disabled = config.transport !== 'stdio' && !this.plugin.getMcpHttpEndpoint();
 			copy.addEventListener('click', () => {
 				void this.plugin.copyToClipboard(config.configText, ui('已复制连接配置。', 'Connection config copied.'));
 			});
@@ -3258,7 +3629,6 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 				text: config.configState === 'needs_update' ? ui('更新配置', 'Update config') : ui('自动配置', 'Auto setup'),
 				cls: 'mod-cta',
 			});
-			autoConfigure.disabled = !this.plugin.getMcpHttpEndpoint();
 			autoConfigure.addEventListener('click', () => {
 				new ClientConfigPreviewModal(this.app, this.plugin, config, 'apply').open();
 			});
@@ -3267,7 +3637,7 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 		if (
 			config.supportsAutoConfigure
 			&& config.targetPath
-			&& config.configState === 'needs_update'
+			&& (config.configState === 'configured' || config.configState === 'needs_update')
 		) {
 			const openFile = actions.createEl('button', { text: ui('打开配置文件', 'Open config file') });
 			openFile.addEventListener('click', () => {
@@ -3321,34 +3691,10 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 		info.createEl('small', { text: config.description });
 		const actions = row.createDiv({ cls: 'wiki-weaver-action-row' });
 		const copy = actions.createEl('button', {
-			text: config.transport === 'stdio'
-				? ui('复制命令配置', 'Copy command config')
-				: ui('复制地址配置', 'Copy URL config'),
+			text: ui('复制地址配置', 'Copy URL config'),
 		});
-		copy.disabled = config.transport !== 'stdio' && !this.plugin.getMcpHttpEndpoint();
 		copy.addEventListener('click', () => {
 			void this.plugin.copyToClipboard(config.configText, ui('已复制连接配置。', 'Connection config copied.'));
-		});
-	}
-
-	private renderManualCopyRow(
-		container: HTMLElement,
-		title: string,
-		detail: string,
-		buttonText: string,
-		value: string,
-		notice: string,
-		canCopy = true
-	): void {
-		const row = container.createDiv({ cls: 'wiki-weaver-advanced-config-row' });
-		const info = row.createDiv({ cls: 'wiki-weaver-advanced-config-row__info' });
-		info.createEl('strong', { text: title });
-		info.createEl('small', { text: detail });
-		const actions = row.createDiv({ cls: 'wiki-weaver-action-row' });
-		const copy = actions.createEl('button', { text: buttonText });
-		copy.disabled = !canCopy;
-		copy.addEventListener('click', () => {
-			void this.plugin.copyToClipboard(value, notice);
 		});
 	}
 
@@ -3356,10 +3702,6 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 		switch (transport) {
 			case 'streamable-http':
 				return ui('连接地址', 'Connection URL');
-			case 'sse':
-				return ui('旧版 SSE 地址', 'Legacy SSE URL');
-			case 'stdio':
-				return ui('命令启动', 'Command startup');
 			default:
 				return transport;
 		}
@@ -3481,10 +3823,6 @@ class ClientConfigPreviewModal extends Modal {
 		switch (transport) {
 			case 'streamable-http':
 				return ui('连接地址', 'Connection URL');
-			case 'sse':
-				return ui('旧版 SSE 地址', 'Legacy SSE URL');
-			case 'stdio':
-				return ui('命令启动', 'Command startup');
 			default:
 				return transport;
 		}
@@ -3587,7 +3925,10 @@ class WikiWeaverAuditLogView extends ItemView {
 }
 
 class WikiWeaverRuntimeStatusView extends ItemView {
-	constructor(leaf: WorkspaceLeaf) {
+	constructor(
+		leaf: WorkspaceLeaf,
+		private plugin: WikiWeaverPlugin
+	) {
 		super(leaf);
 	}
 
@@ -3620,15 +3961,35 @@ class WikiWeaverRuntimeStatusView extends ItemView {
 		const { contentEl } = this;
 		contentEl.empty();
 		contentEl.addClass('wiki-weaver-view-root');
+		const status = this.plugin.getRuntimeViewStatus();
 
 		contentEl.createEl('h2', { text: ui('连接状态', 'Connection status'), cls: 'wiki-weaver-view__title' });
 		contentEl.createEl('p', {
 			text: ui(
-				'这里用于确认 AI 工具连接、资料索引和资料处理是否正常。若连接中心没有记录，请先确认你的 AI 工具已使用知识库连接。',
-				'Use this page to check AI tool connections, the knowledge base index, and material processing status. If no records appear, confirm that your AI tool is using the Wiki Weaver connection.'
+				'MCP Runtime 由 Obsidian 桌面端托管，随 Obsidian 启动和关闭。',
+				'The MCP Runtime is hosted by desktop Obsidian and starts and stops with Obsidian.'
 			),
 			cls: 'wiki-weaver-view__description',
 		});
+
+		const detailGrid = contentEl.createDiv({ cls: 'wiki-weaver-detail-grid' });
+		this.renderDetail(detailGrid, 'MCP Runtime', status.label);
+		this.renderDetail(detailGrid, ui('连接地址', 'Connection URL'), this.plugin.getMcpConnectionUrl());
+		this.renderDetail(detailGrid, ui('绑定范围', 'Binding'), ui('仅本机 127.0.0.1', 'Localhost only, 127.0.0.1'));
+		this.renderDetail(detailGrid, ui('生命周期', 'Lifecycle'), ui('随 Obsidian 启动和关闭', 'Starts and stops with Obsidian'));
+		this.renderDetail(detailGrid, ui('活跃会话', 'Active sessions'), String(status.activeSessions));
+		if (status.startedAt) {
+			this.renderDetail(detailGrid, ui('启动时间', 'Started at'), this.plugin.formatDisplayTime(Date.parse(status.startedAt)));
+		}
+		if (status.lastError) {
+			this.renderDetail(detailGrid, ui('最近错误', 'Last error'), status.lastError);
+		}
+	}
+
+	private renderDetail(container: HTMLElement, label: string, value: string): void {
+		const item = container.createDiv({ cls: 'wiki-weaver-detail' });
+		item.createEl('span', { text: label });
+		item.createEl('strong', { text: value });
 	}
 }
 
@@ -3807,19 +4168,23 @@ class WikiWeaverSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName(ui('AI 工具连接地址', 'AI tool connection URL'))
+			.setName(ui('MCP Runtime 端口', 'MCP Runtime port'))
 			.setDesc(ui(
-				`默认使用本机 ${DEFAULT_MCP_PORT} 端口，避开常见开发服务；需要自定义 Runtime 时可修改。`,
-				`Uses local port ${DEFAULT_MCP_PORT} by default to avoid common development services; change it only for a custom Runtime.`
+				`默认使用本机 ${DEFAULT_MCP_PORT} 端口；修改后 Runtime 会随 Obsidian 自动重启。`,
+				`Uses local port ${DEFAULT_MCP_PORT} by default; the Runtime restarts with Obsidian after changes.`
 			))
 			.addText((text) =>
 				text
-					.setPlaceholder(DEFAULT_MCP_HTTP_ENDPOINT)
-					.setValue(this.plugin.settings.mcpHttpEndpoint)
+					.setPlaceholder(String(DEFAULT_MCP_PORT))
+					.setValue(String(this.plugin.settings.mcpPort))
 					.onChange(async (value) => {
-						this.plugin.settings.mcpHttpEndpoint = value.trim() || DEFAULT_MCP_HTTP_ENDPOINT;
+						const parsed = Number.parseInt(value.trim(), 10);
+						if (!Number.isFinite(parsed) || parsed < 1 || parsed > 65535) {
+							return;
+						}
+						this.plugin.settings.mcpPort = parsed;
 						await this.plugin.saveSettings();
-						await this.plugin.refreshGovernanceViews();
+						await this.plugin.restartMcpRuntime();
 					})
 			)
 			.addExtraButton((button) =>
@@ -3827,65 +4192,25 @@ class WikiWeaverSettingTab extends PluginSettingTab {
 					.setIcon('rotate-ccw')
 					.setTooltip(ui('恢复默认', 'Restore default'))
 					.onClick(async () => {
-						this.plugin.settings.mcpHttpEndpoint = DEFAULT_SETTINGS.mcpHttpEndpoint;
+						this.plugin.settings.mcpPort = DEFAULT_MCP_PORT;
 						await this.plugin.saveSettings();
-						await this.plugin.refreshGovernanceViews();
+						await this.plugin.restartMcpRuntime();
 						this.display();
 					})
 			);
 
 		new Setting(containerEl)
-			.setName(ui('旧版 SSE 地址', 'Legacy SSE URL'))
-			.setDesc(ui(
-				'少数旧版 AI 工具需要这个地址；不确定时保持默认。',
-				'Some older AI tools need this address. Keep the default if unsure.'
-			))
-			.addText((text) =>
-				text
-					.setPlaceholder(DEFAULT_MCP_SSE_ENDPOINT)
-					.setValue(this.plugin.settings.mcpSseEndpoint)
-					.onChange(async (value) => {
-						this.plugin.settings.mcpSseEndpoint = value.trim() || DEFAULT_MCP_SSE_ENDPOINT;
-						await this.plugin.saveSettings();
-						await this.plugin.refreshGovernanceViews();
-					})
+			.setName(ui('本地连接令牌', 'Local connection token'))
+			.setDesc(
+				this.plugin.settings.runtimeToken
+					? ui('已生成。令牌不会明文展示，只会写入 AI 工具配置。', 'Generated. The token is not displayed and is only written into AI tool configs.')
+					: ui('尚未生成，保存设置后会自动生成。', 'Not generated yet. It will be generated after settings are saved.')
 			)
-			.addExtraButton((button) =>
+			.addButton((button) =>
 				button
-					.setIcon('rotate-ccw')
-					.setTooltip(ui('恢复默认', 'Restore default'))
+					.setButtonText(ui('重新生成', 'Regenerate'))
 					.onClick(async () => {
-						this.plugin.settings.mcpSseEndpoint = DEFAULT_SETTINGS.mcpSseEndpoint;
-						await this.plugin.saveSettings();
-						await this.plugin.refreshGovernanceViews();
-						this.display();
-					})
-			);
-
-		new Setting(containerEl)
-			.setName(ui('命令启动配置', 'Command startup config'))
-			.setDesc(ui(
-				'只有当 AI 工具要求填写 command 和 args 时使用。',
-				'Use this only when an AI tool asks for command and args.'
-			))
-			.addText((text) =>
-				text
-					.setPlaceholder(DEFAULT_MCP_STDIO_COMMAND)
-					.setValue(this.plugin.settings.mcpStdioCommand)
-					.onChange(async (value) => {
-						this.plugin.settings.mcpStdioCommand = value.trim() || DEFAULT_MCP_STDIO_COMMAND;
-						await this.plugin.saveSettings();
-						await this.plugin.refreshGovernanceViews();
-					})
-			)
-			.addExtraButton((button) =>
-				button
-					.setIcon('rotate-ccw')
-					.setTooltip(ui('恢复默认', 'Restore default'))
-					.onClick(async () => {
-						this.plugin.settings.mcpStdioCommand = DEFAULT_SETTINGS.mcpStdioCommand;
-						await this.plugin.saveSettings();
-						await this.plugin.refreshGovernanceViews();
+						await this.plugin.regenerateRuntimeToken();
 						this.display();
 					})
 			);
