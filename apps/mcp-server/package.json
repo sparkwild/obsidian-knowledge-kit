@@ -1,7 +1,7 @@
 {
 	"name": "obs-wiki-mcp-server",
 	"version": "0.1.0",
-	"description": "Read-only-by-default MCP stdio server with controlled write tools for obs-wiki.",
+	"description": "Agent-first MCP stdio server for obs-wiki: read-only default, bounded writes, and review-gated apply.",
 	"private": true,
 	"type": "commonjs",
 	"main": "dist/server.js",

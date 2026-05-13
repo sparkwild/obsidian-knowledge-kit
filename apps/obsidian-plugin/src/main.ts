@@ -12,6 +12,8 @@ import {
 	getLanguage,
 } from 'obsidian';
 
+declare const __OBS_WIKI_MCP_SERVER_PATH__: string;
+
 const OBS_WIKI_ACTIVITY_VIEW = 'obs-wiki-activity';
 const OBS_WIKI_SOURCE_STATUS_VIEW = 'obs-wiki-source-status';
 const OBS_WIKI_REVIEW_QUEUE_VIEW = 'obs-wiki-review-queue';
@@ -19,6 +21,7 @@ const OBS_WIKI_MEMORY_INSPECTOR_VIEW = 'obs-wiki-memory-inspector';
 const OBS_WIKI_AUDIT_LOG_VIEW = 'obs-wiki-audit-log';
 const OBS_WIKI_RUNTIME_STATUS_VIEW = 'obs-wiki-runtime-status';
 const OBS_WIKI_PERMISSION_POLICY_VIEW = 'obs-wiki-permission-policy';
+const OBS_WIKI_AGENT_CONNECTIONS_VIEW = 'obs-wiki-agent-connections';
 const CONTROL_FILES: Array<{ path: string; content: string }> = [
 	{
 		path: '00_control/system.md',
@@ -52,13 +55,16 @@ const MAX_REVIEW_QUEUE_ROWS = 20;
 const MAX_ACTIVITY_CONTEXT_PACK_ROWS = 5;
 const MAX_ACTIVITY_SOURCE_CAPTURE_ROWS = 5;
 const MAX_ACTIVITY_PROPOSAL_ROWS = 5;
-const PLUGIN_DISPLAY_NAME_ZH = '知识库控制台';
-const PLUGIN_DISPLAY_NAME_EN = 'Wiki Console';
+const MAX_AGENT_CONNECTION_ROWS = 8;
+const MAX_AGENT_TOOL_CALL_ROWS = 12;
+const PLUGIN_DISPLAY_NAME_ZH = 'obs-wiki';
+const PLUGIN_DISPLAY_NAME_EN = 'obs-wiki';
+const DEFAULT_MCP_SERVER_PATH = __OBS_WIKI_MCP_SERVER_PATH__;
 const LEGACY_DEFAULT_STATUS_MESSAGE = 'Welcome to obs-wiki Agent Activity.';
 const LEGACY_BILINGUAL_DEFAULT_STATUS_MESSAGE =
 	'欢迎使用 obs-wiki Agent Activity。 / Welcome to obs-wiki Agent Activity.';
-const DEFAULT_STATUS_MESSAGE_ZH = '欢迎使用知识库控制台。';
-const DEFAULT_STATUS_MESSAGE_EN = 'Welcome to Wiki Console.';
+const DEFAULT_STATUS_MESSAGE_ZH = '欢迎使用 obs-wiki。';
+const DEFAULT_STATUS_MESSAGE_EN = 'Welcome to obs-wiki.';
 const isChineseLanguage = (language: string): boolean => {
 	const normalized = language.toLowerCase();
 	return normalized === 'zh' || normalized.startsWith('zh-') || normalized.startsWith('zh_');
@@ -174,6 +180,15 @@ type MemoryProposalStatus =
 	| 'revision_requested'
 	| 'applied';
 
+const REVIEW_QUEUE_FILTERS: Array<MemoryProposalStatus | 'all'> = [
+	'pending',
+	'approved',
+	'rejected',
+	'revision_requested',
+	'applied',
+	'all',
+];
+
 const memoryProposalStatusLabel = (status: MemoryProposalStatus): string => {
 	switch (status) {
 		case 'approved':
@@ -203,6 +218,17 @@ interface AuditEventRecord {
 	timestamp: string;
 	sortTimestamp: number;
 	snippet: string;
+	eventType: string;
+	agentId: string;
+	clientName: string;
+	toolName: string;
+	resultStatus: string;
+	targetPaths: string[];
+	durationMs: string;
+	riskLevel: string;
+	argsSummary: string;
+	transport: string;
+	runtimeVersion: string;
 }
 
 interface MemoryProposalRecord {
@@ -238,16 +264,56 @@ interface AgentActivitySnapshot {
 	updatedAt: string;
 }
 
+interface AgentConnectionRecord {
+	agentId: string;
+	clientName: string;
+	transport: string;
+	status: string;
+	lastSeen: string;
+	lastToolCall: string;
+	runtimeVersion: string;
+	permissionProfile: string;
+	sortTimestamp: number;
+}
+
+interface AgentToolCallRecord {
+	agentId: string;
+	clientName: string;
+	toolName: string;
+	resultStatus: string;
+	targetPaths: string[];
+	timestamp: string;
+	durationMs: string;
+	riskLevel: string;
+	argsSummary: string;
+	sortTimestamp: number;
+}
+
+interface AgentConnectionsSnapshot {
+	vaultRoot: string;
+	mcpCommand: string;
+	codexConfig: string;
+	claudeConfig: string;
+	cursorConfig: string;
+	customConfig: string;
+	recentAgents: AgentConnectionRecord[];
+	recentToolCalls: AgentToolCallRecord[];
+	missingAuditSources: boolean;
+	updatedAt: string;
+}
+
 interface ObsWikiSettings {
 	showWelcomeMessage: boolean;
 	defaultAgentScope: string;
 	statusMessage: string;
+	mcpServerPath: string;
 }
 
 const DEFAULT_SETTINGS: ObsWikiSettings = {
 	showWelcomeMessage: true,
 	defaultAgentScope: 'vault',
 	statusMessage: '',
+	mcpServerPath: DEFAULT_MCP_SERVER_PATH,
 };
 
 export default class ObsWikiPlugin extends Plugin {
@@ -257,6 +323,9 @@ export default class ObsWikiPlugin extends Plugin {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 		if (typeof this.settings.statusMessage !== 'string') {
 			this.settings.statusMessage = '';
+		}
+		if (typeof this.settings.mcpServerPath !== 'string' || !this.settings.mcpServerPath.trim()) {
+			this.settings.mcpServerPath = DEFAULT_MCP_SERVER_PATH;
 		}
 		if (
 			this.settings.statusMessage === LEGACY_DEFAULT_STATUS_MESSAGE ||
@@ -296,8 +365,12 @@ export default class ObsWikiPlugin extends Plugin {
 			OBS_WIKI_PERMISSION_POLICY_VIEW,
 			(leaf) => new ObsWikiPermissionPolicyView(leaf)
 		);
+		this.registerView(
+			OBS_WIKI_AGENT_CONNECTIONS_VIEW,
+			(leaf) => new ObsWikiAgentConnectionsView(leaf, this)
+		);
 
-		this.addRibbonIcon('brain-circuit', ui('打开知识库控制台', 'Open Wiki Console'), () => {
+		this.addRibbonIcon('brain-circuit', ui('打开 obs-wiki 活动', 'Open obs-wiki activity'), () => {
 			this.openPluginView(OBS_WIKI_ACTIVITY_VIEW);
 		});
 
@@ -335,6 +408,12 @@ export default class ObsWikiPlugin extends Plugin {
 			id: 'open-permission-policy',
 			name: ui('打开权限策略', 'Open permission policy'),
 			callback: () => this.openPluginView(OBS_WIKI_PERMISSION_POLICY_VIEW),
+		});
+
+		this.addCommand({
+			id: 'open-agent-connections',
+			name: ui('打开 Agent 连接中心', 'Open agent connections'),
+			callback: () => this.openPluginView(OBS_WIKI_AGENT_CONNECTIONS_VIEW),
 		});
 
 		this.addCommand({
@@ -589,6 +668,16 @@ export default class ObsWikiPlugin extends Plugin {
 		}
 	}
 
+	private async refreshAgentConnectionViews(): Promise<void> {
+		const connectionLeaves = this.app.workspace.getLeavesOfType(OBS_WIKI_AGENT_CONNECTIONS_VIEW);
+		for (const leaf of connectionLeaves) {
+			const view = leaf.view;
+			if (view instanceof ObsWikiAgentConnectionsView) {
+				await view.refresh();
+			}
+		}
+	}
+
 	private quoteYamlString(value: string): string {
 		const trimmed = (value || '').trim().replace(/\r/g, '');
 		if (!trimmed) {
@@ -598,10 +687,11 @@ export default class ObsWikiPlugin extends Plugin {
 		return `"${escaped}"`;
 	}
 
-	private async refreshGovernanceViews(): Promise<void> {
+	async refreshGovernanceViews(): Promise<void> {
 		await this.refreshActivityViews();
 		await this.refreshReviewQueueViews();
 		await this.refreshSourceStatusViews();
+		await this.refreshAgentConnectionViews();
 	}
 
 	async loadSourceStatusSnapshot(): Promise<SourceAnalysisSnapshot> {
@@ -701,6 +791,145 @@ export default class ObsWikiPlugin extends Plugin {
 			missingAuditSources: auditLogMissing && auditDirMissing,
 			updatedAt: new Date().toISOString(),
 		};
+	}
+
+	async loadAgentConnectionsSnapshot(): Promise<AgentConnectionsSnapshot> {
+		const auditLogMissing =
+			this.app.vault.getAbstractFileByPath(CONTROL_PATHS.auditLog) === null;
+		const auditDirMissing =
+			this.app.vault.getAbstractFileByPath(CONTROL_PATHS.auditDir) === null;
+		const auditEvents = await this.readRecentAuditEvents(80);
+		const toolCalls = auditEvents
+			.filter((event) => this.isToolCallAuditEvent(event))
+			.map((event) => this.toAgentToolCallRecord(event))
+			.sort((a, b) => b.sortTimestamp - a.sortTimestamp)
+			.slice(0, MAX_AGENT_TOOL_CALL_ROWS);
+		const recentAgents = this.buildRecentAgentConnections(auditEvents, toolCalls)
+			.slice(0, MAX_AGENT_CONNECTION_ROWS);
+		const vaultRoot = this.getVaultRoot();
+		const mcpCommand = this.buildMcpCommand(vaultRoot);
+
+		return {
+			vaultRoot,
+			mcpCommand,
+			codexConfig: this.buildMcpConfig(vaultRoot, 'codex'),
+			claudeConfig: this.buildMcpConfig(vaultRoot, 'claude'),
+			cursorConfig: this.buildMcpConfig(vaultRoot, 'cursor'),
+			customConfig: this.buildMcpConfig(vaultRoot, 'custom'),
+			recentAgents,
+			recentToolCalls: toolCalls,
+			missingAuditSources: auditLogMissing && auditDirMissing,
+			updatedAt: new Date().toISOString(),
+		};
+	}
+
+	private getVaultRoot(): string {
+		const adapter = this.app.vault.adapter as unknown as { basePath?: string };
+		return adapter.basePath || ui('当前 vault 路径不可用', 'Current vault path unavailable');
+	}
+
+	private buildMcpCommand(vaultRoot: string): string {
+		return `node "${this.getMcpServerPath()}" --vault-root "${vaultRoot}"`;
+	}
+
+	private buildMcpConfig(vaultRoot: string, client: string): string {
+		const serverPath = this.getMcpServerPath();
+		if (client === 'codex') {
+			return [
+				'[mcp_servers.obs-wiki]',
+				'type = "stdio"',
+				'command = "node"',
+				`args = [${JSON.stringify(serverPath)}, "--vault-root", ${JSON.stringify(vaultRoot)}]`,
+			].join('\n');
+		}
+
+		const config = {
+			mcpServers: {
+				'obs-wiki': {
+					command: 'node',
+					args: [
+						serverPath,
+						'--vault-root',
+						vaultRoot,
+					],
+				},
+			},
+			client,
+		};
+		return JSON.stringify(config, null, 2);
+	}
+
+	private getMcpServerPath(): string {
+		return (this.settings.mcpServerPath || DEFAULT_MCP_SERVER_PATH).trim();
+	}
+
+	private isToolCallAuditEvent(event: AuditEventRecord): boolean {
+		return event.eventType === 'tool-call'
+			|| event.eventType === 'agent-tool-call'
+			|| (Boolean(event.toolName) && !this.isConnectionAuditEvent(event));
+	}
+
+	private isConnectionAuditEvent(event: AuditEventRecord): boolean {
+		return event.eventType === 'connection' || event.eventType === 'agent-connection-event' || event.action === 'connection' || event.action === 'mcp.initialize';
+	}
+
+	private toAgentToolCallRecord(event: AuditEventRecord): AgentToolCallRecord {
+		return {
+			agentId: event.agentId || 'unknown',
+			clientName: event.clientName || 'unknown',
+			toolName: event.toolName || event.action || 'unknown',
+			resultStatus: event.resultStatus || 'unknown',
+			targetPaths: event.targetPaths,
+			timestamp: event.timestamp,
+			durationMs: event.durationMs,
+			riskLevel: event.riskLevel || 'unknown',
+			argsSummary: event.argsSummary,
+			sortTimestamp: event.sortTimestamp,
+		};
+	}
+
+	private buildRecentAgentConnections(
+		auditEvents: AuditEventRecord[],
+		toolCalls: AgentToolCallRecord[]
+	): AgentConnectionRecord[] {
+		const agents = new Map<string, AgentConnectionRecord>();
+		const upsertAgent = (agentId: string, clientName: string, timestamp: string, sortTimestamp: number) => {
+			const key = `${clientName || 'unknown'}::${agentId || 'unknown'}`;
+			const existing = agents.get(key);
+			if (existing && existing.sortTimestamp >= sortTimestamp) {
+				return existing;
+			}
+			const next = existing || {
+				agentId: agentId || 'unknown',
+				clientName: clientName || 'unknown',
+				transport: 'stdio',
+				status: 'seen',
+				lastSeen: timestamp,
+				lastToolCall: '',
+				runtimeVersion: '',
+				permissionProfile: 'read-only default + controlled write',
+				sortTimestamp,
+			};
+			next.lastSeen = timestamp || next.lastSeen;
+			next.sortTimestamp = sortTimestamp || next.sortTimestamp;
+			agents.set(key, next);
+			return next;
+		};
+
+		for (const event of auditEvents.filter((item) => this.isConnectionAuditEvent(item))) {
+			const agent = upsertAgent(event.agentId, event.clientName, event.timestamp, event.sortTimestamp);
+			agent.transport = event.transport || agent.transport;
+			agent.runtimeVersion = event.runtimeVersion || agent.runtimeVersion;
+			agent.status = event.resultStatus || 'connected';
+		}
+
+		for (const call of toolCalls) {
+			const agent = upsertAgent(call.agentId, call.clientName, call.timestamp, call.sortTimestamp);
+			agent.lastToolCall = call.toolName;
+			agent.status = call.resultStatus === 'failed' ? 'warning' : 'active';
+		}
+
+		return [...agents.values()].sort((a, b) => b.sortTimestamp - a.sortTimestamp);
 	}
 
 	async loadMemoryReviewQueueSnapshot(): Promise<MemoryReviewQueueSnapshot> {
@@ -1069,6 +1298,17 @@ export default class ObsWikiPlugin extends Plugin {
 					timestamp: timestamp || '',
 					sortTimestamp: fallbackTs,
 					snippet: this.snippetFromText(parsed.body, this.trimText(file.basename)),
+					eventType: this.firstString(data, ['type']),
+					agentId: this.firstString(data, ['agent_id', 'agentId', 'session_id', 'sessionId']),
+					clientName: this.firstString(data, ['client_name', 'clientName', 'client']),
+					toolName: this.firstString(data, ['tool_name', 'toolName', 'tool']),
+					resultStatus: this.firstString(data, ['result_status', 'resultStatus', 'status']),
+					targetPaths: this.readStringList(data, ['target_paths', 'targetPaths', 'target_path', 'targetPath', 'target']),
+					durationMs: this.firstString(data, ['duration_ms', 'durationMs']),
+					riskLevel: this.firstString(data, ['risk_level', 'riskLevel']),
+					argsSummary: this.firstString(data, ['args_summary', 'argsSummary']),
+					transport: this.firstString(data, ['transport']),
+					runtimeVersion: this.firstString(data, ['runtime_version', 'runtimeVersion']),
 				},
 			];
 		}
@@ -1117,6 +1357,17 @@ export default class ObsWikiPlugin extends Plugin {
 					Date.now()
 				),
 				snippet: this.snippetFromText(bodyLines.join('\n')),
+				eventType: this.firstString(row, ['type']),
+				agentId: this.firstString(row, ['agent_id', 'agentId', 'session_id', 'sessionId']),
+				clientName: this.firstString(row, ['client_name', 'clientName', 'client']),
+				toolName: this.firstString(row, ['tool_name', 'toolName', 'tool']),
+				resultStatus: this.firstString(row, ['result_status', 'resultStatus', 'status']),
+				targetPaths: this.readStringList(row, ['target_paths', 'targetPaths', 'target_path', 'targetPath', 'target']),
+				durationMs: this.firstString(row, ['duration_ms', 'durationMs']),
+				riskLevel: this.firstString(row, ['risk_level', 'riskLevel']),
+				argsSummary: this.firstString(row, ['args_summary', 'argsSummary']),
+				transport: this.firstString(row, ['transport']),
+				runtimeVersion: this.firstString(row, ['runtime_version', 'runtimeVersion']),
 			});
 		}
 
@@ -1200,16 +1451,39 @@ export default class ObsWikiPlugin extends Plugin {
 
 	private readKeyValueRows(lines: string[]): ParsedRecord {
 		const rows: ParsedRecord = {};
-		for (const line of lines) {
+		for (let index = 0; index < lines.length; index += 1) {
+			const line = lines[index];
 			const trimmed = line.trim();
 			if (!trimmed) {
 				continue;
 			}
-			const match = trimmed.match(/^([^:]+):\s*(.*)$/);
+			const normalized = trimmed.replace(/^-\s+/, '');
+			const match = normalized.match(/^([^:]+):\s*(.*)$/);
 			if (!match) {
 				continue;
 			}
-			rows[match[1].trim()] = this.parseScalarOrArray(match[2].trim());
+			const key = match[1].trim();
+			const rawValue = match[2].trim();
+			if (rawValue) {
+				rows[key] = this.parseScalarOrArray(rawValue);
+				continue;
+			}
+
+			const listValues: string[] = [];
+			for (let listIndex = index + 1; listIndex < lines.length; listIndex += 1) {
+				const listMatch = lines[listIndex].match(/^\s+-\s+(.*)$/);
+				if (!listMatch) {
+					break;
+				}
+				const value = this.parseScalarOrArray(listMatch[1].trim());
+				if (typeof value === 'string' && value) {
+					listValues.push(value);
+				} else if (Array.isArray(value)) {
+					listValues.push(...value);
+				}
+				index = listIndex;
+			}
+			rows[key] = listValues;
 		}
 		return rows;
 	}
@@ -1296,7 +1570,7 @@ export default class ObsWikiPlugin extends Plugin {
 		return new Date(value).toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, 'Z');
 	}
 
-	private async openPluginView(viewType: string) {
+	async openPluginView(viewType: string) {
 		const existingLeaves = this.app.workspace.getLeavesOfType(viewType);
 		if (existingLeaves.length > 0) {
 			this.app.workspace.setActiveLeaf(existingLeaves[0]);
@@ -1314,6 +1588,11 @@ export default class ObsWikiPlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+	}
+
+	async copyToClipboard(value: string, successMessage: string): Promise<void> {
+		await navigator.clipboard.writeText(value);
+		new Notice(successMessage);
 	}
 
 	getStatusMessage(): string {
@@ -1533,18 +1812,10 @@ class ObsWikiActivityView extends ItemView {
 		contentEl.empty();
 		contentEl.addClass('obs-wiki-view-root');
 
-		const header = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-		header.createEl('h2', { text: ui('Agent 活动', 'Agent activity'), cls: 'obs-wiki-view__title' });
-		const actions = header.createDiv();
-		const refreshButton = actions.createEl('button', {
-			text: ui('刷新', 'Refresh'),
-			cls: 'mod-cta',
-		});
-		refreshButton.addEventListener('click', async () => {
-			await this.refresh();
-		});
-
-		contentEl.createEl('p', {
+		const header = contentEl.createDiv({ cls: 'obs-wiki-shell-header' });
+		const heading = header.createDiv();
+		heading.createEl('h2', { text: ui('Agent 活动', 'Agent activity'), cls: 'obs-wiki-view__title' });
+		heading.createEl('p', {
 			text: this.plugin.settings.showWelcomeMessage
 				? this.plugin.getStatusMessage()
 				: ui(
@@ -1553,160 +1824,144 @@ class ObsWikiActivityView extends ItemView {
 				),
 			cls: 'obs-wiki-view__description',
 		});
-		contentEl.createEl('p', {
-			text: `${ui('最后刷新', 'Last refreshed')}: ${this.plugin.formatDisplayTime(
-				Date.parse(snapshot.updatedAt)
-			)}`,
-			cls: 'obs-wiki-view__description',
+		const actions = header.createDiv({ cls: 'obs-wiki-action-row' });
+		const refreshButton = actions.createEl('button', {
+			text: ui('刷新', 'Refresh'),
+			cls: 'mod-cta',
+		});
+		refreshButton.addEventListener('click', async () => {
+			await this.refresh();
+		});
+		const reviewButton = actions.createEl('button', {
+			text: ui('打开审核队列', 'Open Review Queue'),
+		});
+		reviewButton.addEventListener('click', () => {
+			void this.plugin.openPluginView(OBS_WIKI_REVIEW_QUEUE_VIEW);
+		});
+		const connectionsButton = actions.createEl('button', {
+			text: ui('打开 Agent 连接', 'Open Agent Connections'),
+		});
+		connectionsButton.addEventListener('click', () => {
+			void this.plugin.openPluginView(OBS_WIKI_AGENT_CONNECTIONS_VIEW);
 		});
 
-		const currentSection = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
+		const statusBar = contentEl.createDiv({ cls: 'obs-wiki-status-bar' });
+		this.renderStatusItem(statusBar, 'MCP', snapshot.recentAuditEvents.some((event) => event.toolName) ? ui('已看到调用', 'Tool calls seen') : ui('等待连接', 'Waiting'));
+		this.renderStatusItem(statusBar, 'Runtime', snapshot.missingTaskFolder ? ui('待初始化', 'Setup needed') : ui('可读取', 'Readable'));
+		this.renderStatusItem(statusBar, 'Vault', snapshot.missingTaskFolder ? ui('结构缺失', 'Missing structure') : ui('已初始化', 'Initialized'));
+		this.renderStatusItem(statusBar, 'Mode', ui('只读默认 + 受控写入', 'Read-only default + controlled write'));
+		this.renderStatusItem(statusBar, ui('刷新', 'Refresh'), this.plugin.formatDisplayTime(Date.parse(snapshot.updatedAt)));
+
+		const metrics = contentEl.createDiv({ cls: 'obs-wiki-metric-grid' });
+		this.renderMetricCard(metrics, ui('当前任务', 'Active task'), snapshot.currentTask ? snapshot.currentTask.status : ui('无', 'None'), snapshot.currentTask?.taskId || ui('等待 Agent 调用 obs_wiki.start_task', 'Waiting for obs_wiki.start_task'));
+		this.renderMetricCard(metrics, ui('待审核', 'Pending review'), String(snapshot.recentProposals.filter((proposal) => proposal.approvalStatus === 'pending').length), ui('最近提案中的待处理项', 'Pending items among recent proposals'));
+		this.renderMetricCard(metrics, ui('来源请求', 'Source requests'), String(snapshot.recentSourceCaptures.length), ui('最近来源捕获记录', 'Recent source capture records'));
+		this.renderMetricCard(metrics, ui('工具调用', 'Tool calls'), String(snapshot.recentAuditEvents.filter((event) => event.toolName).length), ui('最近 MCP tool-call 审计', 'Recent MCP tool-call audit'));
+
+		const currentSection = contentEl.createDiv({ cls: 'obs-wiki-card' });
 		currentSection.createEl('h3', { text: ui('当前任务', 'Current task') });
 		if (!snapshot.currentTask) {
-			currentSection.createEl('p', {
-				text: snapshot.missingTaskFolder
-					? ui(
-						'未找到 Agent 任务文件夹 02_timeline/agent_tasks。Agent/runtime 初始化应创建该记忆结构。',
-						'No agent task folder found at 02_timeline/agent_tasks. Agent/runtime setup should create the memory structure.'
-					)
-					: ui(
-						'未找到当前或最近的 Agent 任务。',
-						'No active or recent agent task found.'
-					),
-				cls: 'obs-wiki-view__description',
-			});
+			this.renderEmptyState(
+				currentSection,
+				snapshot.missingTaskFolder
+					? ui('Agent 任务文件夹缺失。', 'Agent task folder is missing.')
+					: ui('还没有 Agent 活动。', 'No Agent activity yet.'),
+				snapshot.missingTaskFolder
+					? ui('Runtime 或初始化流程应创建 02_timeline/agent_tasks。', 'The runtime or initialization flow should create 02_timeline/agent_tasks.')
+					: ui('请从 Agent 客户端开始，并让它使用 obs-wiki 记忆。建议第一个工具：obs_wiki.start_task。', 'Start from your Agent client and ask it to use obs-wiki memory. Suggested first tool: obs_wiki.start_task.')
+			);
 		} else {
 			this.renderTaskEntry(currentSection, snapshot.currentTask, true);
 		}
 
-		const recentTaskSection = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-		recentTaskSection.createEl('h3', { text: ui('最近 Agent 任务', 'Recent agent tasks') });
-		if (snapshot.recentTasks.length === 0) {
-			recentTaskSection.createEl('p', {
-				text: ui('还没有 Agent 任务笔记。', 'No agent task notes found yet.'),
-				cls: 'obs-wiki-view__description',
-			});
-		} else {
-			const list = recentTaskSection.createEl('ul', {
-				cls: 'obs-wiki-view__list',
-			});
-			for (const task of snapshot.recentTasks) {
-				const item = list.createEl('li', { cls: 'obs-wiki-view__item' });
-				this.renderTaskSummary(item, task);
-			}
-		}
+		const timelineItems = [
+			...snapshot.recentTasks.map((task) => ({
+				time: task.sortTimestamp,
+				type: ui('任务', 'Task'),
+				title: task.taskId,
+				meta: `${task.agent} • ${task.status}`,
+				body: task.objective || task.snippet,
+				path: task.path,
+			})),
+			...snapshot.recentContextPacks.map((contextPack) => ({
+				time: contextPack.sortTimestamp,
+				type: 'context',
+				title: contextPack.title,
+				meta: contextPack.taskId,
+				body: contextPack.snippet,
+				path: contextPack.path,
+			})),
+			...snapshot.recentSourceCaptures.map((source) => ({
+				time: source.sortTimestamp,
+				type: ui('来源', 'Source'),
+				title: source.sourceKind,
+				meta: source.mode || source.type,
+				body: source.source || source.snippet,
+				path: source.path,
+			})),
+			...snapshot.recentProposals.map((proposal) => ({
+				time: proposal.sortTimestamp,
+				type: ui('提案', 'Proposal'),
+				title: proposal.proposalId,
+				meta: `${memoryProposalStatusLabel(proposal.approvalStatus)} • ${proposal.proposalKind}`,
+				body: proposal.snippet,
+				path: proposal.path,
+			})),
+			...snapshot.recentAuditEvents.map((event) => ({
+				time: event.sortTimestamp,
+				type: event.toolName ? ui('工具调用', 'Tool call') : ui('审计', 'Audit'),
+				title: event.toolName || event.action,
+				meta: event.resultStatus || event.actor,
+				body: event.reason || event.argsSummary || event.snippet,
+				path: event.target || event.path,
+			})),
+		].sort((a, b) => b.time - a.time).slice(0, 18);
 
-		const contextPackSection = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-		contextPackSection.createEl('h3', { text: ui('最近 Context Packs', 'Recent context packs') });
-		if (snapshot.recentContextPacks.length === 0) {
-			contextPackSection.createEl('p', {
-				text: ui('还没有 context pack 输出。', 'No context pack outputs found yet.'),
-				cls: 'obs-wiki-view__description',
-			});
+		const timeline = contentEl.createDiv({ cls: 'obs-wiki-card' });
+		timeline.createEl('h3', { text: ui('活动时间线', 'Activity timeline') });
+		if (timelineItems.length === 0) {
+			this.renderEmptyState(
+				timeline,
+				ui('还没有可展示的活动。', 'No activity to display yet.'),
+				ui('让 Agent 通过 MCP 调用 obs_wiki.start_task、obs_wiki.recall 或其他 obs-wiki 工具后，这里会显示时间线。', 'Ask an Agent to call obs_wiki.start_task, obs_wiki.recall, or other obs-wiki tools through MCP to populate this timeline.')
+			);
 		} else {
-			const list = contextPackSection.createEl('ul', { cls: 'obs-wiki-view__list' });
-			for (const contextPack of snapshot.recentContextPacks) {
-				const item = list.createEl('li', { cls: 'obs-wiki-view__item' });
-				item.createEl('div', {
-					text: `${contextPack.title} • ${this.plugin.formatDisplayTime(contextPack.sortTimestamp)}`,
-				});
-				if (contextPack.taskId) {
-					item.createEl('div', { text: `${ui('任务', 'Task')}: ${contextPack.taskId}` });
+			const list = timeline.createDiv({ cls: 'obs-wiki-timeline' });
+			for (const item of timelineItems) {
+				const row = list.createDiv({ cls: 'obs-wiki-timeline__item' });
+				row.createEl('div', { text: item.type, cls: 'obs-wiki-badge' });
+				const body = row.createDiv({ cls: 'obs-wiki-timeline__body' });
+				body.createEl('strong', { text: `${item.title || ui('未命名', 'Untitled')} • ${this.plugin.formatDisplayTime(item.time)}` });
+				if (item.meta) {
+					body.createEl('div', { text: item.meta, cls: 'obs-wiki-view__description' });
 				}
-				if (contextPack.snippet) {
-					item.createEl('div', { text: this.plugin.trimText(contextPack.snippet, 140) });
+				if (item.body) {
+					body.createEl('div', { text: this.plugin.trimText(item.body, 160) });
 				}
-				item.createEl('small', { text: `${ui('文件', 'File')}: ${contextPack.path}` });
+				if (item.path) {
+					body.createEl('small', { text: item.path });
+				}
 			}
 		}
+	}
 
-		const sourceCaptureSection = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-		sourceCaptureSection.createEl('h3', { text: ui('最近来源捕获', 'Recent source captures') });
-		if (snapshot.recentSourceCaptures.length === 0) {
-			sourceCaptureSection.createEl('p', {
-				text: ui('还没有 source capture 笔记。', 'No source capture notes found yet.'),
-				cls: 'obs-wiki-view__description',
-			});
-		} else {
-			const list = sourceCaptureSection.createEl('ul', { cls: 'obs-wiki-view__list' });
-			for (const sourceCapture of snapshot.recentSourceCaptures) {
-				const item = list.createEl('li', { cls: 'obs-wiki-view__item' });
-				item.createEl('div', {
-					text: `${sourceCapture.sourceKind} • ${sourceCapture.mode || sourceCapture.type} • ${this.plugin.formatDisplayTime(sourceCapture.sortTimestamp)}`,
-				});
-				item.createEl('div', {
-					text: `${ui('来源', 'Source')}: ${this.plugin.trimText(sourceCapture.source, 120)}`,
-				});
-				if (sourceCapture.taskId) {
-					item.createEl('div', { text: `${ui('任务', 'Task')}: ${sourceCapture.taskId}` });
-				}
-				if (sourceCapture.snippet) {
-					item.createEl('div', { text: this.plugin.trimText(sourceCapture.snippet, 140) });
-				}
-				item.createEl('small', { text: `${ui('文件', 'File')}: ${sourceCapture.path}` });
-			}
-		}
+	private renderStatusItem(container: HTMLElement, label: string, value: string): void {
+		const item = container.createDiv({ cls: 'obs-wiki-status-pill' });
+		item.createEl('span', { text: label });
+		item.createEl('strong', { text: value });
+	}
 
-		const proposalSection = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-		proposalSection.createEl('h3', { text: ui('最近记忆提案', 'Recent proposals') });
-		if (snapshot.recentProposals.length === 0) {
-			proposalSection.createEl('p', {
-				text: ui('还没有 memory proposal。', 'No memory proposals found yet.'),
-				cls: 'obs-wiki-view__description',
-			});
-		} else {
-			const list = proposalSection.createEl('ul', { cls: 'obs-wiki-view__list' });
-			for (const proposal of snapshot.recentProposals) {
-				const item = list.createEl('li', { cls: 'obs-wiki-view__item' });
-				item.createEl('div', {
-					text: `${proposal.proposalId} • ${memoryProposalStatusLabel(proposal.approvalStatus)} • ${proposal.proposalKind}`,
-				});
-				if (proposal.targetNote) {
-					item.createEl('div', { text: `${ui('目标笔记', 'Target note')}: ${proposal.targetNote}` });
-				}
-				if (proposal.snippet) {
-					item.createEl('div', { text: this.plugin.trimText(proposal.snippet, 140) });
-				}
-				item.createEl('small', { text: `${ui('文件', 'File')}: ${proposal.path}` });
-			}
-		}
+	private renderMetricCard(container: HTMLElement, label: string, value: string, detail: string): void {
+		const card = container.createDiv({ cls: 'obs-wiki-metric-card' });
+		card.createEl('div', { text: label, cls: 'obs-wiki-metric-card__label' });
+		card.createEl('strong', { text: value, cls: 'obs-wiki-metric-card__value' });
+		card.createEl('div', { text: detail, cls: 'obs-wiki-view__description' });
+	}
 
-		const auditSection = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-		auditSection.createEl('h3', { text: ui('最近审计事件', 'Recent audit events') });
-		if (snapshot.recentAuditEvents.length === 0) {
-			auditSection.createEl('p', {
-				text: snapshot.missingAuditSources
-					? ui(
-						'未找到审计来源。请创建 00_control/audit_log.md 或 00_control/audit/*.md。',
-						'No audit source found. Create 00_control/audit_log.md or 00_control/audit/*.md.'
-					)
-					: ui('还没有审计事件。', 'No audit events found yet.'),
-				cls: 'obs-wiki-view__description',
-			});
-		} else {
-			const list = auditSection.createEl('ul', { cls: 'obs-wiki-view__list' });
-			for (const event of snapshot.recentAuditEvents) {
-				const item = list.createEl('li', { cls: 'obs-wiki-view__item' });
-				item.createEl('div', {
-					text: `${this.plugin.formatDisplayTime(event.sortTimestamp)} • ${event.action} • ${event.actor}`,
-				});
-				if (event.reason) {
-					item.createEl('div', { text: `${ui('原因', 'Reason')}: ${event.reason}` });
-				}
-				if (event.target || event.taskId) {
-					const extras: string[] = [];
-					if (event.target) extras.push(`${ui('目标', 'Target')}: ${event.target}`);
-					if (event.taskId) extras.push(`${ui('任务', 'Task')}: ${event.taskId}`);
-					item.createEl('div', { text: extras.join(' • ') });
-				}
-				item.createEl('small', { text: `${ui('文件', 'File')}: ${event.path}` });
-				if (event.snippet) {
-					item.createEl('div', {
-						text: this.plugin.trimText(event.snippet, 140),
-					});
-				}
-			}
-		}
+	private renderEmptyState(container: HTMLElement, title: string, detail: string): void {
+		const empty = container.createDiv({ cls: 'obs-wiki-empty-state' });
+		empty.createEl('strong', { text: title });
+		empty.createEl('p', { text: detail });
 	}
 
 	private renderTaskEntry(container: HTMLElement, task: AgentTaskRecord, expanded: boolean): void {
@@ -1758,6 +2013,8 @@ class ObsWikiActivityView extends ItemView {
 }
 
 class ObsWikiReviewQueueView extends ItemView {
+	private activeFilter: MemoryProposalStatus | 'all' = 'pending';
+
 	constructor(
 		leaf: WorkspaceLeaf,
 		private plugin: ObsWikiPlugin
@@ -1795,17 +2052,15 @@ class ObsWikiReviewQueueView extends ItemView {
 		contentEl.empty();
 		contentEl.addClass('obs-wiki-view-root');
 
-		contentEl.createEl('h2', { text: ui('审核队列', 'Review queue'), cls: 'obs-wiki-view__title' });
-
-		const header = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-		header.createEl('div', {
-			text: `${ui('最后刷新', 'Last refreshed')}: ${this.plugin.formatDisplayTime(
-				Date.parse(snapshot.updatedAt)
-			)}`,
+		const header = contentEl.createDiv({ cls: 'obs-wiki-shell-header' });
+		const heading = header.createDiv();
+		heading.createEl('h2', { text: ui('审核队列', 'Review queue'), cls: 'obs-wiki-view__title' });
+		heading.createEl('p', {
+			text: `${ui('最后刷新', 'Last refreshed')}: ${this.plugin.formatDisplayTime(Date.parse(snapshot.updatedAt))}`,
 			cls: 'obs-wiki-view__description',
 		});
 
-		const actions = header.createDiv();
+		const actions = header.createDiv({ cls: 'obs-wiki-action-row' });
 		const refreshButton = actions.createEl('button', {
 			text: ui('刷新', 'Refresh'),
 			cls: 'mod-cta',
@@ -1826,124 +2081,44 @@ class ObsWikiReviewQueueView extends ItemView {
 		}
 
 		if (snapshot.proposals.length === 0) {
-			contentEl.createEl('p', {
-				text: ui(
-					'审核队列中还没有记忆提案。',
-					'No memory proposals in the review queue yet.'
-				),
-				cls: 'obs-wiki-view__description',
-			});
+			this.renderEmptyState(
+				contentEl,
+				ui('审核队列中还没有记忆提案。', 'No memory proposals in the review queue yet.'),
+				ui('长期记忆、用户偏好和重要决策必须先由 Agent 创建 proposal，再由你在这里审核。', 'Long-term memory, preferences, and important decisions must be proposed by an Agent first, then reviewed here.')
+			);
 			return;
 		}
 
-		const sections = this.groupByStatus(snapshot.proposals);
-		const orderedStatuses: MemoryProposalStatus[] = [
-			'pending',
-			'revision_requested',
-			'approved',
-			'applied',
-			'deferred',
-			'rejected',
-		];
-		const unknown = sections['unknown'] || [];
-
-		for (const status of orderedStatuses) {
-			const proposals = sections[status] || [];
-			if (proposals.length === 0) {
-				continue;
-			}
-
-			const section = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-			section.createEl('h3', { text: `${memoryProposalStatusLabel(status)} (${proposals.length})` });
-
-			for (const proposal of proposals) {
-				const card = section.createDiv({ cls: 'obs-wiki-view__item' });
-				card.createEl('div', {
-					text: `${proposal.proposalId} • ${proposal.proposalKind} • ${proposal.riskLevel}`,
-				});
-				if (proposal.taskId) {
-					card.createEl('div', { text: `${ui('任务', 'Task')}: ${proposal.taskId}` });
-				}
-				if (proposal.targetNote) {
-					card.createEl('div', { text: `${ui('目标笔记', 'Target note')}: ${proposal.targetNote}` });
-				}
-				if (proposal.evidence.length > 0) {
-					card.createEl('div', { text: `${ui('证据引用', 'Evidence refs')}: ${proposal.evidence.join(', ')}` });
-				}
-				card.createEl('div', {
-					text: `${ui('创建时间', 'Created')}: ${proposal.created || ui('未知', 'unknown')} • ${ui('提议者', 'Proposed by')}: ${proposal.proposedBy}`,
-				});
-				if (proposal.snippet) {
-					card.createEl('div', {
-						text: this.plugin.trimText(proposal.snippet, 140),
-					});
-				}
-
-				card.createEl('small', { text: `${ui('文件', 'File')}: ${proposal.path}` });
-
-				if (proposal.approvalStatus === 'pending') {
-					const actionRow = card.createDiv({ cls: 'obs-wiki-view__actions' });
-					const approve = actionRow.createEl('button', {
-						text: ui('批准', 'Approve'),
-						cls: 'mod-cta',
-					});
-					const reject = actionRow.createEl('button', {
-						text: ui('拒绝', 'Reject'),
-						cls: 'mod-warning',
-					});
-					const defer = actionRow.createEl('button', {
-						text: ui('暂缓', 'Defer'),
-					});
-					const requestRevision = actionRow.createEl('button', {
-						text: ui('要求修订', 'Request revision'),
-					});
-
-					const actionButtons = [approve, reject, defer, requestRevision];
-					const updateStatus = async (status: MemoryProposalStatus) => {
-						for (const button of actionButtons) {
-							button.setAttribute('disabled', 'true');
-						}
-						try {
-							await this.plugin.updateMemoryProposalStatus(proposal, status);
-							await this.refresh();
-						} finally {
-							for (const button of actionButtons) {
-								button.removeAttribute('disabled');
-							}
-						}
-					};
-
-					approve.addEventListener('click', () => void updateStatus('approved'));
-					reject.addEventListener('click', () => void updateStatus('rejected'));
-					defer.addEventListener('click', () => void updateStatus('deferred'));
-					requestRevision.addEventListener('click', () => void updateStatus('revision_requested'));
-				} else if (proposal.approvalStatus === 'approved') {
-					const actionRow = card.createDiv({ cls: 'obs-wiki-view__actions' });
-					const apply = actionRow.createEl('button', {
-						text: ui('应用已批准写回', 'Apply approved writeback'),
-						cls: 'mod-cta',
-					});
-					apply.addEventListener('click', () => {
-						new Notice(ui(
-							'已批准写回由 Runtime 通过 obs_wiki.apply_approved_writeback 执行，插件不会直接写入受保护记忆。',
-							'Approved writeback is applied by Runtime through obs_wiki.apply_approved_writeback. The plugin does not write protected memory directly.'
-						));
-					});
-				}
-			}
+		const counts = this.countByStatus(snapshot.proposals);
+		const tabs = contentEl.createDiv({ cls: 'obs-wiki-filter-tabs' });
+		for (const filter of REVIEW_QUEUE_FILTERS) {
+			const label = filter === 'all' ? ui('全部', 'All') : memoryProposalStatusLabel(filter);
+			const count = filter === 'all' ? snapshot.proposals.length : counts[filter] || 0;
+			const button = tabs.createEl('button', {
+				text: `${label} (${count})`,
+				cls: this.activeFilter === filter ? 'is-active' : '',
+			});
+			button.addEventListener('click', async () => {
+				this.activeFilter = filter;
+				await this.render(snapshot);
+			});
 		}
 
-		if (unknown.length > 0) {
-			const section = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
-			section.createEl('h3', {
-				text: `${ui('未知状态', 'Unknown')} (${unknown.length})`,
-			});
-			for (const proposal of unknown) {
-				const card = section.createDiv({ cls: 'obs-wiki-view__item' });
-				card.createEl('div', {
-					text: `${proposal.proposalId} • ${ui('状态', 'Status')}: ${proposal.approvalStatus}`,
-				});
-			}
+		const visibleProposals = snapshot.proposals.filter((proposal) =>
+			this.activeFilter === 'all' ? true : proposal.approvalStatus === this.activeFilter
+		);
+		const grid = contentEl.createDiv({ cls: 'obs-wiki-proposal-grid' });
+		if (visibleProposals.length === 0) {
+			this.renderEmptyState(
+				grid,
+				ui('当前筛选下没有提案。', 'No proposals for the current filter.'),
+				ui('切换筛选或等待 Agent 生成新的 Review Queue proposal。', 'Switch filters or wait for an Agent to create new Review Queue proposals.')
+			);
+			return;
+		}
+
+		for (const proposal of visibleProposals) {
+			this.renderProposalCard(grid, proposal);
 		}
 	}
 
@@ -1962,6 +2137,281 @@ class ObsWikiReviewQueueView extends ItemView {
 			grouped[status].push(proposal);
 		}
 		return grouped;
+	}
+
+	private countByStatus(proposals: MemoryProposalRecord[]): Record<MemoryProposalStatus, number> {
+		const counts: Record<MemoryProposalStatus, number> = {
+			pending: 0,
+			approved: 0,
+			rejected: 0,
+			deferred: 0,
+			revision_requested: 0,
+			applied: 0,
+		};
+		for (const proposal of proposals) {
+			counts[proposal.approvalStatus] += 1;
+		}
+		return counts;
+	}
+
+	private renderProposalCard(container: HTMLElement, proposal: MemoryProposalRecord): void {
+		const card = container.createDiv({ cls: 'obs-wiki-card obs-wiki-proposal-card' });
+		const header = card.createDiv({ cls: 'obs-wiki-card__header' });
+		header.createEl('strong', { text: proposal.proposalId || ui('未命名提案', 'Untitled proposal') });
+		const badges = header.createDiv({ cls: 'obs-wiki-badge-row' });
+		badges.createEl('span', { text: proposal.proposalKind, cls: 'obs-wiki-badge' });
+		badges.createEl('span', { text: proposal.riskLevel, cls: `obs-wiki-badge obs-wiki-badge--risk-${proposal.riskLevel.toLowerCase()}` });
+		badges.createEl('span', { text: memoryProposalStatusLabel(proposal.approvalStatus), cls: 'obs-wiki-badge' });
+
+		const facts = card.createDiv({ cls: 'obs-wiki-detail-grid' });
+		this.renderDetail(facts, ui('目标笔记', 'Target note'), proposal.targetNote || ui('未指定', 'Not specified'));
+		this.renderDetail(facts, ui('证据数量', 'Evidence count'), String(proposal.evidence.length));
+		this.renderDetail(facts, ui('任务', 'Task'), proposal.taskId || ui('无', 'None'));
+		this.renderDetail(facts, ui('创建时间', 'Created'), proposal.created || ui('未知', 'Unknown'));
+		this.renderDetail(facts, ui('提议者', 'Proposed by'), proposal.proposedBy || 'unknown');
+		if (proposal.snippet) {
+			card.createEl('p', { text: this.plugin.trimText(proposal.snippet, 180), cls: 'obs-wiki-view__description' });
+		}
+		card.createEl('small', { text: `${ui('文件', 'File')}: ${proposal.path}` });
+
+		if (proposal.evidence.length > 0) {
+			const detailPanel = card.createDiv({ cls: 'obs-wiki-detail-panel' });
+			detailPanel.createEl('strong', { text: ui('证据引用', 'Evidence refs') });
+			detailPanel.createEl('div', { text: proposal.evidence.join(', ') });
+		}
+
+		this.renderProposalActions(card, proposal);
+	}
+
+	private renderDetail(container: HTMLElement, label: string, value: string): void {
+		const item = container.createDiv({ cls: 'obs-wiki-detail' });
+		item.createEl('span', { text: label });
+		item.createEl('strong', { text: value });
+	}
+
+	private renderProposalActions(card: HTMLElement, proposal: MemoryProposalRecord): void {
+		if (proposal.approvalStatus === 'pending') {
+			const actionRow = card.createDiv({ cls: 'obs-wiki-action-row' });
+			const approve = actionRow.createEl('button', {
+				text: ui('批准', 'Approve'),
+				cls: 'mod-cta',
+			});
+			const reject = actionRow.createEl('button', {
+				text: ui('拒绝', 'Reject'),
+				cls: 'mod-warning',
+			});
+			const defer = actionRow.createEl('button', {
+				text: ui('暂缓', 'Defer'),
+			});
+			const requestRevision = actionRow.createEl('button', {
+				text: ui('要求修订', 'Request revision'),
+			});
+
+			const actionButtons = [approve, reject, defer, requestRevision];
+			const updateStatus = async (status: MemoryProposalStatus) => {
+				for (const button of actionButtons) {
+					button.setAttribute('disabled', 'true');
+				}
+				try {
+					await this.plugin.updateMemoryProposalStatus(proposal, status);
+					await this.refresh();
+				} finally {
+					for (const button of actionButtons) {
+						button.removeAttribute('disabled');
+					}
+				}
+			};
+
+			approve.addEventListener('click', () => void updateStatus('approved'));
+			reject.addEventListener('click', () => void updateStatus('rejected'));
+			defer.addEventListener('click', () => void updateStatus('deferred'));
+			requestRevision.addEventListener('click', () => void updateStatus('revision_requested'));
+		} else if (proposal.approvalStatus === 'approved') {
+			const actionRow = card.createDiv({ cls: 'obs-wiki-action-row' });
+			const apply = actionRow.createEl('button', {
+				text: ui('应用已批准写回', 'Apply approved writeback'),
+				cls: 'mod-cta',
+			});
+			apply.addEventListener('click', () => {
+				new Notice(ui(
+					'已批准写回由 Runtime 通过 obs_wiki.apply_approved_writeback 执行，插件不会直接写入受保护记忆。',
+					'Approved writeback is applied by Runtime through obs_wiki.apply_approved_writeback. The plugin does not write protected memory directly.'
+				));
+			});
+		}
+	}
+
+	private renderEmptyState(container: HTMLElement, title: string, detail: string): void {
+		const empty = container.createDiv({ cls: 'obs-wiki-empty-state' });
+		empty.createEl('strong', { text: title });
+		empty.createEl('p', { text: detail });
+	}
+}
+
+class ObsWikiAgentConnectionsView extends ItemView {
+	constructor(
+		leaf: WorkspaceLeaf,
+		private plugin: ObsWikiPlugin
+	) {
+		super(leaf);
+	}
+
+	getViewType() {
+		return OBS_WIKI_AGENT_CONNECTIONS_VIEW;
+	}
+
+	getDisplayText() {
+		return ui('Agent 连接中心', 'Agent connections');
+	}
+
+	getViewData() {
+		return '';
+	}
+
+	setViewData(_data: string, _clear: boolean): void {
+		return;
+	}
+
+	clear(): void {
+		this.contentEl.empty();
+	}
+
+	async onOpen() {
+		await super.onOpen();
+		await this.refresh();
+	}
+
+	async refresh(): Promise<void> {
+		const snapshot = await this.plugin.loadAgentConnectionsSnapshot();
+		await this.render(snapshot);
+	}
+
+	private async render(snapshot: AgentConnectionsSnapshot): Promise<void> {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.addClass('obs-wiki-view-root');
+
+		const header = contentEl.createDiv({ cls: 'obs-wiki-shell-header' });
+		const heading = header.createDiv();
+		heading.createEl('h2', { text: ui('Agent 连接中心', 'Agent Connection Center'), cls: 'obs-wiki-view__title' });
+		heading.createEl('p', {
+			text: ui(
+				'生成 MCP 配置、查看已连接 Agent，并追踪最近工具调用。',
+				'Generate MCP config, inspect recently seen agents, and track recent tool calls.'
+			),
+			cls: 'obs-wiki-view__description',
+		});
+		const actions = header.createDiv({ cls: 'obs-wiki-action-row' });
+		const refreshButton = actions.createEl('button', { text: ui('刷新', 'Refresh'), cls: 'mod-cta' });
+		refreshButton.addEventListener('click', async () => this.refresh());
+
+		const statusBar = contentEl.createDiv({ cls: 'obs-wiki-status-bar' });
+		this.renderStatusItem(statusBar, ui('运行模式', 'Runtime mode'), ui('stdio MCP', 'stdio MCP'));
+		this.renderStatusItem(statusBar, ui('当前仓库', 'Current vault'), snapshot.vaultRoot);
+		this.renderStatusItem(statusBar, ui('最近 Agent', 'Recent agents'), String(snapshot.recentAgents.length));
+		this.renderStatusItem(statusBar, ui('工具调用', 'Tool calls'), String(snapshot.recentToolCalls.length));
+
+		const runtime = contentEl.createDiv({ cls: 'obs-wiki-card' });
+		runtime.createEl('h3', { text: ui('MCP Server 命令', 'MCP server command') });
+		runtime.createEl('code', { text: snapshot.mcpCommand, cls: 'obs-wiki-code-block' });
+		const commandAction = runtime.createDiv({ cls: 'obs-wiki-action-row' });
+		const copyCommand = commandAction.createEl('button', { text: ui('复制命令', 'Copy command') });
+		copyCommand.addEventListener('click', () => {
+			void this.plugin.copyToClipboard(snapshot.mcpCommand, ui('已复制 MCP 命令。', 'MCP command copied.'));
+		});
+
+		const configGrid = contentEl.createDiv({ cls: 'obs-wiki-config-grid' });
+		this.renderConfigCard(configGrid, 'Codex', snapshot.codexConfig);
+		this.renderConfigCard(configGrid, 'Claude', snapshot.claudeConfig);
+		this.renderConfigCard(configGrid, 'Cursor', snapshot.cursorConfig);
+		this.renderConfigCard(configGrid, ui('自定义', 'Custom'), snapshot.customConfig);
+
+		const agents = contentEl.createDiv({ cls: 'obs-wiki-card' });
+		agents.createEl('h3', { text: ui('最近出现的 Agent', 'Recently seen agents') });
+		if (snapshot.recentAgents.length === 0) {
+			this.renderEmptyState(
+				agents,
+				ui('还没有 Agent 连接记录。', 'No Agent connection records yet.'),
+				snapshot.missingAuditSources
+					? ui('未找到审计日志。Agent 连接 MCP 后，Runtime 会在 00_control/audit_log.md 写入连接事件。', 'No audit log found. Runtime writes connection events to 00_control/audit_log.md after an Agent connects.')
+					: ui('复制上方配置到 Codex、Claude、Cursor 或自定义 Agent，然后让它连接 obs-wiki MCP。', 'Copy a config above into Codex, Claude, Cursor, or a custom Agent, then connect it to obs-wiki MCP.')
+			);
+		} else {
+			const list = agents.createDiv({ cls: 'obs-wiki-table-list' });
+			for (const agent of snapshot.recentAgents) {
+				const row = list.createDiv({ cls: 'obs-wiki-table-row' });
+				row.createEl('strong', { text: agent.clientName || agent.agentId });
+				row.createEl('span', { text: agent.status });
+				row.createEl('span', { text: `${ui('最后出现', 'Last seen')}: ${this.plugin.formatDisplayTime(agent.sortTimestamp)}` });
+				row.createEl('span', { text: `${ui('最近工具', 'Last tool')}: ${agent.lastToolCall || ui('无', 'None')}` });
+				row.createEl('small', { text: `${agent.transport} • ${agent.permissionProfile}` });
+			}
+		}
+
+		const calls = contentEl.createDiv({ cls: 'obs-wiki-card' });
+		calls.createEl('h3', { text: ui('最近工具调用', 'Recent tool calls') });
+		if (snapshot.recentToolCalls.length === 0) {
+			this.renderEmptyState(
+				calls,
+				ui('还没有工具调用记录。', 'No tool calls recorded yet.'),
+				ui('Agent 调用 obs_wiki.* 工具后，这里会显示工具名、结果、风险等级和目标路径。', 'After an Agent calls obs_wiki.* tools, this panel shows tool name, result, risk level, and target paths.')
+			);
+		} else {
+			const timeline = calls.createDiv({ cls: 'obs-wiki-timeline' });
+			for (const call of snapshot.recentToolCalls) {
+				const row = timeline.createDiv({ cls: 'obs-wiki-timeline__item' });
+				row.createEl('div', { text: call.resultStatus, cls: 'obs-wiki-badge' });
+				const body = row.createDiv({ cls: 'obs-wiki-timeline__body' });
+				body.createEl('strong', { text: `${call.toolName} • ${this.plugin.formatDisplayTime(call.sortTimestamp)}` });
+				body.createEl('div', {
+					text: `${call.clientName || call.agentId} • ${ui('风险', 'Risk')}: ${call.riskLevel} • ${call.durationMs || '0'}ms`,
+					cls: 'obs-wiki-view__description',
+				});
+				if (call.targetPaths.length > 0) {
+					body.createEl('small', { text: call.targetPaths.join(', ') });
+				}
+				if (call.argsSummary) {
+					body.createEl('div', { text: this.plugin.trimText(call.argsSummary, 180) });
+				}
+			}
+		}
+
+		const policy = contentEl.createDiv({ cls: 'obs-wiki-card' });
+		policy.createEl('h3', { text: ui('权限矩阵摘要', 'Permission matrix summary') });
+		const matrix = policy.createDiv({ cls: 'obs-wiki-detail-grid' });
+		this.renderDetail(matrix, ui('默认', 'Default'), ui('只读', 'Read-only'));
+		this.renderDetail(matrix, ui('工作记录', 'Working records'), ui('受控写入', 'Controlled write'));
+		this.renderDetail(matrix, ui('长期记忆', 'Long-term memory'), ui('审核门控写回', 'Review-gated apply'));
+		this.renderDetail(matrix, ui('禁止', 'Forbidden'), ui('shell、vault 外路径、.obsidian、删除/批量重写', 'shell, vault-outside paths, .obsidian, delete/bulk rewrite'));
+	}
+
+	private renderConfigCard(container: HTMLElement, title: string, config: string): void {
+		const card = container.createDiv({ cls: 'obs-wiki-card obs-wiki-config-card' });
+		const header = card.createDiv({ cls: 'obs-wiki-card__header' });
+		header.createEl('strong', { text: title });
+		const copy = header.createEl('button', { text: ui('复制配置', 'Copy config') });
+		copy.addEventListener('click', () => {
+			void this.plugin.copyToClipboard(config, ui('已复制 MCP 配置。', 'MCP config copied.'));
+		});
+		card.createEl('pre', { text: config, cls: 'obs-wiki-code-block' });
+	}
+
+	private renderStatusItem(container: HTMLElement, label: string, value: string): void {
+		const item = container.createDiv({ cls: 'obs-wiki-status-pill' });
+		item.createEl('span', { text: label });
+		item.createEl('strong', { text: value });
+	}
+
+	private renderDetail(container: HTMLElement, label: string, value: string): void {
+		const item = container.createDiv({ cls: 'obs-wiki-detail' });
+		item.createEl('span', { text: label });
+		item.createEl('strong', { text: value });
+	}
+
+	private renderEmptyState(container: HTMLElement, title: string, detail: string): void {
+		const empty = container.createDiv({ cls: 'obs-wiki-empty-state' });
+		empty.createEl('strong', { text: title });
+		empty.createEl('p', { text: detail });
 	}
 }
 
@@ -2162,13 +2612,18 @@ class ObsWikiPermissionPolicyView extends ItemView {
 					'obs_wiki.list_source_requests',
 					'obs_wiki.list_approved_writebacks',
 					'obs_wiki.audit_recent',
+					'obs_wiki.build_context_pack (write=false)',
+					'obs_wiki.lint',
 				],
 			},
 			{
 				title: ui('低风险写入工具', 'Low-risk write tools'),
 				items: [
 					'obs_wiki.write_context_pack -> 06_outputs/context_packs/',
+					'obs_wiki.build_context_pack (write=true) -> 06_outputs/context_packs/',
 					'obs_wiki.write_session_note -> 02_timeline/sessions/',
+					'obs_wiki.finish_task -> 02_timeline/sessions/',
+					'obs_wiki.distill_session -> 02_timeline/sessions/ + 01_inbox/review_queue/',
 					'obs_wiki.capture_source -> 03_sources/',
 					'obs_wiki.propose_memory -> 01_inbox/review_queue/',
 					'obs_wiki.analyze_source_request -> source, analysis, proposal, request status, audit',
@@ -2277,6 +2732,23 @@ class ObsWikiSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.statusMessage = value;
 						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName(ui('MCP Server 路径', 'MCP server path'))
+			.setDesc(ui(
+				'Agent 连接中心生成配置时使用的 server.js 路径。',
+				'Path to server.js used by Agent Connection Center generated configs.'
+			))
+			.addText((text) =>
+				text
+					.setPlaceholder(DEFAULT_MCP_SERVER_PATH)
+					.setValue(this.plugin.settings.mcpServerPath)
+					.onChange(async (value) => {
+						this.plugin.settings.mcpServerPath = value.trim() || DEFAULT_MCP_SERVER_PATH;
+						await this.plugin.saveSettings();
+						await this.plugin.refreshGovernanceViews();
 					})
 			);
 

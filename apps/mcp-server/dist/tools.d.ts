@@ -2,7 +2,37 @@ import { McpToolDefinition, McpStructuredToolResult, McpPrompt } from './protoco
 interface ToolContext {
     defaultVaultRoot?: string;
 }
+export interface ToolInvocationContext extends ToolContext {
+    agentId?: string;
+    clientName?: string | null;
+    transport?: string;
+    runtimeVersion?: string;
+}
+interface ConnectionAuditEventInput {
+    agentId: string;
+    clientName: string | null;
+    transport: string;
+    runtimeVersion: string;
+}
+interface ToolCallAuditEventInput {
+    toolName: string;
+    resultStatus: 'success' | 'failed';
+    targetPaths: string[];
+    durationMs: number;
+    riskLevel: string;
+    agentId: string;
+    clientName: string | null;
+    transport?: string;
+    runtimeVersion?: string;
+    argsSummary: string;
+}
+export declare function appendConnectionAuditEvent(vaultRoot: string, input: ConnectionAuditEventInput): {
+    path: string;
+};
+export declare function recordToolCallAuditEvent(vaultRoot: string, input: ToolCallAuditEventInput): {
+    path: string;
+};
 export declare function toolDefinitions(): McpToolDefinition[];
 export declare function toolPrompts(): McpPrompt[];
-export declare function callTool(name: string, rawParams: unknown, context: ToolContext): McpStructuredToolResult;
+export declare function callTool(name: string, rawParams: unknown, context?: ToolInvocationContext): McpStructuredToolResult;
 export {};

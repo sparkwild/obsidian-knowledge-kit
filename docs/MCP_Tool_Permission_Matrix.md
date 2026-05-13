@@ -1,6 +1,17 @@
 # MCP Tool Permission Matrix
 
-This matrix defines the current MCP server boundary for the Obsidian-native and Agent-first product line. The server is read-only by default, then exposes a small allowlist of controlled write tools for working records. Protected memory writeback is review-gated and can only run through approved Review Queue proposals.
+This matrix defines the current MCP boundary for the Agent-first obs-wiki runtime.
+
+Runtime policy:
+
+- `obs-wiki` MCP is **read-only by default**.
+- A small set of **bounded write tools** is allowed for working records.
+- **review-gated apply** tools can only mutate protected memory via approved proposals.
+- All writes are vault-local and auditable, and all client-facing writes return `audit_path`.
+
+The MCP initialize instructions are:
+
+`read-only-by-default + controlled write + review-gated apply`
 
 ## Permission Levels
 
@@ -10,6 +21,35 @@ This matrix defines the current MCP server boundary for the Obsidian-native and 
 | `low-risk write` | Creates or updates bounded working records that do not directly mutate approved long-term memory. | May write only to allowlisted vault paths. Must audit writes. Must not delete, rename, or overwrite existing notes unless the tool explicitly says so. |
 | `review-gated apply` | Applies a user-approved proposal to protected memory or project decision notes. | Requires an approved Review Queue item and an audit event. Runtime executes the writeback, not the Obsidian plugin command surface. |
 | `forbidden` | Actions outside the obs-wiki Agent-first boundary. | Must not be exposed as MCP tools. |
+
+## Audit event schema
+
+### MCP Initialize connection event
+
+- `type: connection`
+- `event: connection`
+- `agent_id`
+- `client_name`
+- `transport`
+- `runtime_version`
+- `timestamp`
+
+### Tool-call event
+
+- `type: tool-call`
+- `event: tool-call`
+- `tool_name`
+- `result_status` (`success` / `failed`)
+- `target_paths`
+- `duration_ms`
+- `risk_level`
+- `agent_id`
+- `client_name`
+- `transport`
+- `runtime_version`
+- `timestamp`
+
+`args_summary` is included and must mask sensitive keys or values.
 
 ## Current Tool Matrix
 
@@ -33,6 +73,8 @@ This matrix defines the current MCP server boundary for the Obsidian-native and 
 | `obs_wiki.propose_memory` | `low-risk write` | Creates a Review Queue proposal and audit entry. | `01_inbox/review_queue/`, `00_control/audit_log.md`. | The proposal itself is created without review; applying it requires review. |
 | `obs_wiki.analyze_source_request` | `low-risk write` | Writes source note, analysis output, review proposals, request status, and audit entry. | `03_sources/`, `06_outputs/source_analysis/`, `01_inbox/review_queue/`, `01_inbox/agent_requests/`, `00_control/audit_log.md`. | Generated memory claims remain proposals until reviewed. |
 | `obs_wiki.apply_approved_writeback` | `review-gated apply` | Appends explicit approved writeback content to an existing target note, updates proposal status to `applied`, and writes an audit entry. | Existing target note named by `target_note`, source proposal under `01_inbox/review_queue/`, `00_control/audit_log.md`. | Requires `approval_status=approved` or `status=approved`, explicit `## Writeback` content, and a valid target note. |
+
+All write tools above must return `audit_path` in successful responses where a write action occurs.
 
 ## Forbidden Actions
 

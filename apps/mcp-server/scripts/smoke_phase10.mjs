@@ -20,6 +20,46 @@ function decodeResponse(line) {
 	}
 }
 
+function readAuditLog(vaultRoot) {
+	return fs.readFileSync(path.join(vaultRoot, '00_control/audit_log.md'), 'utf8');
+}
+
+function hasSectionWithValues(log, linesToMatch) {
+	return linesToMatch.every((needle) => log.includes(needle));
+}
+
+function assertToolCallEvent(log, toolName, status) {
+	const found = hasToolCallSection(log, toolName, status);
+	assert.ok(found, `tool-call event expected for ${toolName} with status ${status}`);
+}
+
+function hasToolCallSection(log, toolName, status, extraNeedles = []) {
+	const quotedToolName = JSON.stringify(toolName);
+	const quotedStatus = JSON.stringify(status);
+	const sections = log.split('\n## ').map((entry) => entry.trim());
+	for (const section of sections) {
+		if (!section) {
+			continue;
+		}
+		const hasType = section.includes('- type: tool-call');
+		const hasTool =
+			section.includes(`- tool_name: ${toolName}`) || section.includes(`- tool_name: ${quotedToolName}`);
+		const hasStatus =
+			section.includes(`- result_status: ${status}`) || section.includes(`- result_status: ${quotedStatus}`);
+		const extraMatch = extraNeedles.every((needle) => section.includes(needle));
+		if (hasType && hasTool && hasStatus && extraMatch) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function assertContainsNoSensitiveText(log, values) {
+	for (const value of values) {
+		assert.ok(!log.includes(value), `sensitive value should not appear in audit: ${value}`);
+	}
+}
+
 class McpTestClient {
 	constructor(vaultRoot) {
 		this.vaultRoot = vaultRoot;
@@ -195,6 +235,10 @@ async function main() {
 			},
 		});
 		assert.equal(initialize.capabilities.tools.listChanged, false);
+		const initAudit = readAuditLog(vaultRoot);
+		assert.ok(hasSectionWithValues(initAudit, ['- type: connection', '- event: connection', '- agent_id:']));
+		assert.ok(hasSectionWithValues(initAudit, ['- timestamp:']));
+		assert.ok(hasSectionWithValues(initAudit, ['- transport:']));
 
 		const tools = await client.call('tools/list');
 		ensureToolNames(tools, [
@@ -236,6 +280,37 @@ async function main() {
 		}));
 		assert.equal(readNote.ok, true);
 		assert.equal(readNote.path, '00_control/system.md');
+		const afterReadAudit = readAuditLog(vaultRoot);
+		assertToolCallEvent(afterReadAudit, 'obs_wiki.read_note', 'success');
+
+		const sensitiveText = 'SENSITIVE_TOKEN_123ABC456DEF';
+		await client.call('tools/call', {
+			name: 'obs_wiki.start_task',
+			arguments: {
+				goal: 'Smoke sensitive summary',
+				client: 'agent-smoke',
+				api_key: sensitiveText,
+				authorization: `Bearer ${sensitiveText}`,
+				secret: `secret_${sensitiveText}`,
+				password: `pwd_${sensitiveText}`,
+				cookie: `cookie=${sensitiveText}`,
+				token: `token_${sensitiveText}`,
+			},
+		});
+
+		const afterSensitiveAudit = readAuditLog(vaultRoot);
+		assertToolCallEvent(afterSensitiveAudit, 'obs_wiki.start_task', 'success');
+		assertContainsNoSensitiveText(afterSensitiveAudit, [
+			sensitiveText,
+			`secret_${sensitiveText}`,
+			`pwd_${sensitiveText}`,
+			`cookie=${sensitiveText}`,
+			`token_${sensitiveText}`,
+		]);
+		assert.ok(
+			hasToolCallSection(afterSensitiveAudit, 'obs_wiki.start_task', 'success', ['- args_summary:']),
+			'tool-call should include args summary field'
+		);
 
 		const writeContext = buildStructured(await client.call('tools/call', {
 			name: 'obs_wiki.write_context_pack',
@@ -353,6 +428,8 @@ async function main() {
 			/Path traversal is not allowed/,
 			'should reject writes outside vault'
 		);
+		const afterFailureAudit = readAuditLog(vaultRoot);
+		assertToolCallEvent(afterFailureAudit, 'obs_wiki.write_context_pack', 'failed');
 
 		const analyze = buildStructured(await client.call('tools/call', {
 			name: 'obs_wiki.analyze_source_request',

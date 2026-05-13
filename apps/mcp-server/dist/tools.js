@@ -3,6 +3,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.appendConnectionAuditEvent = appendConnectionAuditEvent;
+exports.recordToolCallAuditEvent = recordToolCallAuditEvent;
 exports.toolDefinitions = toolDefinitions;
 exports.toolPrompts = toolPrompts;
 exports.callTool = callTool;
@@ -24,6 +26,39 @@ const SOURCES_DIR = '03_sources';
 const SOURCE_ANALYSIS_REPORT_DIR = '06_outputs/source_analysis';
 const MEMORY_PROPOSAL_DIR = '01_inbox/review_queue';
 const MAX_SOURCE_EXCERPT_LENGTH = 1000;
+const READ_ONLY_TOOL_NAMES = new Set([
+    'obs_wiki.status',
+    'obs_wiki.start_task',
+    'obs_wiki.recall',
+    'obs_wiki.read_note',
+    'obs_wiki.list_review_queue',
+    'obs_wiki.list_source_requests',
+    'obs_wiki.list_approved_writebacks',
+    'obs_wiki.audit_recent',
+    'obs_wiki.lint',
+]);
+const REVIEW_GATED_TOOL_NAMES = new Set(['obs_wiki.apply_approved_writeback']);
+const LOW_RISK_TOOL_NAMES = new Set([
+    'obs_wiki.analyze_source_request',
+    'obs_wiki.write_context_pack',
+    'obs_wiki.build_context_pack',
+    'obs_wiki.finish_task',
+    'obs_wiki.distill_session',
+    'obs_wiki.write_session_note',
+    'obs_wiki.capture_source',
+    'obs_wiki.propose_memory',
+]);
+const SENSITIVE_KEY_PATTERNS = [
+    /token/i,
+    /secret/i,
+    /api[_-]?key/i,
+    /password/i,
+    /cookie/i,
+    /authorization/i,
+    /access[_-]?token/i,
+    /refresh[_-]?token/i,
+];
+const MAX_ARGS_SUMMARY_LENGTH = 512;
 function toolResult(payload, isError = false) {
     return {
         content: [
@@ -693,13 +728,64 @@ function ensureAuditLog(vaultRoot) {
 }
 function appendAuditEvent(vaultRoot, input) {
     const audit = ensureAuditLog(vaultRoot);
+    const eventName = input.type || 'tool-call';
+    const eventType = input.event || eventName;
+    const toolName = input.tool || input.tool || 'unknown';
+    const timestamp = input.timestamp || new Date().toISOString();
+    const targetPaths = normalizeAuditTargets(input.targetPath ? [input.targetPath] : input.targetPaths || []);
     const eventLines = [
-        `## ${new Date().toISOString()} ${input.tool}`,
-        `- status: ${input.status}`,
-        `- target_path: ${input.targetPath}`,
+        `## ${new Date().toISOString()} ${eventName}`,
+        `- type: ${eventName}`,
+        `- event: ${eventType}`,
     ];
+    if (timestamp) {
+        eventLines.push(`- timestamp: ${sanitizeYamlValue(timestamp)}`);
+    }
+    if (input.agentId) {
+        eventLines.push(`- agent_id: ${sanitizeYamlValue(input.agentId)}`);
+    }
+    if (input.clientName !== undefined) {
+        eventLines.push(`- client_name: ${sanitizeYamlValue(input.clientName || null)}`);
+    }
+    if (input.actor) {
+        eventLines.push(`- actor: ${sanitizeYamlValue(input.actor)}`);
+    }
+    if (input.action) {
+        eventLines.push(`- action: ${sanitizeYamlValue(input.action)}`);
+    }
+    eventLines.push(`- tool_name: ${sanitizeYamlValue(toolName)}`);
+    if (input.resultStatus) {
+        eventLines.push(`- result_status: ${sanitizeYamlValue(input.resultStatus)}`);
+    }
+    if (input.status) {
+        eventLines.push(`- status: ${sanitizeYamlValue(input.status)}`);
+    }
     if (input.taskId) {
-        eventLines.push(`- task_id: ${input.taskId}`);
+        eventLines.push(`- task_id: ${sanitizeYamlValue(input.taskId)}`);
+    }
+    if (targetPaths.length > 0) {
+        eventLines.push(`- target_paths:`);
+        for (const item of targetPaths) {
+            eventLines.push(`  - ${sanitizeYamlValue(item)}`);
+        }
+    }
+    else {
+        eventLines.push('- target_paths: []');
+    }
+    if (input.argsSummary !== undefined && input.argsSummary !== '') {
+        eventLines.push(`- args_summary: ${sanitizeYamlValue(input.argsSummary)}`);
+    }
+    if (input.durationMs !== undefined) {
+        eventLines.push(`- duration_ms: ${input.durationMs}`);
+    }
+    if (input.riskLevel) {
+        eventLines.push(`- risk_level: ${sanitizeYamlValue(input.riskLevel)}`);
+    }
+    if (input.transport) {
+        eventLines.push(`- transport: ${sanitizeYamlValue(input.transport)}`);
+    }
+    if (input.runtimeVersion) {
+        eventLines.push(`- runtime_version: ${sanitizeYamlValue(input.runtimeVersion)}`);
     }
     if (input.warnings && input.warnings.length > 0) {
         eventLines.push(`- warnings: ${JSON.stringify(input.warnings)}`);
@@ -712,6 +798,205 @@ function appendAuditEvent(vaultRoot, input) {
     }
     node_fs_1.default.appendFileSync(audit.absolute, `${eventLines.join('\n')}\n\n`);
     return { path: audit.relative };
+}
+function normalizeAuditTargets(paths) {
+    const result = [];
+    for (const candidate of paths) {
+        const trimmed = candidate.trim();
+        if (!trimmed) {
+            continue;
+        }
+        if (!result.includes(trimmed)) {
+            result.push(trimmed);
+        }
+    }
+    return result;
+}
+function isSensitiveKey(key) {
+    return SENSITIVE_KEY_PATTERNS.some((pattern) => pattern.test(key));
+}
+function looksLikeSensitiveValue(value) {
+    return !scanSensitiveText(value).ok;
+}
+function summarizeForAudit(args, limit = MAX_ARGS_SUMMARY_LENGTH) {
+    const summary = {};
+    function summarize(value, keyHint = '', depth = 0) {
+        if (depth > 2) {
+            if (value === null || value === undefined) {
+                return value;
+            }
+            if (typeof value === 'string') {
+                return value.length > 80 ? `${value.slice(0, 77)}...` : value;
+            }
+            if (typeof value === 'number' || typeof value === 'boolean') {
+                return value;
+            }
+            return '[object]';
+        }
+        if (isSensitiveKey(keyHint) || (typeof value === 'string' && looksLikeSensitiveValue(value))) {
+            return '[redacted]';
+        }
+        if (Array.isArray(value)) {
+            return value.slice(0, 10).map((entry, entryIndex) => summarize(entry, `${keyHint}[${entryIndex}]`, depth + 1));
+        }
+        if (value === null || value === undefined) {
+            return value;
+        }
+        if (typeof value === 'string') {
+            const text = value.trim();
+            return text.length > 180 ? `${text.slice(0, 177)}...` : text;
+        }
+        if (typeof value === 'number' || typeof value === 'boolean') {
+            return value;
+        }
+        if (typeof value === 'object') {
+            const nested = {};
+            for (const [nestedKey, nestedValue] of Object.entries(value)) {
+                nested[nestedKey] = summarize(nestedValue, nestedKey, depth + 1);
+            }
+            return nested;
+        }
+        return String(value);
+    }
+    for (const [key, value] of Object.entries(args)) {
+        summary[key] = summarize(value, key, 0);
+    }
+    const text = JSON.stringify(summary);
+    return text.length <= limit ? text : `${text.slice(0, limit - 3)}...`;
+}
+function collectAuditTargetsFromArgs(toolName, args) {
+    const targets = new Set();
+    const explicitPathKeys = ['path', 'request_path', 'proposal_path', 'target_note', 'source', 'source_path'];
+    for (const key of explicitPathKeys) {
+        const value = args[key];
+        if (typeof value === 'string' && value.trim()) {
+            targets.add(value.trim());
+        }
+    }
+    return Array.from(targets).filter(Boolean);
+}
+function collectAuditTargetsFromResult(toolName, args, resultPayload) {
+    const targets = new Set(collectAuditTargetsFromArgs(toolName, args));
+    if ((0, protocol_1.isRecord)(resultPayload)) {
+        const candidateKeys = ['path', 'target_note', 'proposal_path', 'source_note', 'report', 'audit_path'];
+        for (const key of candidateKeys) {
+            const value = resultPayload[key];
+            if (typeof value === 'string' && value.trim()) {
+                targets.add(value.trim());
+            }
+        }
+        if ((0, protocol_1.isRecord)(resultPayload.source_note)) {
+            const sourcePath = resultPayload.source_note.path;
+            if (typeof sourcePath === 'string' && sourcePath.trim()) {
+                targets.add(sourcePath.trim());
+            }
+        }
+        if ((0, protocol_1.isRecord)(resultPayload.report)) {
+            const reportPath = resultPayload.report.path;
+            if (typeof reportPath === 'string' && reportPath.trim()) {
+                targets.add(reportPath.trim());
+            }
+        }
+        if (Array.isArray(resultPayload.touched_notes)) {
+            for (const entry of resultPayload.touched_notes) {
+                if (typeof entry === 'string' && entry.trim()) {
+                    targets.add(entry.trim());
+                }
+            }
+        }
+        if (Array.isArray(resultPayload.proposals)) {
+            for (const proposal of resultPayload.proposals) {
+                if ((0, protocol_1.isRecord)(proposal)) {
+                    const pathValue = proposal.path;
+                    if (typeof pathValue === 'string' && pathValue.trim()) {
+                        targets.add(pathValue.trim());
+                    }
+                }
+            }
+        }
+        if (Array.isArray(resultPayload.steps)) {
+            for (const step of resultPayload.steps) {
+                if (typeof step === 'string' && step.trim()) {
+                    targets.add(step.trim());
+                }
+            }
+        }
+    }
+    return normalizeAuditTargets(Array.from(targets).filter(Boolean));
+}
+function getToolRiskLevel(toolName) {
+    if (REVIEW_GATED_TOOL_NAMES.has(toolName)) {
+        return 'review-gated apply';
+    }
+    if (READ_ONLY_TOOL_NAMES.has(toolName)) {
+        return 'read-only';
+    }
+    if (LOW_RISK_TOOL_NAMES.has(toolName)) {
+        return 'low-risk write';
+    }
+    return 'low-risk write';
+}
+function resolveAuditVaultRoot(args, context) {
+    const explicit = coerceOptionalString(args.vaultRoot);
+    if (explicit) {
+        try {
+            return (0, safety_1.toSafeVaultRoot)(explicit);
+        }
+        catch {
+            return null;
+        }
+    }
+    if (typeof context.defaultVaultRoot === 'string' && context.defaultVaultRoot.trim()) {
+        return context.defaultVaultRoot;
+    }
+    return null;
+}
+function isToolResultFailure(result) {
+    if (result.isError) {
+        return true;
+    }
+    const payload = result.structuredContent;
+    if ((0, protocol_1.isRecord)(payload) && typeof payload.isError === 'boolean') {
+        return payload.isError;
+    }
+    if ((0, protocol_1.isRecord)(payload) && typeof payload.ok === 'boolean') {
+        return payload.ok === false;
+    }
+    return false;
+}
+function appendConnectionAuditEvent(vaultRoot, input) {
+    const now = new Date().toISOString();
+    return appendAuditEvent(vaultRoot, {
+        type: 'connection',
+        event: 'connection',
+        action: 'connection',
+        actor: input.agentId,
+        timestamp: now,
+        agentId: input.agentId,
+        clientName: input.clientName,
+        transport: input.transport,
+        runtimeVersion: input.runtimeVersion,
+    });
+}
+function recordToolCallAuditEvent(vaultRoot, input) {
+    const now = new Date().toISOString();
+    return appendAuditEvent(vaultRoot, {
+        type: 'tool-call',
+        event: 'tool-call',
+        action: 'tool-call',
+        actor: input.agentId,
+        timestamp: now,
+        tool: input.toolName,
+        agentId: input.agentId,
+        clientName: input.clientName,
+        resultStatus: input.resultStatus,
+        targetPaths: input.targetPaths,
+        durationMs: input.durationMs,
+        riskLevel: input.riskLevel,
+        transport: input.transport,
+        runtimeVersion: input.runtimeVersion,
+        argsSummary: input.argsSummary,
+    });
 }
 function makeToolResultForWrite(tool, payload) {
     return {
@@ -1275,61 +1560,121 @@ function toolPrompts() {
         { name: 'obs-wiki Recall Memory', title: 'obs-wiki Recall Memory', description: 'Generate matching notes for fast recall.' },
     ];
 }
-function callTool(name, rawParams, context) {
+function callTool(name, rawParams, context = {}) {
     if (!(0, protocol_1.isRecord)(rawParams)) {
         return toolError('Tool arguments must be an object.');
     }
+    const requestName = typeof name === 'string' ? name.trim() : '';
+    if (!requestName) {
+        return toolError('Tool name is required.');
+    }
+    const args = rawParams;
+    const startTime = Date.now();
+    const agentId = context.agentId || 'unknown session id';
+    const clientName = context.clientName ?? null;
+    const auditVaultRoot = resolveAuditVaultRoot(args, context);
+    let toolResult = toolError(`Unknown tool: ${requestName}`);
+    let status = 'failed';
+    const toolName = requestName || 'unknown';
+    const argsSummary = summarizeForAudit(args);
     try {
-        switch (name) {
+        switch (requestName) {
             case 'obs_wiki.status':
-                return toolResult(handleStatus(rawParams, context));
+                toolResult = toolResultWithError(handleStatus(args, context));
+                break;
             case 'obs_wiki.start_task':
-                return toolResult(handleStartTask(rawParams, context));
+                toolResult = toolResultWithError(handleStartTask(args, context));
+                break;
             case 'obs_wiki.recall':
-                return toolResult(handleRecall(rawParams, context));
+                toolResult = toolResultWithError(handleRecall(args, context));
+                break;
             case 'obs_wiki.read_note':
-                return toolResult(handleReadNote(rawParams, context));
+                toolResult = toolResultWithError(handleReadNote(args, context));
+                break;
             case 'obs_wiki.list_review_queue':
-                return toolResult(handleReviewQueue(rawParams, context));
+                toolResult = toolResultWithError(handleReviewQueue(args, context));
+                break;
             case 'obs_wiki.list_source_requests':
-                return toolResult(handleListSourceRequests(rawParams, context));
+                toolResult = toolResultWithError(handleListSourceRequests(args, context));
+                break;
             case 'obs_wiki.list_approved_writebacks':
-                return toolResult(handleListApprovedWritebacks(rawParams, context));
+                toolResult = toolResultWithError(handleListApprovedWritebacks(args, context));
+                break;
             case 'obs_wiki.audit_recent':
-                return toolResult(handleAuditRecent(rawParams, context));
+                toolResult = toolResultWithError(handleAuditRecent(args, context));
+                break;
             case 'obs_wiki.analyze_source_request':
-                return toolResult(handleAnalyzeSourceRequest(rawParams, context));
+                toolResult = toolResultWithError(handleAnalyzeSourceRequest(args, context));
+                break;
             case 'obs_wiki.apply_approved_writeback':
-                return toolResult(handleApplyApprovedWriteback(rawParams, context));
+                toolResult = toolResultWithError(handleApplyApprovedWriteback(args, context));
+                break;
             case 'obs_wiki.build_context_pack':
-                return toolResult(handleBuildContextPack(rawParams, context));
+                toolResult = toolResultWithError(handleBuildContextPack(args, context));
+                break;
             case 'obs_wiki.lint':
-                return toolResult(handleLint(rawParams, context));
+                toolResult = toolResultWithError(handleLint(args, context));
+                break;
             case 'obs_wiki.finish_task':
-                return toolResult(handleFinishTask(rawParams, context));
+                toolResult = toolResultWithError(handleFinishTask(args, context));
+                break;
             case 'obs_wiki.distill_session':
-                return toolResult(handleDistillSession(rawParams, context));
+                toolResult = toolResultWithError(handleDistillSession(args, context));
+                break;
             case 'obs_wiki.write_context_pack':
-                return toolResult(handleWriteContextPack(rawParams, context));
+                toolResult = toolResultWithError(handleWriteContextPack(args, context));
+                break;
             case 'obs_wiki.write_session_note':
-                return toolResult(handleWriteSessionNote(rawParams, context));
+                toolResult = toolResultWithError(handleWriteSessionNote(args, context));
+                break;
             case 'obs_wiki.capture_source':
-                return toolResult(handleCaptureSource(rawParams, context));
+                toolResult = toolResultWithError(handleCaptureSource(args, context));
+                break;
             case 'obs_wiki.propose_memory':
-                return toolResult(handleProposeMemory(rawParams, context));
+                toolResult = toolResultWithError(handleProposeMemory(args, context));
+                break;
             default:
-                return toolError(`Unknown tool: ${name}`);
+                toolResult = toolError(`Unknown tool: ${requestName}`);
         }
+        status = isToolResultFailure(toolResult) ? 'failed' : 'success';
     }
     catch (error) {
         if (error instanceof safety_1.ToolInputError || error instanceof core_1.VaultPathError) {
-            return toolError(error.message);
+            toolResult = toolError(error.message);
         }
-        if (error instanceof Error) {
-            return toolError(error.message);
+        else if (error instanceof Error) {
+            toolResult = toolError(error.message);
         }
-        return toolError('Unknown tool error.');
+        else {
+            toolResult = toolError('Unknown tool error.');
+        }
+        status = 'failed';
     }
+    finally {
+        if (auditVaultRoot) {
+            try {
+                recordToolCallAuditEvent(auditVaultRoot, {
+                    toolName,
+                    resultStatus: status,
+                    targetPaths: collectAuditTargetsFromResult(requestName, args, toolResult.structuredContent),
+                    durationMs: Date.now() - startTime,
+                    riskLevel: getToolRiskLevel(requestName),
+                    agentId,
+                    clientName,
+                    transport: context.transport,
+                    runtimeVersion: context.runtimeVersion,
+                    argsSummary,
+                });
+            }
+            catch {
+                // Tool-call audit writes are best effort.
+            }
+        }
+    }
+    return toolResult;
+}
+function toolResultWithError(value) {
+    return toolResult(value);
 }
 function handleStatus(rawArgs, context) {
     const vaultRoot = vaultRootFromArgs(rawArgs, context);
@@ -1657,9 +2002,10 @@ function handleAnalyzeSourceRequest(rawArgs, context) {
             });
             return proposalNote.path;
         });
+        let auditPathForReturn = sourceNote.audit_path;
         if (updateStatus) {
             updateRequestStatus(vaultRoot, request.path, 'completed');
-            appendAuditEvent(vaultRoot, {
+            auditPathForReturn = appendAuditEvent(vaultRoot, {
                 tool: 'obs_wiki.analyze_source_request',
                 targetPath: request.path,
                 status: 'written',
@@ -1670,7 +2016,7 @@ function handleAnalyzeSourceRequest(rawArgs, context) {
                     source_report: report.path,
                     proposals: proposalPaths.join(','),
                 },
-            });
+            }).path;
         }
         return {
             ok: true,
@@ -1689,6 +2035,7 @@ function handleAnalyzeSourceRequest(rawArgs, context) {
                 audit_path: report.audit_path,
             },
             proposals: proposalPaths.map((proposalPath) => ({ path: proposalPath })),
+            audit_path: auditPathForReturn,
             summary: analysis.summary,
             warnings,
         };

@@ -6,9 +6,17 @@ import {
 	RpcError,
 	isRecord,
 } from './protocol';
-import { callTool, toolDefinitions, toolPrompts } from './tools';
+import {
+	callTool,
+	toolDefinitions,
+	toolPrompts,
+	appendConnectionAuditEvent,
+	type ToolInvocationContext,
+} from './tools';
 
 const PROTOCOL_VERSION = '2025-06-18';
+const SERVER_VERSION = '0.1.0';
+const DEFAULT_TRANSPORT = 'stdio';
 
 interface ResourcesResource {
 	uri: string;
@@ -62,9 +70,13 @@ interface ServerConfig {
 
 class StdioMcpServer {
 	private defaultVaultRoot?: string;
+	private runtimeVersion: string;
+	private connectionAgentId = 'unknown session id';
+	private connectionClientName: string | null = null;
 
 	constructor(config: ServerConfig) {
 		this.defaultVaultRoot = config.defaultVaultRoot;
+		this.runtimeVersion = SERVER_VERSION;
 	}
 
 	public run(): void {
@@ -156,6 +168,7 @@ class StdioMcpServer {
 	private dispatch(method: string, params: Record<string, unknown>): unknown {
 		switch (method) {
 			case 'initialize':
+				this.captureConnection(params);
 				return {
 					protocolVersion: PROTOCOL_VERSION,
 					capabilities: {
@@ -165,11 +178,11 @@ class StdioMcpServer {
 					},
 					serverInfo: {
 						name: 'obs-wiki-mcp-server',
-						title: 'obs-wiki MCP Server (read-only default + controlled write)',
-						version: '0.1.0',
+						title: 'obs-wiki MCP Server (read-only default + controlled write + review-gated apply)',
+						version: this.runtimeVersion,
 					},
 					instructions:
-						'This MCP server is read-only by default and supports controlled write tools for low-risk working records. All reads and writes are scoped to vault-local paths, reject vault-outside or .obsidian access, and protected memory writeback remains review-gated.',
+						'This MCP server is read-only-by-default; controlled write tools are allowed for bounded working records, and review-gated apply requires approved proposals before protected writeback. All reads and writes are vault-local only, reject vault-outside or .obsidian access, and sensitive payloads are never persisted in audit events.',
 				};
 			case 'tools/list':
 				return { tools: toolDefinitions() };
@@ -197,7 +210,85 @@ class StdioMcpServer {
 		if (!isRecord(argumentsValue)) {
 			throw new RpcError({ code: -32602, message: '`arguments` must be an object.' });
 		}
-		return callTool(name, argumentsValue, { defaultVaultRoot: this.defaultVaultRoot });
+		const toolInvocationContext: ToolInvocationContext = {
+			defaultVaultRoot: this.defaultVaultRoot,
+			agentId: this.connectionAgentId,
+			clientName: this.connectionClientName,
+			transport: DEFAULT_TRANSPORT,
+			runtimeVersion: this.runtimeVersion,
+		};
+		return callTool(name, argumentsValue, toolInvocationContext);
+	}
+
+	private captureConnection(params: Record<string, unknown>): void {
+		if (!this.defaultVaultRoot) {
+			return;
+		}
+
+		this.connectionAgentId = this.extractAgentIdFromInitialize(params);
+		this.connectionClientName = this.extractClientNameFromInitialize(params);
+
+		try {
+			appendConnectionAuditEvent(this.defaultVaultRoot, {
+				agentId: this.connectionAgentId,
+				clientName: this.connectionClientName,
+				transport: DEFAULT_TRANSPORT,
+				runtimeVersion: this.runtimeVersion,
+			});
+		} catch {
+			// Best-effort audit writes should never fail initialize.
+		}
+	}
+
+	private extractAgentIdFromInitialize(params: Record<string, unknown>): string {
+		const clientInfo = isRecord(params.clientInfo) ? (params.clientInfo as Record<string, unknown>) : {};
+		const meta = isRecord(params.meta) ? (params.meta as Record<string, unknown>) : {};
+		const candidates = [
+			params.agent_id,
+			params.agentId,
+			params.session_id,
+			params.sessionId,
+			params.client_name,
+			params.clientName,
+			clientInfo.agent_id,
+			clientInfo.agentId,
+			clientInfo.session_id,
+			clientInfo.sessionId,
+			clientInfo.client_name,
+			clientInfo.clientName,
+			meta.agent_id,
+			meta.agentId,
+			meta.session_id,
+			meta.sessionId,
+		];
+
+		for (const candidate of candidates) {
+			if (typeof candidate === 'string' && candidate.trim() !== '') {
+				return candidate.trim();
+			}
+		}
+
+		return 'unknown session id';
+	}
+
+	private extractClientNameFromInitialize(params: Record<string, unknown>): string | null {
+		const clientInfo = isRecord(params.clientInfo) ? (params.clientInfo as Record<string, unknown>) : {};
+		const names = [
+			params.name,
+			params.client_name,
+			params.clientName,
+			clientInfo.name,
+			clientInfo.client_name,
+			clientInfo.clientName,
+		];
+
+		for (const name of names) {
+			if (typeof name === 'string' && name.trim() !== '') {
+				return name.trim();
+			}
+		}
+
+		return null;
 	}
 
 	private errorResponse(id: number | string | null, code: number, message: string, data?: unknown): JsonRpcResponse {

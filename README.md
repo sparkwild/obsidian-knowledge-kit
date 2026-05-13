@@ -10,7 +10,7 @@ The current product line is Obsidian-native and Agent-first. Agent clients are t
 
 - Product name: `obs-wiki`.
 - Plugin id: `obs-wiki`.
-- Obsidian plugin display name: `Wiki Console` (`知识库控制台` in Chinese UI).
+- Obsidian plugin display name: `obs-wiki`.
 - Main product surface: Agent operation entry plus Obsidian governance plugin.
 - Agent interface: MCP tools, resources, and prompts.
 - Memory carrier: Obsidian vault notes, Properties, wikilinks, block references, review queues, and audit logs.
@@ -47,7 +47,7 @@ Before the plugin is listed in the official Obsidian community plugin directory,
 1. Install and enable `BRAT` in Obsidian.
 2. Run `BRAT: Add a beta plugin for testing`.
 3. Enter `sparkwild/obs-wiki`.
-4. Enable `Wiki Console` in `Settings -> Community plugins`.
+4. Enable `obs-wiki` in `Settings -> Community plugins`.
 
 If the repository or release is private for your account, use the manual release-asset install path below.
 
@@ -62,8 +62,8 @@ If the repository or release is private for your account, use the manual release
 
 3. Place the three downloaded files in `.obsidian/plugins/obs-wiki/`.
 4. Restart Obsidian or reload community plugins.
-5. Enable `Wiki Console` in `Settings -> Community plugins`.
-6. Open the command palette and run `Wiki Console: Open agent activity` or `Wiki Console: 打开 Agent 活动`, depending on the Obsidian language.
+5. Enable `obs-wiki` in `Settings -> Community plugins`.
+6. Open the command palette and run `obs-wiki: Open agent activity` or `obs-wiki: 打开 Agent 活动`, depending on the Obsidian language.
 
 ### Local Development Install
 
@@ -96,7 +96,7 @@ obsidian plugin:reload id=obs-wiki
 obsidian dev:errors
 ```
 
-The installed plugin should report id `obs-wiki`, name `Wiki Console`, version `0.1.3`, and no developer console errors after reload.
+The installed plugin should report id `obs-wiki`, name `obs-wiki`, version `0.1.3`, and no developer console errors after reload.
 
 ## Desktop And Mobile Declaration
 

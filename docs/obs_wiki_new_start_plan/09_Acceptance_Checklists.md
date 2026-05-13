@@ -2,7 +2,7 @@
 
 ## 全局验收
 
-- [x] 插件 id 统一为 `obs-wiki`，展示名为 `Wiki Console` / `知识库控制台`。
+- [x] 插件 id 和展示名统一为 `obs-wiki`。
 - [x] 不再使用 VaultThread 作为名称。
 - [x] 新方向不是 Codex plugin-first。
 - [x] Obsidian vault 是唯一知识和记忆载体。
@@ -18,7 +18,7 @@
 
 - [x] `apps/obsidian-plugin/manifest.json` 存在。
 - [x] 插件 id 是 `obs-wiki`。
-- [x] 插件展示名是 `Wiki Console`。
+- [x] 插件展示名是 `obs-wiki`。
 - [x] 插件可构建。
 - [x] 插件可加载。
 - [x] SettingsTab 可保存配置。

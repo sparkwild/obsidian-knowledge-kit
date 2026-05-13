@@ -24,8 +24,7 @@ obs-wiki Obsidian 插件是：
 
 ```text
 Plugin ID: obs-wiki
-Display Name: Wiki Console
-Chinese UI Name: 知识库控制台
+Display Name: obs-wiki
 ```
 
 ## 核心界面
@@ -143,34 +142,34 @@ Chinese UI Name: 知识库控制台
 ## Command Palette 命令
 
 ```text
-Wiki Console: Open Agent Activity
-Wiki Console: Open Review Queue
-Wiki Console: Open Memory Inspector
-Wiki Console: Open Audit Log
-Wiki Console: Open Runtime Status
-Wiki Console: Open Permission Policy
-Wiki Console: Refresh Views
-Wiki Console: Approve Selected Proposal
-Wiki Console: Reject Selected Proposal
-Wiki Console: Defer Selected Proposal
-Wiki Console: Request Revision for Selected Proposal
-Wiki Console: Apply Approved Writeback
+obs-wiki: Open Agent Activity
+obs-wiki: Open Review Queue
+obs-wiki: Open Memory Inspector
+obs-wiki: Open Audit Log
+obs-wiki: Open Runtime Status
+obs-wiki: Open Permission Policy
+obs-wiki: Refresh Views
+obs-wiki: Approve Selected Proposal
+obs-wiki: Reject Selected Proposal
+obs-wiki: Defer Selected Proposal
+obs-wiki: Request Revision for Selected Proposal
+obs-wiki: Apply Approved Writeback
 ```
 
 明确取消的命令：
 
 ```text
-Wiki Console: Analyze URL
-Wiki Console: Analyze Local File
-Wiki Console: Analyze Current Note
-Wiki Console: Analyze Selection
-Wiki Console: Capture Source
-Wiki Console: Add Source to Inbox
-Wiki Console: Build Context Pack
-Wiki Console: Run Ingest
-Wiki Console: Run Lint
-Wiki Console: Distill Session
-Wiki Console: Create Agent Request
+obs-wiki: Analyze URL
+obs-wiki: Analyze Local File
+obs-wiki: Analyze Current Note
+obs-wiki: Analyze Selection
+obs-wiki: Capture Source
+obs-wiki: Add Source to Inbox
+obs-wiki: Build Context Pack
+obs-wiki: Run Ingest
+obs-wiki: Run Lint
+obs-wiki: Distill Session
+obs-wiki: Create Agent Request
 ```
 
 ## Ribbon 按钮

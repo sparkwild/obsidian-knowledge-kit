@@ -47,6 +47,71 @@ interface ToolContext {
 	defaultVaultRoot?: string;
 }
 
+export interface ToolInvocationContext extends ToolContext {
+	agentId?: string;
+	clientName?: string | null;
+	transport?: string;
+	runtimeVersion?: string;
+}
+
+interface ConnectionAuditEventInput {
+	agentId: string;
+	clientName: string | null;
+	transport: string;
+	runtimeVersion: string;
+}
+
+interface ToolCallAuditEventInput {
+	toolName: string;
+	resultStatus: 'success' | 'failed';
+	targetPaths: string[];
+	durationMs: number;
+	riskLevel: string;
+	agentId: string;
+	clientName: string | null;
+	transport?: string;
+	runtimeVersion?: string;
+	argsSummary: string;
+}
+
+const READ_ONLY_TOOL_NAMES = new Set([
+	'obs_wiki.status',
+	'obs_wiki.start_task',
+	'obs_wiki.recall',
+	'obs_wiki.read_note',
+	'obs_wiki.list_review_queue',
+	'obs_wiki.list_source_requests',
+	'obs_wiki.list_approved_writebacks',
+	'obs_wiki.audit_recent',
+	'obs_wiki.lint',
+]);
+
+const REVIEW_GATED_TOOL_NAMES = new Set(['obs_wiki.apply_approved_writeback']);
+
+const LOW_RISK_TOOL_NAMES = new Set([
+	'obs_wiki.analyze_source_request',
+	'obs_wiki.write_context_pack',
+	'obs_wiki.build_context_pack',
+	'obs_wiki.finish_task',
+	'obs_wiki.distill_session',
+	'obs_wiki.write_session_note',
+	'obs_wiki.capture_source',
+	'obs_wiki.propose_memory',
+]);
+
+const SENSITIVE_KEY_PATTERNS = [
+	/token/i,
+	/secret/i,
+	/api[_-]?key/i,
+	/password/i,
+	/cookie/i,
+	/authorization/i,
+	/access[_-]?token/i,
+	/refresh[_-]?token/i,
+];
+
+const MAX_ARGS_SUMMARY_LENGTH = 512;
+
 interface ToolArgs {
 	vaultRoot?: unknown;
 }
@@ -189,11 +254,25 @@ interface SourceRequestRecord {
 }
 
 interface AuditEventInput {
-	tool: string;
-	targetPath: string;
-	status: 'written' | 'skipped' | 'failed';
+	type?: string;
+	event?: string;
+	tool?: string;
+	action?: string;
+	actor?: string;
+	timestamp?: string;
+	targetPath?: string;
+	targetPaths?: string[];
+	resultStatus?: 'written' | 'skipped' | 'failed' | 'success';
+	status?: 'written' | 'skipped' | 'failed' | 'success';
+	agentId?: string;
+	clientName?: string | null;
 	taskId?: string | null;
 	warnings?: string[];
+	durationMs?: number;
+	riskLevel?: string;
+	transport?: string;
+	runtimeVersion?: string;
+	argsSummary?: string;
 	metadata?: Record<string, unknown>;
 }
 
@@ -1002,13 +1081,65 @@ function ensureAuditLog(vaultRoot: string): { absolute: string; relative: string
 
 function appendAuditEvent(vaultRoot: string, input: AuditEventInput): AuditEventOutput {
 	const audit = ensureAuditLog(vaultRoot);
+	const eventName = input.type || 'tool-call';
+	const eventType = input.event || eventName;
+	const toolName = input.tool || input.tool || 'unknown';
+	const timestamp = input.timestamp || new Date().toISOString();
+	const targetPaths = normalizeAuditTargets(input.targetPath ? [input.targetPath] : input.targetPaths || []);
+
 	const eventLines = [
-		`## ${new Date().toISOString()} ${input.tool}`,
-		`- status: ${input.status}`,
-		`- target_path: ${input.targetPath}`,
+		`## ${new Date().toISOString()} ${eventName}`,
+		`- type: ${eventName}`,
+		`- event: ${eventType}`,
 	];
+
+	if (timestamp) {
+		eventLines.push(`- timestamp: ${sanitizeYamlValue(timestamp)}`);
+	}
+	if (input.agentId) {
+		eventLines.push(`- agent_id: ${sanitizeYamlValue(input.agentId)}`);
+	}
+	if (input.clientName !== undefined) {
+		eventLines.push(`- client_name: ${sanitizeYamlValue(input.clientName || null)}`);
+	}
+	if (input.actor) {
+		eventLines.push(`- actor: ${sanitizeYamlValue(input.actor)}`);
+	}
+	if (input.action) {
+		eventLines.push(`- action: ${sanitizeYamlValue(input.action)}`);
+	}
+	eventLines.push(`- tool_name: ${sanitizeYamlValue(toolName)}`);
+	if (input.resultStatus) {
+		eventLines.push(`- result_status: ${sanitizeYamlValue(input.resultStatus)}`);
+	}
+	if (input.status) {
+		eventLines.push(`- status: ${sanitizeYamlValue(input.status)}`);
+	}
 	if (input.taskId) {
-		eventLines.push(`- task_id: ${input.taskId}`);
+		eventLines.push(`- task_id: ${sanitizeYamlValue(input.taskId)}`);
+	}
+	if (targetPaths.length > 0) {
+		eventLines.push(`- target_paths:`);
+		for (const item of targetPaths) {
+			eventLines.push(`  - ${sanitizeYamlValue(item)}`);
+		}
+	} else {
+		eventLines.push('- target_paths: []');
+	}
+	if (input.argsSummary !== undefined && input.argsSummary !== '') {
+		eventLines.push(`- args_summary: ${sanitizeYamlValue(input.argsSummary)}`);
+	}
+	if (input.durationMs !== undefined) {
+		eventLines.push(`- duration_ms: ${input.durationMs}`);
+	}
+	if (input.riskLevel) {
+		eventLines.push(`- risk_level: ${sanitizeYamlValue(input.riskLevel)}`);
+	}
+	if (input.transport) {
+		eventLines.push(`- transport: ${sanitizeYamlValue(input.transport)}`);
+	}
+	if (input.runtimeVersion) {
+		eventLines.push(`- runtime_version: ${sanitizeYamlValue(input.runtimeVersion)}`);
 	}
 	if (input.warnings && input.warnings.length > 0) {
 		eventLines.push(`- warnings: ${JSON.stringify(input.warnings)}`);
@@ -1022,6 +1153,222 @@ function appendAuditEvent(vaultRoot: string, input: AuditEventInput): AuditEvent
 
 	fs.appendFileSync(audit.absolute, `${eventLines.join('\n')}\n\n`);
 	return { path: audit.relative };
+}
+
+function normalizeAuditTargets(paths: string[]): string[] {
+	const result: string[] = [];
+	for (const candidate of paths) {
+		const trimmed = candidate.trim();
+		if (!trimmed) {
+			continue;
+		}
+		if (!result.includes(trimmed)) {
+			result.push(trimmed);
+		}
+	}
+	return result;
+}
+
+function isSensitiveKey(key: string): boolean {
+	return SENSITIVE_KEY_PATTERNS.some((pattern) => pattern.test(key));
+}
+
+function looksLikeSensitiveValue(value: string): boolean {
+	return !scanSensitiveText(value).ok;
+}
+
+function summarizeForAudit(args: Record<string, unknown>, limit = MAX_ARGS_SUMMARY_LENGTH): string {
+	const summary: Record<string, unknown> = {};
+
+	function summarize(value: unknown, keyHint = '', depth = 0): unknown {
+		if (depth > 2) {
+			if (value === null || value === undefined) {
+				return value;
+			}
+			if (typeof value === 'string') {
+				return value.length > 80 ? `${value.slice(0, 77)}...` : value;
+			}
+			if (typeof value === 'number' || typeof value === 'boolean') {
+				return value;
+			}
+			return '[object]';
+		}
+
+		if (isSensitiveKey(keyHint) || (typeof value === 'string' && looksLikeSensitiveValue(value))) {
+			return '[redacted]';
+		}
+
+		if (Array.isArray(value)) {
+			return value.slice(0, 10).map((entry, entryIndex) => summarize(entry, `${keyHint}[${entryIndex}]`, depth + 1));
+		}
+
+		if (value === null || value === undefined) {
+			return value;
+		}
+		if (typeof value === 'string') {
+			const text = value.trim();
+			return text.length > 180 ? `${text.slice(0, 177)}...` : text;
+		}
+		if (typeof value === 'number' || typeof value === 'boolean') {
+			return value;
+		}
+		if (typeof value === 'object') {
+			const nested: Record<string, unknown> = {};
+			for (const [nestedKey, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+				nested[nestedKey] = summarize(nestedValue, nestedKey, depth + 1);
+			}
+			return nested;
+		}
+
+		return String(value);
+	}
+
+	for (const [key, value] of Object.entries(args)) {
+		summary[key] = summarize(value, key, 0);
+	}
+
+	const text = JSON.stringify(summary);
+	return text.length <= limit ? text : `${text.slice(0, limit - 3)}...`;
+}
+
+function collectAuditTargetsFromArgs(toolName: string, args: Record<string, unknown>): string[] {
+	const targets = new Set<string>();
+	const explicitPathKeys = ['path', 'request_path', 'proposal_path', 'target_note', 'source', 'source_path'];
+	for (const key of explicitPathKeys) {
+		const value = args[key];
+		if (typeof value === 'string' && value.trim()) {
+			targets.add(value.trim());
+		}
+	}
+	return Array.from(targets).filter(Boolean);
+}
+
+function collectAuditTargetsFromResult(toolName: string, args: Record<string, unknown>, resultPayload: unknown): string[] {
+	const targets = new Set<string>(collectAuditTargetsFromArgs(toolName, args));
+	if (isRecord(resultPayload)) {
+		const candidateKeys = ['path', 'target_note', 'proposal_path', 'source_note', 'report', 'audit_path'];
+		for (const key of candidateKeys) {
+			const value = resultPayload[key];
+			if (typeof value === 'string' && value.trim()) {
+				targets.add(value.trim());
+			}
+		}
+		if (isRecord(resultPayload.source_note)) {
+			const sourcePath = resultPayload.source_note.path;
+			if (typeof sourcePath === 'string' && sourcePath.trim()) {
+				targets.add(sourcePath.trim());
+			}
+		}
+		if (isRecord(resultPayload.report)) {
+			const reportPath = resultPayload.report.path;
+			if (typeof reportPath === 'string' && reportPath.trim()) {
+				targets.add(reportPath.trim());
+			}
+		}
+		if (Array.isArray(resultPayload.touched_notes)) {
+			for (const entry of resultPayload.touched_notes) {
+				if (typeof entry === 'string' && entry.trim()) {
+					targets.add(entry.trim());
+				}
+			}
+		}
+		if (Array.isArray(resultPayload.proposals)) {
+			for (const proposal of resultPayload.proposals) {
+				if (isRecord(proposal)) {
+					const pathValue = proposal.path;
+					if (typeof pathValue === 'string' && pathValue.trim()) {
+						targets.add(pathValue.trim());
+					}
+				}
+			}
+		}
+		if (Array.isArray(resultPayload.steps)) {
+			for (const step of resultPayload.steps) {
+				if (typeof step === 'string' && step.trim()) {
+					targets.add(step.trim());
+				}
+			}
+		}
+	}
+	return normalizeAuditTargets(Array.from(targets).filter(Boolean));
+}
+
+function getToolRiskLevel(toolName: string): string {
+	if (REVIEW_GATED_TOOL_NAMES.has(toolName)) {
+		return 'review-gated apply';
+	}
+	if (READ_ONLY_TOOL_NAMES.has(toolName)) {
+		return 'read-only';
+	}
+	if (LOW_RISK_TOOL_NAMES.has(toolName)) {
+		return 'low-risk write';
+	}
+	return 'low-risk write';
+}
+
+function resolveAuditVaultRoot(args: Record<string, unknown>, context: ToolInvocationContext): string | null {
+	const explicit = coerceOptionalString(args.vaultRoot);
+	if (explicit) {
+		try {
+			return toSafeVaultRoot(explicit);
+		} catch {
+			return null;
+		}
+	}
+	if (typeof context.defaultVaultRoot === 'string' && context.defaultVaultRoot.trim()) {
+		return context.defaultVaultRoot;
+	}
+	return null;
+}
+
+function isToolResultFailure(result: McpStructuredToolResult): boolean {
+	if (result.isError) {
+		return true;
+	}
+	const payload = result.structuredContent;
+	if (isRecord(payload) && typeof payload.isError === 'boolean') {
+		return payload.isError;
+	}
+	if (isRecord(payload) && typeof payload.ok === 'boolean') {
+		return payload.ok === false;
+	}
+	return false;
+}
+
+export function appendConnectionAuditEvent(vaultRoot: string, input: ConnectionAuditEventInput): { path: string } {
+	const now = new Date().toISOString();
+	return appendAuditEvent(vaultRoot, {
+		type: 'connection',
+		event: 'connection',
+		action: 'connection',
+		actor: input.agentId,
+		timestamp: now,
+		agentId: input.agentId,
+		clientName: input.clientName,
+		transport: input.transport,
+		runtimeVersion: input.runtimeVersion,
+	});
+}
+
+export function recordToolCallAuditEvent(vaultRoot: string, input: ToolCallAuditEventInput): { path: string } {
+	const now = new Date().toISOString();
+	return appendAuditEvent(vaultRoot, {
+		type: 'tool-call',
+		event: 'tool-call',
+		action: 'tool-call',
+		actor: input.agentId,
+		timestamp: now,
+		tool: input.toolName,
+		agentId: input.agentId,
+		clientName: input.clientName,
+		resultStatus: input.resultStatus,
+		targetPaths: input.targetPaths,
+		durationMs: input.durationMs,
+		riskLevel: input.riskLevel,
+		transport: input.transport,
+		runtimeVersion: input.runtimeVersion,
+		argsSummary: input.argsSummary,
+	});
 }
 
 function makeToolResultForWrite(tool: string, payload: ReturnType<typeof buildAndWriteNote>) {
@@ -1597,61 +1944,125 @@ export function toolPrompts(): McpPrompt[] {
 	];
 }
 
-export function callTool(name: string, rawParams: unknown, context: ToolContext): McpStructuredToolResult {
+export function callTool(
+	name: string,
+	rawParams: unknown,
+	context: ToolInvocationContext = {}
+): McpStructuredToolResult {
 	if (!isRecord(rawParams)) {
 		return toolError('Tool arguments must be an object.');
 	}
 
+	const requestName = typeof name === 'string' ? name.trim() : '';
+	if (!requestName) {
+		return toolError('Tool name is required.');
+	}
+	const args = rawParams as Record<string, unknown>;
+	const startTime = Date.now();
+	const agentId = context.agentId || 'unknown session id';
+	const clientName = context.clientName ?? null;
+	const auditVaultRoot = resolveAuditVaultRoot(args, context);
+	let toolResult: McpStructuredToolResult = toolError(`Unknown tool: ${requestName}`);
+	let status: 'success' | 'failed' = 'failed';
+	const toolName = requestName || 'unknown';
+
+	const argsSummary = summarizeForAudit(args);
+
 	try {
-		switch (name) {
+		switch (requestName) {
 			case 'obs_wiki.status':
-				return toolResult(handleStatus(rawParams as StatusArgs, context));
+				toolResult = toolResultWithError(handleStatus(args as StatusArgs, context));
+				break;
 			case 'obs_wiki.start_task':
-				return toolResult(handleStartTask(rawParams as StartTaskArgs, context));
+				toolResult = toolResultWithError(handleStartTask(args as StartTaskArgs, context));
+				break;
 			case 'obs_wiki.recall':
-				return toolResult(handleRecall(rawParams as RecallArgs, context));
+				toolResult = toolResultWithError(handleRecall(args as RecallArgs, context));
+				break;
 			case 'obs_wiki.read_note':
-				return toolResult(handleReadNote(rawParams as ReadNoteArgs, context));
+				toolResult = toolResultWithError(handleReadNote(args as ReadNoteArgs, context));
+				break;
 			case 'obs_wiki.list_review_queue':
-				return toolResult(handleReviewQueue(rawParams as ListReviewQueueArgs, context));
+				toolResult = toolResultWithError(handleReviewQueue(args as ListReviewQueueArgs, context));
+				break;
 			case 'obs_wiki.list_source_requests':
-				return toolResult(handleListSourceRequests(rawParams as ListSourceRequestsArgs, context));
+				toolResult = toolResultWithError(handleListSourceRequests(args as ListSourceRequestsArgs, context));
+				break;
 			case 'obs_wiki.list_approved_writebacks':
-				return toolResult(handleListApprovedWritebacks(rawParams as ListApprovedWritebacksArgs, context));
+				toolResult = toolResultWithError(handleListApprovedWritebacks(args as ListApprovedWritebacksArgs, context));
+				break;
 			case 'obs_wiki.audit_recent':
-				return toolResult(handleAuditRecent(rawParams as AuditRecentArgs, context));
+				toolResult = toolResultWithError(handleAuditRecent(args as AuditRecentArgs, context));
+				break;
 			case 'obs_wiki.analyze_source_request':
-				return toolResult(handleAnalyzeSourceRequest(rawParams as AnalyzeSourceRequestArgs, context));
+				toolResult = toolResultWithError(handleAnalyzeSourceRequest(args as AnalyzeSourceRequestArgs, context));
+				break;
 			case 'obs_wiki.apply_approved_writeback':
-				return toolResult(handleApplyApprovedWriteback(rawParams as ApplyApprovedWritebackArgs, context));
+				toolResult = toolResultWithError(handleApplyApprovedWriteback(args as ApplyApprovedWritebackArgs, context));
+				break;
 			case 'obs_wiki.build_context_pack':
-				return toolResult(handleBuildContextPack(rawParams as BuildContextPackArgs, context));
+				toolResult = toolResultWithError(handleBuildContextPack(args as BuildContextPackArgs, context));
+				break;
 			case 'obs_wiki.lint':
-				return toolResult(handleLint(rawParams as LintArgs, context));
+				toolResult = toolResultWithError(handleLint(args as LintArgs, context));
+				break;
 			case 'obs_wiki.finish_task':
-				return toolResult(handleFinishTask(rawParams as FinishTaskArgs, context));
+				toolResult = toolResultWithError(handleFinishTask(args as FinishTaskArgs, context));
+				break;
 			case 'obs_wiki.distill_session':
-				return toolResult(handleDistillSession(rawParams as DistillSessionArgs, context));
+				toolResult = toolResultWithError(handleDistillSession(args as DistillSessionArgs, context));
+				break;
 			case 'obs_wiki.write_context_pack':
-				return toolResult(handleWriteContextPack(rawParams as WriteContextPackArgs, context));
+				toolResult = toolResultWithError(handleWriteContextPack(args as WriteContextPackArgs, context));
+				break;
 			case 'obs_wiki.write_session_note':
-				return toolResult(handleWriteSessionNote(rawParams as WriteSessionNoteArgs, context));
+				toolResult = toolResultWithError(handleWriteSessionNote(args as WriteSessionNoteArgs, context));
+				break;
 			case 'obs_wiki.capture_source':
-				return toolResult(handleCaptureSource(rawParams as CaptureSourceArgs, context));
+				toolResult = toolResultWithError(handleCaptureSource(args as CaptureSourceArgs, context));
+				break;
 			case 'obs_wiki.propose_memory':
-				return toolResult(handleProposeMemory(rawParams as ProposeMemoryArgs, context));
+				toolResult = toolResultWithError(handleProposeMemory(args as ProposeMemoryArgs, context));
+				break;
 			default:
-				return toolError(`Unknown tool: ${name}`);
+				toolResult = toolError(`Unknown tool: ${requestName}`);
 		}
+		status = isToolResultFailure(toolResult) ? 'failed' : 'success';
 	} catch (error) {
 		if (error instanceof ToolInputError || error instanceof VaultPathError) {
-			return toolError(error.message);
+			toolResult = toolError(error.message);
+		} else if (error instanceof Error) {
+			toolResult = toolError(error.message);
+		} else {
+			toolResult = toolError('Unknown tool error.');
 		}
-		if (error instanceof Error) {
-			return toolError(error.message);
+		status = 'failed';
+	} finally {
+		if (auditVaultRoot) {
+			try {
+				recordToolCallAuditEvent(auditVaultRoot, {
+					toolName,
+					resultStatus: status,
+					targetPaths: collectAuditTargetsFromResult(requestName, args, toolResult.structuredContent),
+					durationMs: Date.now() - startTime,
+					riskLevel: getToolRiskLevel(requestName),
+					agentId,
+					clientName,
+					transport: context.transport,
+					runtimeVersion: context.runtimeVersion,
+					argsSummary,
+				});
+			} catch {
+				// Tool-call audit writes are best effort.
+			}
 		}
-		return toolError('Unknown tool error.');
 	}
+
+	return toolResult;
+}
+
+function toolResultWithError<T>(value: T): McpStructuredToolResult {
+	return toolResult(value);
 }
 
 function handleStatus(rawArgs: StatusArgs, context: ToolContext) {
@@ -2048,10 +2459,11 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 			);
 			return proposalNote.path;
 		});
+		let auditPathForReturn = sourceNote.audit_path;
 
 		if (updateStatus) {
 			updateRequestStatus(vaultRoot, request.path, 'completed');
-			appendAuditEvent(vaultRoot, {
+			auditPathForReturn = appendAuditEvent(vaultRoot, {
 				tool: 'obs_wiki.analyze_source_request',
 				targetPath: request.path,
 				status: 'written',
@@ -2062,7 +2474,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 					source_report: report.path,
 					proposals: proposalPaths.join(','),
 				},
-			});
+			}).path;
 		}
 
 		return {
@@ -2082,6 +2494,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 				audit_path: report.audit_path,
 			},
 			proposals: proposalPaths.map((proposalPath: string) => ({ path: proposalPath })),
+			audit_path: auditPathForReturn,
 			summary: analysis.summary,
 			warnings,
 		};

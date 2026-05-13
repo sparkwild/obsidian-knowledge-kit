@@ -63,13 +63,12 @@ MVP 支持：
 
 已确定：
 
-- Display Name: `Wiki Console`
-- Chinese UI Name: `知识库控制台`
+- Display Name: `obs-wiki`
 - Plugin ID: `obs-wiki`
 - MCP Prefix: `obs_wiki`
 - CLI: `obs-wiki`
 
-说明：`obs-wiki` 保留为稳定 id、目录名、MCP/CLI 命名和仓库名；Obsidian 展示层使用 `Wiki Console` / `知识库控制台`。
+说明：`obs-wiki` 同时作为稳定 id、目录名、MCP/CLI 命名、仓库名和 Obsidian 插件展示名。
 
 ## 8. 第一版目标用户
 

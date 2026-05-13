@@ -10,7 +10,7 @@ obs-wiki 是一个 Agent-first 记忆系统：使用 Obsidian vault 作为持久
 
 - 产品名：`obs-wiki`
 - 插件 id：`obs-wiki`
-- Obsidian 插件显示名：`Wiki Console`（中文界面显示为 `知识库控制台`）
+- Obsidian 插件显示名：`obs-wiki`
 - 主产品形态：Agent 操作入口 + Obsidian 治理插件
 - Agent 接口：MCP tools、resources、prompts
 - 记忆载体：Obsidian vault 中的 notes、Properties、wikilinks、block references、review queue、audit log
@@ -47,7 +47,7 @@ npm run package
 1. 在 Obsidian 中安装并启用 `BRAT`。
 2. 执行 `BRAT: Add a beta plugin for testing`。
 3. 输入 `sparkwild/obs-wiki`。
-4. 在 `设置 -> 第三方插件` 中启用 `Wiki Console`。
+4. 在 `设置 -> 第三方插件` 中启用 `obs-wiki`。
 
 如果当前 GitHub 仓库或 Release 对你的账号不可见，请使用下面的 Release 资产手动安装方式。
 
@@ -62,8 +62,8 @@ npm run package
 
 3. 将下载的三个文件放入 `.obsidian/plugins/obs-wiki/`。
 4. 重启 Obsidian，或重新加载社区插件。
-5. 在 `设置 -> 第三方插件` 中启用 `Wiki Console`。
-6. 打开命令面板，根据当前 Obsidian 语言执行 `Wiki Console: 打开 Agent 活动` 或 `Wiki Console: Open agent activity`。
+5. 在 `设置 -> 第三方插件` 中启用 `obs-wiki`。
+6. 打开命令面板，根据当前 Obsidian 语言执行 `obs-wiki: 打开 Agent 活动` 或 `obs-wiki: Open agent activity`。
 
 ### 本地开发安装
 
@@ -96,7 +96,7 @@ obsidian plugin:reload id=obs-wiki
 obsidian dev:errors
 ```
 
-安装后的插件应显示 id `obs-wiki`、名称 `Wiki Console`、版本 `0.1.3`，并且重载后没有开发者控制台错误。
+安装后的插件应显示 id `obs-wiki`、名称 `obs-wiki`、版本 `0.1.3`，并且重载后没有开发者控制台错误。
 
 ## 桌面端与移动端声明
 

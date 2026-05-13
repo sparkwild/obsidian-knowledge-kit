@@ -4,6 +4,8 @@ const node_readline_1 = require("node:readline");
 const protocol_1 = require("./protocol");
 const tools_1 = require("./tools");
 const PROTOCOL_VERSION = '2025-06-18';
+const SERVER_VERSION = '0.1.0';
+const DEFAULT_TRANSPORT = 'stdio';
 const RESOURCES = [
     {
         uri: 'obs-wiki://system',
@@ -43,7 +45,10 @@ const RESOURCES = [
 ];
 class StdioMcpServer {
     constructor(config) {
+        this.connectionAgentId = 'unknown session id';
+        this.connectionClientName = null;
         this.defaultVaultRoot = config.defaultVaultRoot;
+        this.runtimeVersion = SERVER_VERSION;
     }
     run() {
         const reader = (0, node_readline_1.createInterface)({
@@ -126,6 +131,7 @@ class StdioMcpServer {
     dispatch(method, params) {
         switch (method) {
             case 'initialize':
+                this.captureConnection(params);
                 return {
                     protocolVersion: PROTOCOL_VERSION,
                     capabilities: {
@@ -135,10 +141,10 @@ class StdioMcpServer {
                     },
                     serverInfo: {
                         name: 'obs-wiki-mcp-server',
-                        title: 'obs-wiki MCP Server (read-only default + controlled write)',
-                        version: '0.1.0',
+                        title: 'obs-wiki MCP Server (read-only default + controlled write + review-gated apply)',
+                        version: this.runtimeVersion,
                     },
-                    instructions: 'This MCP server is read-only by default and supports controlled write tools for low-risk working records. All reads and writes are scoped to vault-local paths, reject vault-outside or .obsidian access, and protected memory writeback remains review-gated.',
+                    instructions: 'This MCP server is read-only-by-default; controlled write tools are allowed for bounded working records, and review-gated apply requires approved proposals before protected writeback. All reads and writes are vault-local only, reject vault-outside or .obsidian access, and sensitive payloads are never persisted in audit events.',
                 };
             case 'tools/list':
                 return { tools: (0, tools_1.toolDefinitions)() };
@@ -165,7 +171,77 @@ class StdioMcpServer {
         if (!(0, protocol_1.isRecord)(argumentsValue)) {
             throw new protocol_1.RpcError({ code: -32602, message: '`arguments` must be an object.' });
         }
-        return (0, tools_1.callTool)(name, argumentsValue, { defaultVaultRoot: this.defaultVaultRoot });
+        const toolInvocationContext = {
+            defaultVaultRoot: this.defaultVaultRoot,
+            agentId: this.connectionAgentId,
+            clientName: this.connectionClientName,
+            transport: DEFAULT_TRANSPORT,
+            runtimeVersion: this.runtimeVersion,
+        };
+        return (0, tools_1.callTool)(name, argumentsValue, toolInvocationContext);
+    }
+    captureConnection(params) {
+        if (!this.defaultVaultRoot) {
+            return;
+        }
+        this.connectionAgentId = this.extractAgentIdFromInitialize(params);
+        this.connectionClientName = this.extractClientNameFromInitialize(params);
+        try {
+            (0, tools_1.appendConnectionAuditEvent)(this.defaultVaultRoot, {
+                agentId: this.connectionAgentId,
+                clientName: this.connectionClientName,
+                transport: DEFAULT_TRANSPORT,
+                runtimeVersion: this.runtimeVersion,
+            });
+        }
+        catch {
+            // Best-effort audit writes should never fail initialize.
+        }
+    }
+    extractAgentIdFromInitialize(params) {
+        const clientInfo = (0, protocol_1.isRecord)(params.clientInfo) ? params.clientInfo : {};
+        const meta = (0, protocol_1.isRecord)(params.meta) ? params.meta : {};
+        const candidates = [
+            params.agent_id,
+            params.agentId,
+            params.session_id,
+            params.sessionId,
+            params.client_name,
+            params.clientName,
+            clientInfo.agent_id,
+            clientInfo.agentId,
+            clientInfo.session_id,
+            clientInfo.sessionId,
+            clientInfo.client_name,
+            clientInfo.clientName,
+            meta.agent_id,
+            meta.agentId,
+            meta.session_id,
+            meta.sessionId,
+        ];
+        for (const candidate of candidates) {
+            if (typeof candidate === 'string' && candidate.trim() !== '') {
+                return candidate.trim();
+            }
+        }
+        return 'unknown session id';
+    }
+    extractClientNameFromInitialize(params) {
+        const clientInfo = (0, protocol_1.isRecord)(params.clientInfo) ? params.clientInfo : {};
+        const names = [
+            params.name,
+            params.client_name,
+            params.clientName,
+            clientInfo.name,
+            clientInfo.client_name,
+            clientInfo.clientName,
+        ];
+        for (const name of names) {
+            if (typeof name === 'string' && name.trim() !== '') {
+                return name.trim();
+            }
+        }
+        return null;
     }
     errorResponse(id, code, message, data) {
         const error = { code, message };
