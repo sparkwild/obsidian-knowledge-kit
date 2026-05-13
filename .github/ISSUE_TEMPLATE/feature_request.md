@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest a new plugin, skill, or workflow capability
+about: Suggest a product, plugin, MCP, or workflow capability
 title: "[Feature] "
 labels: enhancement
 assignees: ""

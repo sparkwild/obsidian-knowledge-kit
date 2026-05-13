@@ -28,35 +28,35 @@ interface ResourcesResource {
 
 const RESOURCES: ResourcesResource[] = [
 	{
-		uri: 'obs-wiki://system',
+		uri: 'obswiki://system',
 		name: 'system',
 		title: 'System note',
 		description: 'Core system note path if present.',
 		mimeType: 'text/markdown',
 	},
 	{
-		uri: 'obs-wiki://active-context',
+		uri: 'obswiki://active-context',
 		name: 'active-context',
 		title: 'Active context',
 		description: 'Active-context note for current memory state.',
 		mimeType: 'text/markdown',
 	},
 	{
-		uri: 'obs-wiki://review-queue',
+		uri: 'obswiki://review-queue',
 		name: 'review-queue',
 		title: 'Review queue',
 		description: 'Pending proposal queue snapshots.',
 		mimeType: 'text/markdown',
 	},
 	{
-		uri: 'obs-wiki://agent-activity',
+		uri: 'obswiki://agent-activity',
 		name: 'agent-activity',
 		title: 'Agent activity',
 		description: 'Recent agent-task and review traces.',
 		mimeType: 'text/markdown',
 	},
 	{
-		uri: 'obs-wiki://audit/recent',
+		uri: 'obswiki://audit/recent',
 		name: 'audit-recent',
 		title: 'Recent audit',
 		description: 'Recent audit log entries.',
@@ -177,8 +177,8 @@ class StdioMcpServer {
 						prompts: { listChanged: false },
 					},
 					serverInfo: {
-						name: 'obs-wiki-mcp-server',
-						title: 'obs-wiki MCP Server (read-only default + controlled write + review-gated apply)',
+						name: 'obswiki-mcp-server',
+						title: 'Obswiki MCP Server (read-only default + controlled write + review-gated apply)',
 						version: this.runtimeVersion,
 					},
 					instructions:

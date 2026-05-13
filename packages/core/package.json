@@ -1,13 +1,13 @@
 {
-	"name": "@obs-wiki/core",
+	"name": "@obswiki/core",
 	"version": "0.1.0",
-	"description": "Minimal read-only Obsidian memory runtime (TypeScript) for Phase 6.",
+	"description": "Shared local Obsidian memory runtime for Obswiki.",
 	"private": true,
 	"type": "commonjs",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
 	"scripts": {
-		"test": "node ./scripts/test_phase10.mjs",
+		"test": "node ./scripts/test.mjs",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"build": "tsc -p tsconfig.json"
 	},

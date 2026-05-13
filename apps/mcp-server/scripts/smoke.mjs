@@ -167,10 +167,10 @@ function ensureToolNames(result, names) {
 }
 
 async function main() {
-	const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'obs-wiki-mcp-phase10-'));
+	const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'obswiki-mcp-smoke-'));
 	const vaultRoot = path.join(tempRoot, 'vault');
 	const fixturePath = path.join(vaultRoot, '01_inbox', 'agent_requests', 'local-source-request.md');
-	const lintFixturePath = path.join(vaultRoot, '04_projects', 'demo', 'phase10-lint-fixture.md');
+	const lintFixturePath = path.join(vaultRoot, '04_projects', 'demo', 'smoke-lint-fixture.md');
 	const client = new McpTestClient(vaultRoot);
 
 	try {
@@ -188,7 +188,7 @@ async function main() {
 			'source: 03_sources/local-source.md',
 			'sourceKind: local_file',
 			'status: pending',
-			'purpose: phase 10 smoke',
+			'purpose: smoke test',
 			'analysis_mode: default',
 			'---',
 			'',
@@ -214,9 +214,9 @@ async function main() {
 			'',
 		].join('\n'));
 		writeNote(vaultRoot, '03_sources/local-source.md', '# Source\n\nThis is source content for mcp smoke source-analysis test.');
-		writeNote(vaultRoot, '04_projects/demo/phase10-lint-fixture.md', [
-			'# Phase 10 Lint Fixture',
-			'This note references [[phase10_missing_page]] and includes a claim with no source.',
+		writeNote(vaultRoot, '04_projects/demo/smoke-lint-fixture.md', [
+			'# Smoke Lint Fixture',
+			'This note references [[smoke_missing_page]] and includes a claim with no source.',
 			'',
 			'> [!claim]',
 			'> This is a claim that should require source refs.',
@@ -230,7 +230,7 @@ async function main() {
 			protocolVersion: '2025-06-18',
 			capabilities: {},
 			clientInfo: {
-				name: 'obs-wiki-phase10-smoke',
+				name: 'obswiki-smoke',
 				version: '0.1.0',
 			},
 		});
@@ -242,23 +242,23 @@ async function main() {
 
 		const tools = await client.call('tools/list');
 		ensureToolNames(tools, [
-			'obs_wiki.status',
-			'obs_wiki.start_task',
-			'obs_wiki.recall',
-			'obs_wiki.read_note',
-			'obs_wiki.list_review_queue',
-			'obs_wiki.list_approved_writebacks',
-			'obs_wiki.audit_recent',
-			'obs_wiki.write_context_pack',
-			'obs_wiki.build_context_pack',
-			'obs_wiki.lint',
-			'obs_wiki.finish_task',
-			'obs_wiki.distill_session',
-			'obs_wiki.write_session_note',
-			'obs_wiki.capture_source',
-			'obs_wiki.propose_memory',
-			'obs_wiki.analyze_source_request',
-			'obs_wiki.apply_approved_writeback',
+			'obswiki.status',
+			'obswiki.start_task',
+			'obswiki.recall',
+			'obswiki.read_note',
+			'obswiki.list_review_queue',
+			'obswiki.list_approved_writebacks',
+			'obswiki.audit_recent',
+			'obswiki.write_context_pack',
+			'obswiki.build_context_pack',
+			'obswiki.lint',
+			'obswiki.finish_task',
+			'obswiki.distill_session',
+			'obswiki.write_session_note',
+			'obswiki.capture_source',
+			'obswiki.propose_memory',
+			'obswiki.analyze_source_request',
+			'obswiki.apply_approved_writeback',
 		]);
 
 		const resources = await client.call('resources/list');
@@ -268,24 +268,24 @@ async function main() {
 		assert.ok((buildStructured(prompts).prompts || []).length > 0, 'prompts/list should return prompts');
 
 		const status = buildStructured(await client.call('tools/call', {
-			name: 'obs_wiki.status',
+			name: 'obswiki.status',
 			arguments: {},
 		}));
 		assert.equal(status.ok, true);
 		assert.equal(typeof status.counts.notes === 'number', true);
 
 		const readNote = buildStructured(await client.call('tools/call', {
-			name: 'obs_wiki.read_note',
+			name: 'obswiki.read_note',
 			arguments: { path: '00_control/system.md' },
 		}));
 		assert.equal(readNote.ok, true);
 		assert.equal(readNote.path, '00_control/system.md');
 		const afterReadAudit = readAuditLog(vaultRoot);
-		assertToolCallEvent(afterReadAudit, 'obs_wiki.read_note', 'success');
+		assertToolCallEvent(afterReadAudit, 'obswiki.read_note', 'success');
 
 		const sensitiveText = 'SENSITIVE_TOKEN_123ABC456DEF';
 		await client.call('tools/call', {
-			name: 'obs_wiki.start_task',
+			name: 'obswiki.start_task',
 			arguments: {
 				goal: 'Smoke sensitive summary',
 				client: 'agent-smoke',
@@ -299,7 +299,7 @@ async function main() {
 		});
 
 		const afterSensitiveAudit = readAuditLog(vaultRoot);
-		assertToolCallEvent(afterSensitiveAudit, 'obs_wiki.start_task', 'success');
+		assertToolCallEvent(afterSensitiveAudit, 'obswiki.start_task', 'success');
 		assertContainsNoSensitiveText(afterSensitiveAudit, [
 			sensitiveText,
 			`secret_${sensitiveText}`,
@@ -308,23 +308,23 @@ async function main() {
 			`token_${sensitiveText}`,
 		]);
 		assert.ok(
-			hasToolCallSection(afterSensitiveAudit, 'obs_wiki.start_task', 'success', ['- args_summary:']),
+			hasToolCallSection(afterSensitiveAudit, 'obswiki.start_task', 'success', ['- args_summary:']),
 			'tool-call should include args summary field'
 		);
 
 		const writeContext = buildStructured(await client.call('tools/call', {
-			name: 'obs_wiki.write_context_pack',
+			name: 'obswiki.write_context_pack',
 			arguments: {
-				filename: 'phase10-context-pack',
+				filename: 'smoke-context-pack',
 				content: '# Context Pack\n\nSmoke content',
-				title: 'Phase 10 context pack',
+				title: 'Smoke context pack',
 			},
 		}));
 		assert.equal(writeContext.ok, true);
 		assert.ok(fs.existsSync(path.join(vaultRoot, writeContext.path)));
 
 		const buildContextRead = buildStructured(await client.call('tools/call', {
-			name: 'obs_wiki.build_context_pack',
+			name: 'obswiki.build_context_pack',
 			arguments: {
 				query: 'smoke',
 				candidate_limit: 5,
@@ -338,12 +338,12 @@ async function main() {
 		assert.equal(Array.isArray(buildContextRead.context_pack.relevantNotes), true);
 
 		const buildContextWrite = buildStructured(await client.call('tools/call', {
-			name: 'obs_wiki.build_context_pack',
+			name: 'obswiki.build_context_pack',
 			arguments: {
 				query: 'smoke',
 				write: true,
-				filename: 'phase10-context-pack-auto',
-				title: 'Phase 10 build context pack',
+				filename: 'smoke-context-pack-auto',
+				title: 'Smoke build context pack',
 			},
 		}));
 		assert.equal(buildContextWrite.ok, true);
@@ -353,7 +353,7 @@ async function main() {
 		assert.ok(buildContextWrite.artifact.path.endsWith('.md'));
 
 		const lintResult = buildStructured(await client.call('tools/call', {
-			name: 'obs_wiki.lint',
+			name: 'obswiki.lint',
 			arguments: {
 				max_items: 20,
 			},
@@ -365,7 +365,7 @@ async function main() {
 		assert.ok(Array.isArray(lintResult.fix_plan_summary));
 
 		const finishTask = buildStructured(await client.call('tools/call', {
-			name: 'obs_wiki.finish_task',
+			name: 'obswiki.finish_task',
 			arguments: {
 				task_id: 'task-smoke-finish',
 				summary: 'Smoke task finish session.',
@@ -378,7 +378,7 @@ async function main() {
 		assert.ok(fs.existsSync(path.join(vaultRoot, finishTask.path)));
 
 		const distillSession = buildStructured(await client.call('tools/call', {
-			name: 'obs_wiki.distill_session',
+			name: 'obswiki.distill_session',
 			arguments: {
 				task_id: 'task-smoke-distill',
 				summary: 'Smoke distill session.',
@@ -398,9 +398,9 @@ async function main() {
 		}
 
 		const writeSession = buildStructured(await client.call('tools/call', {
-			name: 'obs_wiki.write_session_note',
+			name: 'obswiki.write_session_note',
 			arguments: {
-				filename: 'phase10-session',
+				filename: 'smoke-session',
 				content: '# Session\n\nSmoke session note',
 			},
 		}));
@@ -408,7 +408,7 @@ async function main() {
 		assert.ok(fs.existsSync(path.join(vaultRoot, writeSession.path)));
 
 		await client.call('tools/call', {
-			name: 'obs_wiki.capture_source',
+			name: 'obswiki.capture_source',
 			arguments: {
 				source: '03_sources/local-source.md',
 				mode: 'local_copy',
@@ -419,7 +419,7 @@ async function main() {
 		await assert.rejects(
 			() =>
 				client.call('tools/call', {
-					name: 'obs_wiki.write_context_pack',
+					name: 'obswiki.write_context_pack',
 					arguments: {
 						filename: '../outside',
 						content: '# Reject',
@@ -429,10 +429,10 @@ async function main() {
 			'should reject writes outside vault'
 		);
 		const afterFailureAudit = readAuditLog(vaultRoot);
-		assertToolCallEvent(afterFailureAudit, 'obs_wiki.write_context_pack', 'failed');
+		assertToolCallEvent(afterFailureAudit, 'obswiki.write_context_pack', 'failed');
 
 		const analyze = buildStructured(await client.call('tools/call', {
-			name: 'obs_wiki.analyze_source_request',
+			name: 'obswiki.analyze_source_request',
 			arguments: { request_path: '01_inbox/agent_requests/local-source-request.md' },
 		}));
 		assert.equal(analyze.ok, true);
@@ -444,7 +444,7 @@ async function main() {
 		assert.ok(fs.readFileSync(fixturePath, 'utf8').includes('status: completed'));
 
 		const approvedWritebacks = buildStructured(await client.call('tools/call', {
-			name: 'obs_wiki.list_approved_writebacks',
+			name: 'obswiki.list_approved_writebacks',
 			arguments: {},
 		}));
 		assert.equal(approvedWritebacks.ok, true);
@@ -452,7 +452,7 @@ async function main() {
 		assert.equal(approvedWritebacks.entries[0].ready_to_apply, true);
 
 		const dryRunApply = buildStructured(await client.call('tools/call', {
-			name: 'obs_wiki.apply_approved_writeback',
+			name: 'obswiki.apply_approved_writeback',
 			arguments: {
 				proposal_id: 'prop_smoke_apply',
 				dry_run: true,
@@ -463,7 +463,7 @@ async function main() {
 		assert.equal(dryRunApply.target_note, '04_projects/demo/project_overview.md');
 
 		const applied = buildStructured(await client.call('tools/call', {
-			name: 'obs_wiki.apply_approved_writeback',
+			name: 'obswiki.apply_approved_writeback',
 			arguments: {
 				proposal_id: 'prop_smoke_apply',
 			},
@@ -497,7 +497,7 @@ async function main() {
 		await assert.rejects(
 			() =>
 				client.call('tools/call', {
-					name: 'obs_wiki.apply_approved_writeback',
+					name: 'obswiki.apply_approved_writeback',
 					arguments: {
 						proposal_id: 'prop_secret_apply',
 					},

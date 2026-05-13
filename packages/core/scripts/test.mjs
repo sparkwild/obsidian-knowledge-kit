@@ -22,7 +22,7 @@ function createFixture(rootPath) {
 }
 
 function run() {
-	const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'obs-wiki-core-phase10-'));
+	const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'obswiki-core-test-'));
 	let symlinkSupported = false;
 
 	try {
@@ -75,7 +75,7 @@ function run() {
 			source: '03_sources/source_seed.md',
 			sourceKind: 'local_file',
 			analysisMode: 'default',
-			purpose: 'phase10 smoke for source analysis',
+			purpose: 'smoke test for source analysis',
 			content: '# Source\n\nThis is a claim that indicates a source-backed fact and provides evidence.',
 			requestPath: '01_inbox/agent_requests/request.md',
 		});

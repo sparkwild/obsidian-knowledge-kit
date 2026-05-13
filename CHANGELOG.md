@@ -1,23 +1,17 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to Obswiki will be documented in this file.
 
-## [Unreleased]
-
-### Changed
-
-- Converged the repository onto the Obsidian-native + Agent-first monorepo shape.
-- Root validation now runs through `npm run verify`.
-- MCP server policy is read-only by default with controlled writes and review-gated apply.
-- Removed the previous Codex local plugin package, Python runtime, root skills, benchmark scaffold, and transition-only brief docs.
+## [0.1.0] - Initial Private Build
 
 ### Added
 
-- Added root `package.json` workspace scripts.
-- Added `scripts/verify_phase11.sh`.
-- Added `docs/MCP_Tool_Permission_Matrix.md`.
-- Added MCP review-gated writeback tools: `obs_wiki.list_approved_writebacks` and `obs_wiki.apply_approved_writeback`.
+- Obsidian plugin scaffold for Agent Activity, Review Queue, audit, permissions, runtime status, and AI tool connections.
+- MCP server with read-only tools, bounded working-record writes, and review-gated approved writeback.
+- Shared TypeScript core package for vault scanning, recall, context packs, source analysis, lint, and safety helpers.
+- Root workspace verification through `npm run verify`.
 
-### Validation
+### Changed
 
-- `npm run verify`
+- Product name, plugin display name, MCP config key, and repository name are aligned as Obswiki / `obswiki` / `obsidian-obswiki`.
+- User-facing connection settings no longer assume a fixed vault path, repository path, local port, or developer machine path.

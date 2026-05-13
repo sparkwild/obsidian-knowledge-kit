@@ -10,7 +10,7 @@ import {
 	parseMarkdown,
 	recallNotes,
 	scanVault,
-} from '@obs-wiki/core';
+} from '@obswiki/core';
 import {
 	McpToolDefinition,
 	McpStructuredToolResult,
@@ -75,28 +75,28 @@ interface ToolCallAuditEventInput {
 }
 
 const READ_ONLY_TOOL_NAMES = new Set([
-	'obs_wiki.status',
-	'obs_wiki.start_task',
-	'obs_wiki.recall',
-	'obs_wiki.read_note',
-	'obs_wiki.list_review_queue',
-	'obs_wiki.list_source_requests',
-	'obs_wiki.list_approved_writebacks',
-	'obs_wiki.audit_recent',
-	'obs_wiki.lint',
+	'obswiki.status',
+	'obswiki.start_task',
+	'obswiki.recall',
+	'obswiki.read_note',
+	'obswiki.list_review_queue',
+	'obswiki.list_source_requests',
+	'obswiki.list_approved_writebacks',
+	'obswiki.audit_recent',
+	'obswiki.lint',
 ]);
 
-const REVIEW_GATED_TOOL_NAMES = new Set(['obs_wiki.apply_approved_writeback']);
+const REVIEW_GATED_TOOL_NAMES = new Set(['obswiki.apply_approved_writeback']);
 
 const LOW_RISK_TOOL_NAMES = new Set([
-	'obs_wiki.analyze_source_request',
-	'obs_wiki.write_context_pack',
-	'obs_wiki.build_context_pack',
-	'obs_wiki.finish_task',
-	'obs_wiki.distill_session',
-	'obs_wiki.write_session_note',
-	'obs_wiki.capture_source',
-	'obs_wiki.propose_memory',
+	'obswiki.analyze_source_request',
+	'obswiki.write_context_pack',
+	'obswiki.build_context_pack',
+	'obswiki.finish_task',
+	'obswiki.distill_session',
+	'obswiki.write_session_note',
+	'obswiki.capture_source',
+	'obswiki.propose_memory',
 ]);
 
 const SENSITIVE_KEY_PATTERNS = [
@@ -1407,8 +1407,8 @@ function buildFixPlanSummary(issues: Array<{ kind: string; severity: string }>):
 export function toolDefinitions(): McpToolDefinition[] {
 	return [
 		{
-			name: 'obs_wiki.status',
-			title: 'obs_wiki.status',
+			name: 'obswiki.status',
+			title: 'obswiki.status',
 			description: '[read-only] Scan vault and return summary counts.',
 			inputSchema: {
 				type: 'object',
@@ -1422,8 +1422,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'obs_wiki.start_task',
-			title: 'obs_wiki.start_task',
+			name: 'obswiki.start_task',
+			title: 'obswiki.start_task',
 			description: '[read-only] Create a task context pack summary and deterministic task id.',
 			inputSchema: {
 				type: 'object',
@@ -1447,8 +1447,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'obs_wiki.recall',
-			title: 'obs_wiki.recall',
+			name: 'obswiki.recall',
+			title: 'obswiki.recall',
 			description: '[read-only] Scan vault and return matching notes for a recall query.',
 			inputSchema: {
 				type: 'object',
@@ -1474,8 +1474,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'obs_wiki.read_note',
-			title: 'obs_wiki.read_note',
+			name: 'obswiki.read_note',
+			title: 'obswiki.read_note',
 			description: '[read-only] Read markdown/text content of one note in vault.',
 			inputSchema: {
 				type: 'object',
@@ -1497,8 +1497,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'obs_wiki.list_review_queue',
-			title: 'obs_wiki.list_review_queue',
+			name: 'obswiki.list_review_queue',
+			title: 'obswiki.list_review_queue',
 			description: '[read-only] Read pending memory proposal notes under 01_inbox/review_queue.',
 			inputSchema: {
 				type: 'object',
@@ -1516,8 +1516,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'obs_wiki.list_source_requests',
-			title: 'obs_wiki.list_source_requests',
+			name: 'obswiki.list_source_requests',
+			title: 'obswiki.list_source_requests',
 			description: '[read-only] Read pending source-analysis agent requests under 01_inbox/agent_requests.',
 			inputSchema: {
 				type: 'object',
@@ -1543,8 +1543,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'obs_wiki.list_approved_writebacks',
-			title: 'obs_wiki.list_approved_writebacks',
+			name: 'obswiki.list_approved_writebacks',
+			title: 'obswiki.list_approved_writebacks',
 			description: '[read-only] Read approved Review Queue proposals that are candidates for runtime writeback.',
 			inputSchema: {
 				type: 'object',
@@ -1573,8 +1573,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'obs_wiki.audit_recent',
-			title: 'obs_wiki.audit_recent',
+			name: 'obswiki.audit_recent',
+			title: 'obswiki.audit_recent',
 			description: '[read-only] Read parsed sections from 00_control/audit_log.md.',
 			inputSchema: {
 				type: 'object',
@@ -1595,8 +1595,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'obs_wiki.analyze_source_request',
-			title: 'obs_wiki.analyze_source_request',
+			name: 'obswiki.analyze_source_request',
+			title: 'obswiki.analyze_source_request',
 			description:
 				'[low-risk write] Analyze one pending source request and write source note, report, review proposals, request status, and audit entry.',
 			inputSchema: {
@@ -1630,8 +1630,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'obs_wiki.apply_approved_writeback',
-			title: 'obs_wiki.apply_approved_writeback',
+			name: 'obswiki.apply_approved_writeback',
+			title: 'obswiki.apply_approved_writeback',
 			description:
 				'[review-gated apply] Apply an approved Review Queue proposal by appending explicit writeback content to its target note.',
 			inputSchema: {
@@ -1665,8 +1665,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'obs_wiki.build_context_pack',
-			title: 'obs_wiki.build_context_pack',
+			name: 'obswiki.build_context_pack',
+			title: 'obswiki.build_context_pack',
 			description:
 				'[read-only | optional write] Build context pack from vault and optionally write a markdown artifact.',
 			inputSchema: {
@@ -1710,8 +1710,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'obs_wiki.lint',
-			title: 'obs_wiki.lint',
+			name: 'obswiki.lint',
+			title: 'obswiki.lint',
 			description: '[read-only] Run lint checks across vault notes.',
 			inputSchema: {
 				type: 'object',
@@ -1732,8 +1732,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'obs_wiki.finish_task',
-			title: 'obs_wiki.finish_task',
+			name: 'obswiki.finish_task',
+			title: 'obswiki.finish_task',
 			description: '[low-risk write] Create a task session summary note under 02_timeline/sessions.',
 			inputSchema: {
 				type: 'object',
@@ -1779,8 +1779,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'obs_wiki.distill_session',
-			title: 'obs_wiki.distill_session',
+			name: 'obswiki.distill_session',
+			title: 'obswiki.distill_session',
 			description: '[low-risk write] Create a task session note and memory proposals from decisions/preferences.',
 			inputSchema: {
 				type: 'object',
@@ -1830,8 +1830,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'obs_wiki.write_context_pack',
-			title: 'obs_wiki.write_context_pack',
+			name: 'obswiki.write_context_pack',
+			title: 'obswiki.write_context_pack',
 			description: '[low-risk write] Create a new context-pack note under 06_outputs/context_packs.',
 			inputSchema: {
 				type: 'object',
@@ -1853,8 +1853,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'obs_wiki.write_session_note',
-			title: 'obs_wiki.write_session_note',
+			name: 'obswiki.write_session_note',
+			title: 'obswiki.write_session_note',
 			description: '[low-risk write] Create a new session note under 02_timeline/sessions.',
 			inputSchema: {
 				type: 'object',
@@ -1875,8 +1875,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'obs_wiki.capture_source',
-			title: 'obs_wiki.capture_source',
+			name: 'obswiki.capture_source',
+			title: 'obswiki.capture_source',
 			description: '[low-risk write] Capture source metadata/content under 03_sources with mode control.',
 			inputSchema: {
 				type: 'object',
@@ -1908,8 +1908,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'obs_wiki.propose_memory',
-			title: 'obs_wiki.propose_memory',
+			name: 'obswiki.propose_memory',
+			title: 'obswiki.propose_memory',
 			description: '[low-risk write] Create a memory proposal note under 01_inbox/review_queue.',
 			inputSchema: {
 				type: 'object',
@@ -1939,8 +1939,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 
 export function toolPrompts(): McpPrompt[] {
 	return [
-		{ name: 'obs-wiki Start Task', title: 'obs-wiki Start Task', description: 'Start a task with a read-only context summary.' },
-		{ name: 'obs-wiki Recall Memory', title: 'obs-wiki Recall Memory', description: 'Generate matching notes for fast recall.' },
+		{ name: 'obswiki Start Task', title: 'obswiki Start Task', description: 'Start a task with a read-only context summary.' },
+		{ name: 'obswiki Recall Memory', title: 'obswiki Recall Memory', description: 'Generate matching notes for fast recall.' },
 	];
 }
 
@@ -1970,58 +1970,58 @@ export function callTool(
 
 	try {
 		switch (requestName) {
-			case 'obs_wiki.status':
+			case 'obswiki.status':
 				toolResult = toolResultWithError(handleStatus(args as StatusArgs, context));
 				break;
-			case 'obs_wiki.start_task':
+			case 'obswiki.start_task':
 				toolResult = toolResultWithError(handleStartTask(args as StartTaskArgs, context));
 				break;
-			case 'obs_wiki.recall':
+			case 'obswiki.recall':
 				toolResult = toolResultWithError(handleRecall(args as RecallArgs, context));
 				break;
-			case 'obs_wiki.read_note':
+			case 'obswiki.read_note':
 				toolResult = toolResultWithError(handleReadNote(args as ReadNoteArgs, context));
 				break;
-			case 'obs_wiki.list_review_queue':
+			case 'obswiki.list_review_queue':
 				toolResult = toolResultWithError(handleReviewQueue(args as ListReviewQueueArgs, context));
 				break;
-			case 'obs_wiki.list_source_requests':
+			case 'obswiki.list_source_requests':
 				toolResult = toolResultWithError(handleListSourceRequests(args as ListSourceRequestsArgs, context));
 				break;
-			case 'obs_wiki.list_approved_writebacks':
+			case 'obswiki.list_approved_writebacks':
 				toolResult = toolResultWithError(handleListApprovedWritebacks(args as ListApprovedWritebacksArgs, context));
 				break;
-			case 'obs_wiki.audit_recent':
+			case 'obswiki.audit_recent':
 				toolResult = toolResultWithError(handleAuditRecent(args as AuditRecentArgs, context));
 				break;
-			case 'obs_wiki.analyze_source_request':
+			case 'obswiki.analyze_source_request':
 				toolResult = toolResultWithError(handleAnalyzeSourceRequest(args as AnalyzeSourceRequestArgs, context));
 				break;
-			case 'obs_wiki.apply_approved_writeback':
+			case 'obswiki.apply_approved_writeback':
 				toolResult = toolResultWithError(handleApplyApprovedWriteback(args as ApplyApprovedWritebackArgs, context));
 				break;
-			case 'obs_wiki.build_context_pack':
+			case 'obswiki.build_context_pack':
 				toolResult = toolResultWithError(handleBuildContextPack(args as BuildContextPackArgs, context));
 				break;
-			case 'obs_wiki.lint':
+			case 'obswiki.lint':
 				toolResult = toolResultWithError(handleLint(args as LintArgs, context));
 				break;
-			case 'obs_wiki.finish_task':
+			case 'obswiki.finish_task':
 				toolResult = toolResultWithError(handleFinishTask(args as FinishTaskArgs, context));
 				break;
-			case 'obs_wiki.distill_session':
+			case 'obswiki.distill_session':
 				toolResult = toolResultWithError(handleDistillSession(args as DistillSessionArgs, context));
 				break;
-			case 'obs_wiki.write_context_pack':
+			case 'obswiki.write_context_pack':
 				toolResult = toolResultWithError(handleWriteContextPack(args as WriteContextPackArgs, context));
 				break;
-			case 'obs_wiki.write_session_note':
+			case 'obswiki.write_session_note':
 				toolResult = toolResultWithError(handleWriteSessionNote(args as WriteSessionNoteArgs, context));
 				break;
-			case 'obs_wiki.capture_source':
+			case 'obswiki.capture_source':
 				toolResult = toolResultWithError(handleCaptureSource(args as CaptureSourceArgs, context));
 				break;
-			case 'obs_wiki.propose_memory':
+			case 'obswiki.propose_memory':
 				toolResult = toolResultWithError(handleProposeMemory(args as ProposeMemoryArgs, context));
 				break;
 			default:
@@ -2117,7 +2117,7 @@ function handleStartTask(rawArgs: StartTaskArgs, context: ToolContext) {
 		related_projects: relatedProjects,
 		recent_sessions: buildRecentSessions(scan.notes),
 		user_preferences: buildUserPreferences(scan),
-		recommended_next_tool: 'obs_wiki.recall',
+		recommended_next_tool: 'obswiki.recall',
 	};
 }
 
@@ -2388,11 +2388,11 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 		const sourceFilename = buildSafeFilename(`${runToken}-source`, 'source');
 		const sourceNote = buildAndWriteNote(
 			vaultRoot,
-			'obs_wiki.analyze_source_request',
+			'obswiki.analyze_source_request',
 			SOURCES_DIR,
 			sourceFilename,
 			{
-				tool: 'obs_wiki.analyze_source_request',
+				tool: 'obswiki.analyze_source_request',
 				type: 'source_analysis_source',
 				title: `source_analysis_source_${runToken}`,
 				source: request.source,
@@ -2410,11 +2410,11 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 		const reportFilename = buildSafeFilename(`${runToken}-report`, 'source-report');
 		const report = buildAndWriteNote(
 			vaultRoot,
-			'obs_wiki.analyze_source_request',
+			'obswiki.analyze_source_request',
 			SOURCE_ANALYSIS_REPORT_DIR,
 			reportFilename,
 			{
-				tool: 'obs_wiki.analyze_source_request',
+				tool: 'obswiki.analyze_source_request',
 				type: 'source_analysis_report',
 				title: `source_analysis_report_${runToken}`,
 				source: request.source,
@@ -2432,11 +2432,11 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 		const proposalPaths = analysis.proposalDrafts.map((entry: { title?: string; proposalKind: string; riskLevel?: string; evidence: string; content: string }) => {
 			const proposalNote = buildAndWriteNote(
 				vaultRoot,
-				'obs_wiki.analyze_source_request',
+				'obswiki.analyze_source_request',
 				MEMORY_PROPOSAL_DIR,
 				buildSafeFilename(`proposal-${runToken}-${entry.proposalKind}`, entry.proposalKind),
 				{
-					tool: 'obs_wiki.analyze_source_request',
+					tool: 'obswiki.analyze_source_request',
 					type: 'memory_proposal',
 					title: entry.title || `source_proposal_${runToken}`,
 					proposal_kind: entry.proposalKind,
@@ -2464,7 +2464,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 		if (updateStatus) {
 			updateRequestStatus(vaultRoot, request.path, 'completed');
 			auditPathForReturn = appendAuditEvent(vaultRoot, {
-				tool: 'obs_wiki.analyze_source_request',
+				tool: 'obswiki.analyze_source_request',
 				targetPath: request.path,
 				status: 'written',
 				taskId: null,
@@ -2480,7 +2480,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 		return {
 			ok: true,
 			read_only: false,
-			tool: 'obs_wiki.analyze_source_request',
+			tool: 'obswiki.analyze_source_request',
 			status: 'completed',
 			vault_root: vaultRoot,
 			request_path: request.path,
@@ -2503,7 +2503,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 			try {
 				updateRequestStatus(vaultRoot, requestPathAlias, 'failed');
 				appendAuditEvent(vaultRoot, {
-					tool: 'obs_wiki.analyze_source_request',
+					tool: 'obswiki.analyze_source_request',
 					targetPath: requestPathAlias,
 					status: 'failed',
 					taskId: null,
@@ -2651,7 +2651,7 @@ function handleApplyApprovedWriteback(rawArgs: ApplyApprovedWritebackArgs, conte
 	fs.writeFileSync(proposal.absolutePath, updatedProposal, 'utf8');
 
 	const audit = appendAuditEvent(vaultRoot, {
-		tool: 'obs_wiki.apply_approved_writeback',
+		tool: 'obswiki.apply_approved_writeback',
 		targetPath: targetRelative,
 		status: 'written',
 		taskId: proposal.taskId || null,
@@ -2718,11 +2718,11 @@ function handleWriteContextPack(rawArgs: WriteContextPackArgs, context: ToolCont
 
 	const note = buildAndWriteNote(
 		vaultRoot,
-		'obs_wiki.write_context_pack',
+		'obswiki.write_context_pack',
 		CONTEXT_PACK_DIR,
 		filename,
 		{
-			tool: 'obs_wiki.write_context_pack',
+			tool: 'obswiki.write_context_pack',
 			type: 'context_pack',
 			title: title || `context_pack_${now}`,
 			created_at: now,
@@ -2730,10 +2730,10 @@ function handleWriteContextPack(rawArgs: WriteContextPackArgs, context: ToolCont
 		},
 		content,
 		taskId,
-		{ target_type: 'context_pack', tool: 'obs_wiki.write_context_pack' }
+		{ target_type: 'context_pack', tool: 'obswiki.write_context_pack' }
 	);
 
-	return makeToolResultForWrite('obs_wiki.write_context_pack', note);
+	return makeToolResultForWrite('obswiki.write_context_pack', note);
 }
 
 function handleWriteSessionNote(rawArgs: WriteSessionNoteArgs, context: ToolContext) {
@@ -2748,21 +2748,21 @@ function handleWriteSessionNote(rawArgs: WriteSessionNoteArgs, context: ToolCont
 
 	const note = buildAndWriteNote(
 		vaultRoot,
-		'obs_wiki.write_session_note',
+		'obswiki.write_session_note',
 		SESSION_NOTE_DIR,
 		filename,
 		{
-			tool: 'obs_wiki.write_session_note',
+			tool: 'obswiki.write_session_note',
 			type: 'session_note',
 			created_at: now,
 			task_id: taskId || null,
 		},
 		content,
 		taskId,
-		{ target_type: 'session_note', tool: 'obs_wiki.write_session_note' }
+		{ target_type: 'session_note', tool: 'obswiki.write_session_note' }
 	);
 
-	return makeToolResultForWrite('obs_wiki.write_session_note', note);
+	return makeToolResultForWrite('obswiki.write_session_note', note);
 }
 
 function handleCaptureSource(rawArgs: CaptureSourceArgs, context: ToolContext) {
@@ -2811,11 +2811,11 @@ function handleCaptureSource(rawArgs: CaptureSourceArgs, context: ToolContext) {
 
 	const note = buildAndWriteNote(
 		vaultRoot,
-		'obs_wiki.capture_source',
+		'obswiki.capture_source',
 		SOURCES_DIR,
 		filename,
 		{
-			tool: 'obs_wiki.capture_source',
+			tool: 'obswiki.capture_source',
 			type: 'source_capture',
 			title: title || `source_${mode}_${now}`,
 			source,
@@ -2833,7 +2833,7 @@ function handleCaptureSource(rawArgs: CaptureSourceArgs, context: ToolContext) {
 
 	return {
 		ok: true,
-		tool: 'obs_wiki.capture_source',
+		tool: 'obswiki.capture_source',
 		status: note.status,
 		path: note.path,
 		audit_path: note.audit_path,
@@ -2876,11 +2876,11 @@ function handleProposeMemory(rawArgs: ProposeMemoryArgs, context: ToolContext) {
 
 	const note = buildAndWriteNote(
 		vaultRoot,
-		'obs_wiki.propose_memory',
+		'obswiki.propose_memory',
 		MEMORY_PROPOSAL_DIR,
 		filename,
 		{
-			tool: 'obs_wiki.propose_memory',
+			tool: 'obswiki.propose_memory',
 			type: 'memory_proposal',
 			title: title || `proposal_${proposalKind}_${now}`,
 			proposal_kind: proposalKind,
@@ -2899,7 +2899,7 @@ function handleProposeMemory(rawArgs: ProposeMemoryArgs, context: ToolContext) {
 		}
 	);
 
-	return makeToolResultForWrite('obs_wiki.propose_memory', note);
+	return makeToolResultForWrite('obswiki.propose_memory', note);
 }
 
 function handleBuildContextPack(rawArgs: BuildContextPackArgs, context: ToolContext) {
@@ -2970,11 +2970,11 @@ function handleBuildContextPack(rawArgs: BuildContextPackArgs, context: ToolCont
 
 	const note = buildAndWriteNote(
 		vaultRoot,
-		'obs_wiki.build_context_pack',
+		'obswiki.build_context_pack',
 		CONTEXT_PACK_DIR,
 		filename,
 		{
-			tool: 'obs_wiki.build_context_pack',
+			tool: 'obswiki.build_context_pack',
 			type: 'context_pack',
 			title: title || `context_pack_${now}`,
 			query,
@@ -3086,11 +3086,11 @@ function createDistillProposal(
 	const filenameToken = `${proposalKind}-${taskId}-${now.replace(/[:.]/g, '-')}-${crypto.randomUUID().slice(0, 8)}`;
 	const proposal = buildAndWriteNote(
 		vaultRoot,
-		'obs_wiki.distill_session',
+		'obswiki.distill_session',
 		MEMORY_PROPOSAL_DIR,
 		buildSafeFilename(filenameToken, proposalKind),
 		{
-			tool: 'obs_wiki.distill_session',
+			tool: 'obswiki.distill_session',
 			type: 'memory_proposal',
 			title: `${kindLabel} ${taskId}`,
 			proposal_kind: proposalKind,
@@ -3131,11 +3131,11 @@ function handleFinishTask(rawArgs: FinishTaskArgs, context: ToolContext) {
 
 	const note = buildAndWriteNote(
 		vaultRoot,
-		'obs_wiki.finish_task',
+		'obswiki.finish_task',
 		SESSION_NOTE_DIR,
 		filename,
 		{
-			tool: 'obs_wiki.finish_task',
+			tool: 'obswiki.finish_task',
 			type: 'session_note',
 			title: `Task ${taskId} finish note`,
 			task_id: taskId,
@@ -3186,11 +3186,11 @@ function handleDistillSession(rawArgs: DistillSessionArgs, context: ToolContext)
 	const body = buildSessionNoteBodyWithDistill(summary, outcomes, nextActions, decisions, possiblePreferences);
 	const note = buildAndWriteNote(
 		vaultRoot,
-		'obs_wiki.distill_session',
+		'obswiki.distill_session',
 		SESSION_NOTE_DIR,
 		filename,
 		{
-			tool: 'obs_wiki.distill_session',
+			tool: 'obswiki.distill_session',
 			type: 'session_note',
 			title: `Task ${taskId} distill note`,
 			task_id: taskId,

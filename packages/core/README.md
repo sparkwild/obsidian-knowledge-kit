@@ -1,6 +1,6 @@
-# obs-wiki Core Runtime (Phase 6)
+# Obswiki Core Runtime
 
-This package implements a minimal, read-only TypeScript runtime for local Obsidian vault processing.
+This package implements the shared TypeScript runtime for local Obsidian vault processing.
 
 ## Features
 
@@ -31,7 +31,7 @@ const lint = lintNotes(scan.vaultRoot, scan.notes);
 - `/.obsidian/` directories are skipped.
 - Paths are checked to remain inside the configured vault root.
 
-## Phase 10 Verification
+## Verification
 
 ```bash
 npm run typecheck
@@ -39,7 +39,7 @@ npm run build
 npm run test
 ```
 
-`npm run test` runs a local Node smoke script under `scripts/test_phase10.mjs` and validates:
+`npm run test` runs a local Node smoke script under `scripts/test.mjs` and validates:
 
 - vault root containment rules
 - `.obsidian` skip behavior

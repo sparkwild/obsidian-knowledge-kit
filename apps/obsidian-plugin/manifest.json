@@ -1,11 +1,11 @@
 {
-  "id": "obs-wiki",
+  "id": "obswiki",
   "name": "Obswiki",
-  "version": "0.1.3",
+  "version": "0.1.0",
   "minAppVersion": "1.6.0",
   "description": "连接 AI 助手与 Obsidian 知识库，把重要建议先放进审核队列，再沉淀为长期记忆。",
   "author": "sparkwild",
-  "authorUrl": "https://github.com/sparkwild/obs-wiki",
+  "authorUrl": "https://github.com/sparkwild/obsidian-obswiki",
   "isDesktopOnly": false,
   "main": "main.js"
 }

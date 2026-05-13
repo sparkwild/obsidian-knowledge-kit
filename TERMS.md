@@ -1,21 +1,22 @@
 # Terms of Use
 
-`obs-wiki` is provided under the MIT License.
+Obswiki is provided under the MIT License.
 
-## Use at your own risk
+## Use At Your Own Risk
 
-This project modifies local files and may write into an Obsidian knowledge vault when its scripts or commands are invoked.
+This project can read and write local vault content when the user or a connected AI tool invokes the relevant workflow.
 
 You are responsible for:
 
-- reviewing generated or updated notes
-- backing up your vault if your workflow requires it
-- confirming any high-impact structural changes before applying them
+- reviewing proposed memory updates
+- backing up your vault when your workflow requires it
+- confirming high-impact changes before applying them
+- deciding which AI tools may connect to your local runtime
 
-## No warranty
+## No Warranty
 
-This project is provided on an \"as is\" basis, without warranty of any kind, as further described in the repository `LICENSE`.
+This project is provided on an "as is" basis, without warranty of any kind, as further described in the repository `LICENSE`.
 
 ## Scope
 
-These terms apply to the local toolkit, the packaged Codex plugin, and associated scripts in this repository.
+These terms apply to the Obsidian plugin, MCP server, shared runtime packages, and repository scripts.

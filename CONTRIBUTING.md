@@ -1,17 +1,15 @@
 # Contributing
 
-Thanks for contributing to `obs-wiki`.
+Thanks for contributing to Obswiki.
 
 ## Scope
 
-This repository contains the Obsidian-native obs-wiki monorepo:
+This repository contains the Obsidian-native Obswiki monorepo:
 
-- `apps/obsidian-plugin/` for the Obsidian governance plugin.
+- `apps/obsidian-plugin/` for the Obsidian review and connection plugin.
 - `apps/mcp-server/` for the Agent-facing MCP server.
-- `packages/core/` for shared TypeScript memory/runtime primitives.
-- `docs/` for current product and architecture docs.
-
-Do not reintroduce the removed Codex local plugin package, root skills, or Python runtime as a primary product path.
+- `packages/core/` for shared TypeScript memory and vault primitives.
+- `docs/` for current product and architecture documentation.
 
 ## Setup
 
@@ -45,7 +43,8 @@ npm run package
 
 ## Design Constraints
 
-- Agent is the only operation entry for URL/file submission, source analysis, context packs, lint, distill, and proposal generation.
-- Obsidian plugin commands must remain governance/review/status oriented.
-- MCP tools must stay vault-scoped and follow `docs/MCP_Tool_Permission_Matrix.md`.
+- Agent clients are the only operation entry for URL/file submission, source analysis, context packs, lint, distill, and proposal generation.
+- Obsidian plugin commands must remain governance, review, status, and connection oriented.
+- MCP tools must stay vault-scoped and follow `docs/MCP.md`.
 - Do not write to a real Obsidian vault unless a task explicitly asks for it.
+- Do not hardcode developer machine paths, vault paths, repository checkouts, or local ports.

@@ -15,18 +15,18 @@ import {
 	setIcon,
 } from 'obsidian';
 
-const OBS_WIKI_ACTIVITY_VIEW = 'obs-wiki-activity';
-const OBS_WIKI_SOURCE_STATUS_VIEW = 'obs-wiki-source-status';
-const OBS_WIKI_REVIEW_QUEUE_VIEW = 'obs-wiki-review-queue';
-const OBS_WIKI_MEMORY_INSPECTOR_VIEW = 'obs-wiki-memory-inspector';
-const OBS_WIKI_AUDIT_LOG_VIEW = 'obs-wiki-audit-log';
-const OBS_WIKI_RUNTIME_STATUS_VIEW = 'obs-wiki-runtime-status';
-const OBS_WIKI_PERMISSION_POLICY_VIEW = 'obs-wiki-permission-policy';
-const OBS_WIKI_AGENT_CONNECTIONS_VIEW = 'obs-wiki-agent-connections';
+const OBSWIKI_ACTIVITY_VIEW = 'obswiki-activity';
+const OBSWIKI_SOURCE_STATUS_VIEW = 'obswiki-source-status';
+const OBSWIKI_REVIEW_QUEUE_VIEW = 'obswiki-review-queue';
+const OBSWIKI_MEMORY_INSPECTOR_VIEW = 'obswiki-memory-inspector';
+const OBSWIKI_AUDIT_LOG_VIEW = 'obswiki-audit-log';
+const OBSWIKI_RUNTIME_STATUS_VIEW = 'obswiki-runtime-status';
+const OBSWIKI_PERMISSION_POLICY_VIEW = 'obswiki-permission-policy';
+const OBSWIKI_AGENT_CONNECTIONS_VIEW = 'obswiki-agent-connections';
 const CONTROL_FILES: Array<{ path: string; content: string }> = [
 	{
 		path: '00_control/system.md',
-		content: '# System Control\n\nObsidian-native memory system control defaults for obs-wiki.\n',
+		content: '# System Control\n\nObsidian-native memory system control defaults for Obswiki.\n',
 	},
 	{
 		path: '00_control/memory_policy.md',
@@ -60,9 +60,11 @@ const MAX_AGENT_CONNECTION_ROWS = 8;
 const MAX_AGENT_TOOL_CALL_ROWS = 12;
 const PLUGIN_DISPLAY_NAME_ZH = '知识库';
 const PLUGIN_DISPLAY_NAME_EN = 'Obswiki';
-const DEFAULT_MCP_HTTP_ENDPOINT = 'http://127.0.0.1:37241/mcp';
-const DEFAULT_MCP_SSE_ENDPOINT = 'http://127.0.0.1:37241/sse';
-const DEFAULT_MCP_STDIO_COMMAND = 'obs-wiki-mcp';
+const DEFAULT_MCP_HTTP_ENDPOINT = '';
+const DEFAULT_MCP_SSE_ENDPOINT = '';
+const MCP_HTTP_ENDPOINT_PLACEHOLDER = 'http://127.0.0.1:<port>/mcp';
+const MCP_SSE_ENDPOINT_PLACEHOLDER = 'http://127.0.0.1:<port>/sse';
+const DEFAULT_MCP_STDIO_COMMAND = 'obswiki-mcp';
 const DEFAULT_STATUS_MESSAGE_ZH = '欢迎使用知识库。';
 const DEFAULT_STATUS_MESSAGE_EN = 'Welcome to Obswiki.';
 const isChineseLanguage = (language: string): boolean => {
@@ -292,6 +294,7 @@ interface AgentToolCallRecord {
 
 type LocalConnectionState =
 	| 'available'
+	| 'not_configured'
 	| 'service_not_running'
 	| 'needs_update'
 	| 'needs_restart'
@@ -363,7 +366,7 @@ interface AgentConnectionsSnapshot {
 	updatedAt: string;
 }
 
-interface ObsWikiSettings {
+interface ObswikiSettings {
 	showWelcomeMessage: boolean;
 	defaultAgentScope: string;
 	statusMessage: string;
@@ -372,7 +375,7 @@ interface ObsWikiSettings {
 	mcpStdioCommand: string;
 }
 
-const DEFAULT_SETTINGS: ObsWikiSettings = {
+const DEFAULT_SETTINGS: ObswikiSettings = {
 	showWelcomeMessage: true,
 	defaultAgentScope: 'vault',
 	statusMessage: '',
@@ -381,18 +384,18 @@ const DEFAULT_SETTINGS: ObsWikiSettings = {
 	mcpStdioCommand: DEFAULT_MCP_STDIO_COMMAND,
 };
 
-export default class ObsWikiPlugin extends Plugin {
-	settings: ObsWikiSettings = DEFAULT_SETTINGS;
+export default class ObswikiPlugin extends Plugin {
+	settings: ObswikiSettings = DEFAULT_SETTINGS;
 
 	async onload() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 		if (typeof this.settings.statusMessage !== 'string') {
 			this.settings.statusMessage = '';
 		}
-		if (typeof this.settings.mcpHttpEndpoint !== 'string' || !this.settings.mcpHttpEndpoint.trim()) {
+		if (typeof this.settings.mcpHttpEndpoint !== 'string') {
 			this.settings.mcpHttpEndpoint = DEFAULT_MCP_HTTP_ENDPOINT;
 		}
-		if (typeof this.settings.mcpSseEndpoint !== 'string' || !this.settings.mcpSseEndpoint.trim()) {
+		if (typeof this.settings.mcpSseEndpoint !== 'string') {
 			this.settings.mcpSseEndpoint = DEFAULT_MCP_SSE_ENDPOINT;
 		}
 		if (typeof this.settings.mcpStdioCommand !== 'string' || !this.settings.mcpStdioCommand.trim()) {
@@ -402,89 +405,89 @@ export default class ObsWikiPlugin extends Plugin {
 		const isSavedDefaultMessage =
 			savedStatusMessage === DEFAULT_STATUS_MESSAGE_ZH ||
 			savedStatusMessage === DEFAULT_STATUS_MESSAGE_EN ||
-			['obs-wiki', 'Agent', 'Activity'].every((part) => savedStatusMessage.includes(part));
+			['obswiki', 'Agent', 'Activity'].every((part) => savedStatusMessage.includes(part));
 		if (isSavedDefaultMessage) {
 			this.settings.statusMessage = '';
 			await this.saveSettings();
 		}
 
 		this.registerView(
-			OBS_WIKI_SOURCE_STATUS_VIEW,
-			(leaf) => new ObsWikiSourceStatusView(leaf, this)
+			OBSWIKI_SOURCE_STATUS_VIEW,
+			(leaf) => new ObswikiSourceStatusView(leaf, this)
 		);
 		this.registerView(
-			OBS_WIKI_ACTIVITY_VIEW,
-			(leaf) => new ObsWikiActivityView(leaf, this)
+			OBSWIKI_ACTIVITY_VIEW,
+			(leaf) => new ObswikiActivityView(leaf, this)
 		);
 		this.registerView(
-			OBS_WIKI_REVIEW_QUEUE_VIEW,
-			(leaf) => new ObsWikiReviewQueueView(leaf, this)
+			OBSWIKI_REVIEW_QUEUE_VIEW,
+			(leaf) => new ObswikiReviewQueueView(leaf, this)
 		);
 		this.registerView(
-			OBS_WIKI_MEMORY_INSPECTOR_VIEW,
-			(leaf) => new ObsWikiMemoryInspectorView(leaf)
+			OBSWIKI_MEMORY_INSPECTOR_VIEW,
+			(leaf) => new ObswikiMemoryInspectorView(leaf)
 		);
 		this.registerView(
-			OBS_WIKI_AUDIT_LOG_VIEW,
-			(leaf) => new ObsWikiAuditLogView(leaf, this)
+			OBSWIKI_AUDIT_LOG_VIEW,
+			(leaf) => new ObswikiAuditLogView(leaf, this)
 		);
 		this.registerView(
-			OBS_WIKI_RUNTIME_STATUS_VIEW,
-			(leaf) => new ObsWikiRuntimeStatusView(leaf)
+			OBSWIKI_RUNTIME_STATUS_VIEW,
+			(leaf) => new ObswikiRuntimeStatusView(leaf)
 		);
 		this.registerView(
-			OBS_WIKI_PERMISSION_POLICY_VIEW,
-			(leaf) => new ObsWikiPermissionPolicyView(leaf)
+			OBSWIKI_PERMISSION_POLICY_VIEW,
+			(leaf) => new ObswikiPermissionPolicyView(leaf)
 		);
 		this.registerView(
-			OBS_WIKI_AGENT_CONNECTIONS_VIEW,
-			(leaf) => new ObsWikiAgentConnectionsView(leaf, this)
+			OBSWIKI_AGENT_CONNECTIONS_VIEW,
+			(leaf) => new ObswikiAgentConnectionsView(leaf, this)
 		);
 
-		this.addRibbonIcon('brain-circuit', ui('打开 obs-wiki 活动', 'Open obs-wiki activity'), () => {
-			this.openPluginView(OBS_WIKI_ACTIVITY_VIEW);
+		this.addRibbonIcon('brain-circuit', ui('打开知识库活动', 'Open Obswiki activity'), () => {
+			this.openPluginView(OBSWIKI_ACTIVITY_VIEW);
 		});
 
 		this.addCommand({
 			id: 'open-agent-activity',
 			name: ui('打开 AI 助手活动', 'Open AI assistant activity'),
-			callback: () => this.openPluginView(OBS_WIKI_ACTIVITY_VIEW),
+			callback: () => this.openPluginView(OBSWIKI_ACTIVITY_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-review-queue',
 			name: ui('打开审核队列', 'Open review queue'),
-			callback: () => this.openPluginView(OBS_WIKI_REVIEW_QUEUE_VIEW),
+			callback: () => this.openPluginView(OBSWIKI_REVIEW_QUEUE_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-memory-inspector',
 			name: ui('打开记忆查看', 'Open memory view'),
-			callback: () => this.openPluginView(OBS_WIKI_MEMORY_INSPECTOR_VIEW),
+			callback: () => this.openPluginView(OBSWIKI_MEMORY_INSPECTOR_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-audit-log',
 			name: ui('打开操作记录', 'Open activity log'),
-			callback: () => this.openPluginView(OBS_WIKI_AUDIT_LOG_VIEW),
+			callback: () => this.openPluginView(OBSWIKI_AUDIT_LOG_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-runtime-status',
 			name: ui('打开连接状态', 'Open connection status'),
-			callback: () => this.openPluginView(OBS_WIKI_RUNTIME_STATUS_VIEW),
+			callback: () => this.openPluginView(OBSWIKI_RUNTIME_STATUS_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-permission-policy',
 			name: ui('打开权限说明', 'Open permission guide'),
-			callback: () => this.openPluginView(OBS_WIKI_PERMISSION_POLICY_VIEW),
+			callback: () => this.openPluginView(OBSWIKI_PERMISSION_POLICY_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-agent-connections',
 			name: ui('打开 AI 助手连接', 'Open AI assistant connections'),
-			callback: () => this.openPluginView(OBS_WIKI_AGENT_CONNECTIONS_VIEW),
+			callback: () => this.openPluginView(OBSWIKI_AGENT_CONNECTIONS_VIEW),
 		});
 
 		this.addCommand({
@@ -503,7 +506,7 @@ export default class ObsWikiPlugin extends Plugin {
 			},
 		});
 
-		this.addSettingTab(new ObsWikiSettingTab(this.app, this));
+		this.addSettingTab(new ObswikiSettingTab(this.app, this));
 	}
 
 	private async promptInitializeMemoryStructure(): Promise<void> {
@@ -636,10 +639,10 @@ export default class ObsWikiPlugin extends Plugin {
 			}
 
 			await this.appendAuditEvent(plan);
-			new Notice(ui('obs-wiki 记忆结构已初始化。', 'obs-wiki memory structure initialized.'));
+			new Notice(ui('知识库结构已初始化。', 'Obswiki memory structure initialized.'));
 		} catch (error) {
-			console.error('obs-wiki failed to initialize memory structure', error);
-			new Notice(ui('obs-wiki 记忆结构初始化失败。', 'obs-wiki failed to initialize memory structure.'));
+			console.error('obswiki failed to initialize memory structure', error);
+			new Notice(ui('知识库结构初始化失败。', 'Obswiki failed to initialize memory structure.'));
 		}
 	}
 
@@ -710,40 +713,40 @@ export default class ObsWikiPlugin extends Plugin {
 	}
 
 	private async refreshActivityViews(): Promise<void> {
-		const activityLeaves = this.app.workspace.getLeavesOfType(OBS_WIKI_ACTIVITY_VIEW);
+		const activityLeaves = this.app.workspace.getLeavesOfType(OBSWIKI_ACTIVITY_VIEW);
 		for (const leaf of activityLeaves) {
 			const view = leaf.view;
-			if (view instanceof ObsWikiActivityView) {
+			if (view instanceof ObswikiActivityView) {
 				await view.refresh();
 			}
 		}
 	}
 
 	private async refreshReviewQueueViews(): Promise<void> {
-		const reviewQueueLeaves = this.app.workspace.getLeavesOfType(OBS_WIKI_REVIEW_QUEUE_VIEW);
+		const reviewQueueLeaves = this.app.workspace.getLeavesOfType(OBSWIKI_REVIEW_QUEUE_VIEW);
 		for (const leaf of reviewQueueLeaves) {
 			const view = leaf.view;
-			if (view instanceof ObsWikiReviewQueueView) {
+			if (view instanceof ObswikiReviewQueueView) {
 				await view.refresh();
 			}
 		}
 	}
 
 	private async refreshSourceStatusViews(): Promise<void> {
-		const sourceStatusLeaves = this.app.workspace.getLeavesOfType(OBS_WIKI_SOURCE_STATUS_VIEW);
+		const sourceStatusLeaves = this.app.workspace.getLeavesOfType(OBSWIKI_SOURCE_STATUS_VIEW);
 		for (const leaf of sourceStatusLeaves) {
 			const view = leaf.view;
-			if (view instanceof ObsWikiSourceStatusView) {
+			if (view instanceof ObswikiSourceStatusView) {
 				await view.refresh();
 			}
 		}
 	}
 
 	private async refreshAgentConnectionViews(): Promise<void> {
-		const connectionLeaves = this.app.workspace.getLeavesOfType(OBS_WIKI_AGENT_CONNECTIONS_VIEW);
+		const connectionLeaves = this.app.workspace.getLeavesOfType(OBSWIKI_AGENT_CONNECTIONS_VIEW);
 		for (const leaf of connectionLeaves) {
 			const view = leaf.view;
-			if (view instanceof ObsWikiAgentConnectionsView) {
+			if (view instanceof ObswikiAgentConnectionsView) {
 				await view.refresh();
 			}
 		}
@@ -794,7 +797,7 @@ export default class ObsWikiPlugin extends Plugin {
 		try {
 			content = await this.app.vault.cachedRead(file);
 		} catch (error) {
-			console.error(`obs-wiki failed to read source request: ${file.path}`, error);
+			console.error(`obswiki failed to read source request: ${file.path}`, error);
 			content = '';
 		}
 
@@ -937,7 +940,7 @@ export default class ObsWikiPlugin extends Plugin {
 			{
 				id: 'claude-code',
 				displayName: 'Claude Code',
-				description: ui('在终端执行下面命令，为 Claude Code 添加 obs-wiki 连接。', 'Run this command in a terminal to add the obs-wiki connection to Claude Code.'),
+				description: ui('在终端执行下面命令，为 Claude Code 添加知识库连接。', 'Run this command in a terminal to add the Obswiki connection to Claude Code.'),
 				preferredTransport: 'streamable-http',
 				supportsAutoConfigure: false,
 				restartRequired: false,
@@ -985,15 +988,18 @@ export default class ObsWikiPlugin extends Plugin {
 
 	private buildClientConfigText(profile: ClientProfile, vaultRoot: string): string {
 		const httpEndpoint = this.getMcpHttpEndpoint();
+		if (!httpEndpoint && profile.preferredTransport !== 'stdio') {
+			return ui('请先在设置中填写 AI 工具连接地址。', 'Set the AI tool connection URL in settings first.');
+		}
 		if (profile.id === 'codex') {
 			return [
-				'[mcp_servers.obs-wiki]',
+				'[mcp_servers.obswiki]',
 				`url = ${JSON.stringify(httpEndpoint)}`,
 			].join('\n');
 		}
 
 		if (profile.id === 'claude-code') {
-			return `claude mcp add --transport http obs-wiki ${httpEndpoint} --scope user`;
+			return `claude mcp add --transport http obswiki ${httpEndpoint} --scope user`;
 		}
 
 		if (profile.preferredTransport === 'stdio') {
@@ -1002,7 +1008,7 @@ export default class ObsWikiPlugin extends Plugin {
 
 		const config = {
 			mcpServers: {
-				'obs-wiki': {
+				'obswiki': {
 					url: httpEndpoint,
 				},
 			},
@@ -1014,7 +1020,7 @@ export default class ObsWikiPlugin extends Plugin {
 	private buildMcpStdioConfig(vaultRoot: string): string {
 		const config = {
 			mcpServers: {
-				'obs-wiki': {
+				'obswiki': {
 					command: this.getMcpStdioCommand(),
 					args: [
 						'--vault-root',
@@ -1026,7 +1032,7 @@ export default class ObsWikiPlugin extends Plugin {
 		return JSON.stringify(config, null, 2);
 	}
 
-	private getMcpHttpEndpoint(): string {
+	getMcpHttpEndpoint(): string {
 		return (this.settings.mcpHttpEndpoint || DEFAULT_MCP_HTTP_ENDPOINT).trim();
 	}
 
@@ -1040,6 +1046,17 @@ export default class ObsWikiPlugin extends Plugin {
 
 	private async checkLocalConnectionStatus(httpEndpoint: string): Promise<LocalConnectionStatus> {
 		const checkedAt = new Date().toISOString();
+		if (!httpEndpoint.trim()) {
+			return {
+				state: 'not_configured',
+				label: ui('未配置', 'Not configured'),
+				detail: ui(
+					'请先在设置中填写知识库的本机连接地址；插件不会替你写入固定地址。',
+					'Set the local Obswiki connection URL in settings first; the plugin does not use a fixed address.'
+				),
+				checkedAt,
+			};
+		}
 		if (Platform.isMobileApp || Platform.isMobile) {
 			return {
 				state: 'unsupported',
@@ -1057,8 +1074,8 @@ export default class ObsWikiPlugin extends Plugin {
 				state: 'needs_update',
 				label: ui('建议检查地址', 'Check address'),
 				detail: ui(
-					'当前地址不是 127.0.0.1 本机地址；如果不是你主动修改，建议恢复默认。',
-					'The current address is not a 127.0.0.1 local address. Restore the default unless you changed it intentionally.'
+					'当前地址不是本机地址。只有在你明确需要远程连接时才建议这样配置。',
+					'The current URL is not a loopback address. Use it only when you intentionally need a remote connection.'
 				),
 				checkedAt,
 			};
@@ -1075,8 +1092,8 @@ export default class ObsWikiPlugin extends Plugin {
 					state: 'needs_update',
 					label: ui('地址需检查', 'Address needs review'),
 					detail: ui(
-						'这台电脑有响应，但不是 obs-wiki 的 AI 工具连接地址。请检查地址是否填错。',
-						'This computer responded, but not as the obs-wiki AI tool connection address. Check whether the URL is correct.'
+						'这台电脑有响应，但不是知识库的 AI 工具连接地址。请检查地址是否填错。',
+						'This computer responded, but not as the Obswiki AI tool connection address. Check whether the URL is correct.'
 					),
 					checkedAt,
 					statusCode: response.status,
@@ -1087,8 +1104,8 @@ export default class ObsWikiPlugin extends Plugin {
 					state: 'service_not_running',
 					label: ui('连接异常', 'Connection error'),
 					detail: ui(
-						'obs-wiki 地址有响应但返回异常。请重启 obs-wiki 后再刷新。',
-						'The obs-wiki address responded with an error. Restart obs-wiki and refresh.'
+						'知识库地址有响应但返回异常。请重启知识库服务后再刷新。',
+						'The Obswiki address responded with an error. Restart Obswiki and refresh.'
 					),
 					checkedAt,
 					statusCode: response.status,
@@ -1109,8 +1126,8 @@ export default class ObsWikiPlugin extends Plugin {
 				state: 'service_not_running',
 				label: ui('未运行', 'Not running'),
 				detail: ui(
-					'未检测到 AI 工具连接地址。你仍可先复制配置，启动 obs-wiki 后再刷新这里。',
-					'The AI tool connection address was not detected. You can still copy the config, then refresh after starting obs-wiki.'
+					'地址已配置，但暂时无法连接。请确认知识库本机服务已启动，或检查设置中的地址。',
+					'The URL is configured but not reachable. Confirm the local Obswiki service is running or check the setting.'
 				),
 				checkedAt,
 			};
@@ -1121,10 +1138,10 @@ export default class ObsWikiPlugin extends Plugin {
 		try {
 			const result = this.writeClientConfig(config);
 			await this.appendClientConfigAuditEvent('client_config_applied', config, 'success', result.backupPath);
-			new Notice(ui('已写入 obs-wiki 连接配置，请重启对应 AI 工具。', 'obs-wiki connection config written. Restart the AI tool.'));
+			new Notice(ui('已写入知识库连接配置，请重启对应 AI 工具。', 'Obswiki connection config written. Restart the AI tool.'));
 			await this.refreshAgentConnectionViews();
 		} catch (error) {
-			console.error('obs-wiki failed to apply client config', error);
+			console.error('obswiki failed to apply client config', error);
 			await this.appendClientConfigAuditEvent('client_config_failed', config, 'failed');
 			new Notice(ui('写入连接配置失败。', 'Failed to write connection config.'));
 		}
@@ -1134,10 +1151,10 @@ export default class ObsWikiPlugin extends Plugin {
 		try {
 			const result = this.deleteClientConfig(config);
 			await this.appendClientConfigAuditEvent('client_config_removed', config, 'success', result.backupPath);
-			new Notice(ui('已移除 obs-wiki 连接配置，请重启对应 AI 工具。', 'obs-wiki connection config removed. Restart the AI tool.'));
+			new Notice(ui('已移除知识库连接配置，请重启对应 AI 工具。', 'Obswiki connection config removed. Restart the AI tool.'));
 			await this.refreshAgentConnectionViews();
 		} catch (error) {
-			console.error('obs-wiki failed to remove client config', error);
+			console.error('obswiki failed to remove client config', error);
 			await this.appendClientConfigAuditEvent('client_config_failed', config, 'failed');
 			new Notice(ui('移除连接配置失败。', 'Failed to remove connection config.'));
 		}
@@ -1181,8 +1198,8 @@ export default class ObsWikiPlugin extends Plugin {
 		const directory = api.path.dirname(targetPath);
 		api.fs.mkdirSync(directory, { recursive: true });
 		const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-		const backupPath = `${targetPath}.obs-wiki-backup-${stamp}`;
-		const tmpPath = `${targetPath}.obs-wiki-tmp-${stamp}`;
+		const backupPath = `${targetPath}.obswiki-backup-${stamp}`;
+		const tmpPath = `${targetPath}.obswiki-tmp-${stamp}`;
 		api.fs.writeFileSync(backupPath, original, 'utf8');
 		api.fs.writeFileSync(tmpPath, nextContent, 'utf8');
 		api.fs.renameSync(tmpPath, targetPath);
@@ -1191,11 +1208,11 @@ export default class ObsWikiPlugin extends Plugin {
 
 	private mergeClientConfigContent(config: GeneratedClientConfig, original: string): string {
 		if (config.configFormat === 'codex-toml') {
-			return this.trimLeadingWhitespace(`${this.trimTrailingWhitespace(this.removeCodexTomlObsWikiBlock(original))}\n\n${config.configText}\n`);
+			return this.trimLeadingWhitespace(`${this.trimTrailingWhitespace(this.removeCodexTomlObswikiBlock(original))}\n\n${config.configText}\n`);
 		}
 		if (config.configFormat === 'mcp-json') {
 			const parsed = this.parseMcpJsonConfig(original);
-			parsed.mcpServers['obs-wiki'] = {
+			parsed.mcpServers['obswiki'] = {
 				url: this.getMcpHttpEndpoint(),
 			};
 			return `${JSON.stringify(parsed, null, 2)}\n`;
@@ -1205,11 +1222,11 @@ export default class ObsWikiPlugin extends Plugin {
 
 	private removeClientConfigContent(config: GeneratedClientConfig, original: string): string {
 		if (config.configFormat === 'codex-toml') {
-			return `${this.trimTrailingWhitespace(this.removeCodexTomlObsWikiBlock(original))}\n`;
+			return `${this.trimTrailingWhitespace(this.removeCodexTomlObswikiBlock(original))}\n`;
 		}
 		if (config.configFormat === 'mcp-json') {
 			const parsed = this.parseMcpJsonConfig(original);
-			delete parsed.mcpServers['obs-wiki'];
+			delete parsed.mcpServers['obswiki'];
 			return `${JSON.stringify(parsed, null, 2)}\n`;
 		}
 		throw new Error(`Unsupported config format: ${config.configFormat}`);
@@ -1236,12 +1253,12 @@ export default class ObsWikiPlugin extends Plugin {
 		return result as { mcpServers: Record<string, unknown>; [key: string]: unknown };
 	}
 
-	private removeCodexTomlObsWikiBlock(content: string): string {
+	private removeCodexTomlObswikiBlock(content: string): string {
 		const lines = content.split(/\r?\n/);
 		const nextLines: string[] = [];
 		let skipping = false;
 		for (const line of lines) {
-			if (this.isObsWikiCodexTomlHeader(line)) {
+			if (this.isObswikiCodexTomlHeader(line)) {
 				skipping = true;
 				continue;
 			}
@@ -1255,8 +1272,8 @@ export default class ObsWikiPlugin extends Plugin {
 		return nextLines.join('\n');
 	}
 
-	private isObsWikiCodexTomlHeader(line: string): boolean {
-		return /^\s*\[mcp_servers\.(?:"obs-wiki"|'obs-wiki'|obs-wiki)\]\s*$/.test(line);
+	private isObswikiCodexTomlHeader(line: string): boolean {
+		return /^\s*\[mcp_servers\.(?:"obswiki"|'obswiki'|obswiki)\]\s*$/.test(line);
 	}
 
 	private isTomlHeader(line: string): boolean {
@@ -1411,7 +1428,7 @@ export default class ObsWikiPlugin extends Plugin {
 		try {
 			content = await this.app.vault.cachedRead(file);
 		} catch (error) {
-			console.error(`obs-wiki failed to read memory proposal: ${file.path}`, error);
+			console.error(`obswiki failed to read memory proposal: ${file.path}`, error);
 			content = '';
 		}
 
@@ -1543,7 +1560,7 @@ export default class ObsWikiPlugin extends Plugin {
 		try {
 			content = await this.app.vault.cachedRead(file);
 		} catch (error) {
-			console.error(`obs-wiki failed to read context pack: ${file.path}`, error);
+			console.error(`obswiki failed to read context pack: ${file.path}`, error);
 			return null;
 		}
 
@@ -1581,7 +1598,7 @@ export default class ObsWikiPlugin extends Plugin {
 		try {
 			content = await this.app.vault.cachedRead(file);
 		} catch (error) {
-			console.error(`obs-wiki failed to read source capture: ${file.path}`, error);
+			console.error(`obswiki failed to read source capture: ${file.path}`, error);
 			return null;
 		}
 
@@ -1646,7 +1663,7 @@ export default class ObsWikiPlugin extends Plugin {
 		try {
 			content = await this.app.vault.cachedRead(file);
 		} catch (error) {
-			console.error(`obs-wiki failed to read agent task: ${file.path}`, error);
+			console.error(`obswiki failed to read agent task: ${file.path}`, error);
 			content = '';
 		}
 		const parsed = this.readFrontmatter(content);
@@ -1698,7 +1715,7 @@ export default class ObsWikiPlugin extends Plugin {
 		try {
 			content = await this.app.vault.cachedRead(file);
 		} catch (error) {
-			console.error('obs-wiki failed to read audit log', error);
+			console.error('obswiki failed to read audit log', error);
 			return [];
 		}
 
@@ -1725,7 +1742,7 @@ export default class ObsWikiPlugin extends Plugin {
 		try {
 			content = await this.app.vault.cachedRead(file);
 		} catch (error) {
-			console.error(`obs-wiki failed to read audit file: ${file.path}`, error);
+			console.error(`obswiki failed to read audit file: ${file.path}`, error);
 			return [];
 		}
 
@@ -2056,7 +2073,7 @@ export default class ObsWikiPlugin extends Plugin {
 	}
 
 	formatToolDisplayName(toolName: string): string {
-		const normalized = toolName.replace(/^obs_wiki[._]/, '').trim();
+		const normalized = toolName.replace(/^obswiki[._]/, '').trim();
 		const labels: Record<string, string> = {
 			status: ui('查看状态', 'Check status'),
 			start_task: ui('开始任务记录', 'Start task record'),
@@ -2134,8 +2151,8 @@ class InitializeMemoryStructureModal extends Modal {
 		const { foldersToCreate, filesToCreate } = this.options.plan;
 		contentEl.createEl('p', {
 			text: ui(
-				'将为当前仓库创建以下缺失的 obs-wiki 结构。',
-				'The following obs-wiki structure will be created if missing in this vault.'
+				'将为当前知识库创建以下缺失的文件结构。',
+				'The following Obswiki structure will be created if missing in this vault.'
 			),
 		});
 
@@ -2177,16 +2194,16 @@ class InitializeMemoryStructureModal extends Modal {
 	}
 }
 
-class ObsWikiSourceStatusView extends ItemView {
+class ObswikiSourceStatusView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
-		private plugin: ObsWikiPlugin
+		private plugin: ObswikiPlugin
 	) {
 		super(leaf);
 	}
 
 	getViewType() {
-		return OBS_WIKI_SOURCE_STATUS_VIEW;
+		return OBSWIKI_SOURCE_STATUS_VIEW;
 	}
 
 	getDisplayText() {
@@ -2213,16 +2230,16 @@ class ObsWikiSourceStatusView extends ItemView {
 	private async render(snapshot: SourceAnalysisSnapshot): Promise<void> {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass('obs-wiki-view-root');
+		contentEl.addClass('obswiki-view-root');
 
-		contentEl.createEl('h2', { text: ui('来源状态', 'Source status'), cls: 'obs-wiki-view__title' });
+		contentEl.createEl('h2', { text: ui('来源状态', 'Source status'), cls: 'obswiki-view__title' });
 
-		const header = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
+		const header = contentEl.createDiv({ cls: 'obswiki-view__section' });
 		header.createEl('div', {
 			text: `${ui('最后刷新', 'Last refreshed')}: ${this.plugin.formatDisplayTime(
 				Date.parse(snapshot.updatedAt)
 			)}`,
-			cls: 'obs-wiki-view__description',
+			cls: 'obswiki-view__description',
 		});
 		const actions = header.createDiv();
 		const refreshButton = actions.createEl('button', {
@@ -2236,10 +2253,10 @@ class ObsWikiSourceStatusView extends ItemView {
 		if (snapshot.missingRequestFolder) {
 			contentEl.createEl('p', {
 				text: ui(
-					'还没有来源请求记录。初始化 obs-wiki 后，AI 助手提交的资料处理请求会显示在这里。',
-					'No source request records yet. After obs-wiki is initialized, material processing requests from your AI assistant will appear here.'
+					'还没有来源请求记录。初始化知识库后，AI 助手提交的资料处理请求会显示在这里。',
+					'No source request records yet. After Obswiki is initialized, material processing requests from your AI assistant will appear here.'
 				),
-				cls: 'obs-wiki-view__description',
+				cls: 'obswiki-view__description',
 			});
 			return;
 		}
@@ -2250,14 +2267,14 @@ class ObsWikiSourceStatusView extends ItemView {
 					'当前没有待处理的资料请求。',
 					'No pending material requests yet.'
 				),
-				cls: 'obs-wiki-view__description',
+				cls: 'obswiki-view__description',
 			});
 			return;
 		}
 
-		const list = contentEl.createEl('ul', { cls: 'obs-wiki-view__list' });
+		const list = contentEl.createEl('ul', { cls: 'obswiki-view__list' });
 		for (const request of snapshot.requests) {
-			const item = list.createEl('li', { cls: 'obs-wiki-view__item' });
+			const item = list.createEl('li', { cls: 'obswiki-view__item' });
 			item.createEl('div', {
 				text: `${this.plugin.formatDisplayTime(request.sortTimestamp)} • ${request.sourceKind} • ${request.status}`,
 			});
@@ -2286,16 +2303,16 @@ class ObsWikiSourceStatusView extends ItemView {
 	}
 }
 
-class ObsWikiActivityView extends ItemView {
+class ObswikiActivityView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
-		private plugin: ObsWikiPlugin
+		private plugin: ObswikiPlugin
 	) {
 		super(leaf);
 	}
 
 	getViewType() {
-		return OBS_WIKI_ACTIVITY_VIEW;
+		return OBSWIKI_ACTIVITY_VIEW;
 	}
 
 	getDisplayText() {
@@ -2322,11 +2339,11 @@ class ObsWikiActivityView extends ItemView {
 	private async render(snapshot: AgentActivitySnapshot): Promise<void> {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass('obs-wiki-view-root');
+		contentEl.addClass('obswiki-view-root');
 
-		const header = contentEl.createDiv({ cls: 'obs-wiki-shell-header' });
+		const header = contentEl.createDiv({ cls: 'obswiki-shell-header' });
 		const heading = header.createDiv();
-		heading.createEl('h2', { text: ui('AI 助手活动', 'AI assistant activity'), cls: 'obs-wiki-view__title' });
+		heading.createEl('h2', { text: ui('AI 助手活动', 'AI assistant activity'), cls: 'obswiki-view__title' });
 		heading.createEl('p', {
 			text: this.plugin.settings.showWelcomeMessage
 				? this.plugin.getStatusMessage()
@@ -2334,9 +2351,9 @@ class ObsWikiActivityView extends ItemView {
 					'欢迎信息已关闭。活动数据以只读模式显示。',
 					'Welcome message is disabled. Activity data is shown in read-only mode.'
 				),
-			cls: 'obs-wiki-view__description',
+			cls: 'obswiki-view__description',
 		});
-		const actions = header.createDiv({ cls: 'obs-wiki-action-row' });
+		const actions = header.createDiv({ cls: 'obswiki-action-row' });
 		const refreshButton = actions.createEl('button', {
 			text: ui('刷新', 'Refresh'),
 			cls: 'mod-cta',
@@ -2348,29 +2365,29 @@ class ObsWikiActivityView extends ItemView {
 			text: ui('打开审核列表', 'Open review list'),
 		});
 		reviewButton.addEventListener('click', () => {
-			void this.plugin.openPluginView(OBS_WIKI_REVIEW_QUEUE_VIEW);
+			void this.plugin.openPluginView(OBSWIKI_REVIEW_QUEUE_VIEW);
 		});
 		const connectionsButton = actions.createEl('button', {
 			text: ui('打开 AI 助手连接', 'Open AI assistant connections'),
 		});
 		connectionsButton.addEventListener('click', () => {
-			void this.plugin.openPluginView(OBS_WIKI_AGENT_CONNECTIONS_VIEW);
+			void this.plugin.openPluginView(OBSWIKI_AGENT_CONNECTIONS_VIEW);
 		});
 
-		const statusBar = contentEl.createDiv({ cls: 'obs-wiki-status-bar' });
+		const statusBar = contentEl.createDiv({ cls: 'obswiki-status-bar' });
 		this.renderStatusItem(statusBar, ui('连接', 'Connection'), snapshot.recentAuditEvents.some((event) => event.toolName) ? ui('已有活动', 'Activity seen') : ui('等待连接', 'Waiting'));
 		this.renderStatusItem(statusBar, ui('记录', 'Records'), snapshot.missingTaskFolder ? ui('待初始化', 'Setup needed') : ui('可读取', 'Readable'));
 		this.renderStatusItem(statusBar, ui('知识库', 'Knowledge base'), snapshot.missingTaskFolder ? ui('结构缺失', 'Missing structure') : ui('已初始化', 'Initialized'));
 		this.renderStatusItem(statusBar, ui('权限', 'Permission'), ui('先审核再写入', 'Review before writing'));
 		this.renderStatusItem(statusBar, ui('刷新', 'Refresh'), this.plugin.formatDisplayTime(Date.parse(snapshot.updatedAt)));
 
-		const metrics = contentEl.createDiv({ cls: 'obs-wiki-metric-grid' });
+		const metrics = contentEl.createDiv({ cls: 'obswiki-metric-grid' });
 		this.renderMetricCard(metrics, ui('当前任务', 'Active task'), snapshot.currentTask ? snapshot.currentTask.status : ui('无', 'None'), snapshot.currentTask?.taskId || ui('等待 AI 助手开始记录任务', 'Waiting for the AI assistant to start a task'));
 		this.renderMetricCard(metrics, ui('待审核', 'Pending review'), String(snapshot.recentProposals.filter((proposal) => proposal.approvalStatus === 'pending').length), ui('需要你确认的记忆更新', 'Memory updates waiting for your review'));
 		this.renderMetricCard(metrics, ui('来源请求', 'Source requests'), String(snapshot.recentSourceCaptures.length), ui('最近来源捕获记录', 'Recent source capture records'));
 		this.renderMetricCard(metrics, ui('工具使用', 'Tool usage'), String(snapshot.recentAuditEvents.filter((event) => event.toolName).length), ui('最近连接操作记录', 'Recent connection activity'));
 
-		const currentSection = contentEl.createDiv({ cls: 'obs-wiki-card' });
+		const currentSection = contentEl.createDiv({ cls: 'obswiki-card' });
 		currentSection.createEl('h3', { text: ui('当前任务', 'Current task') });
 		if (!snapshot.currentTask) {
 			this.renderEmptyState(
@@ -2379,7 +2396,7 @@ class ObsWikiActivityView extends ItemView {
 					? ui('还没有任务记录。', 'No task records yet.')
 					: ui('还没有 AI 助手活动。', 'No AI assistant activity yet.'),
 				snapshot.missingTaskFolder
-					? ui('请先初始化 obs-wiki 文件结构，之后 AI 助手的任务记录会显示在这里。', 'Initialize the obs-wiki file structure first; task records will appear here afterward.')
+					? ui('请先初始化知识库文件结构，之后 AI 助手的任务记录会显示在这里。', 'Initialize the Obswiki file structure first; task records will appear here afterward.')
 					: ui('从 AI 助手开始一次任务后，这里会显示目标、来源和最近动作。', 'Start a task from your AI assistant to show goals, sources, and recent actions here.')
 			);
 		} else {
@@ -2429,7 +2446,7 @@ class ObsWikiActivityView extends ItemView {
 			})),
 		].sort((a, b) => b.time - a.time).slice(0, 18);
 
-		const timeline = contentEl.createDiv({ cls: 'obs-wiki-card' });
+		const timeline = contentEl.createDiv({ cls: 'obswiki-card' });
 		timeline.createEl('h3', { text: ui('活动时间线', 'Activity timeline') });
 		if (timelineItems.length === 0) {
 			this.renderEmptyState(
@@ -2438,14 +2455,14 @@ class ObsWikiActivityView extends ItemView {
 				ui('从 AI 助手开始一次任务后，这里会按时间显示任务、来源、审核和写回记录。', 'Start a task from your AI assistant to show task, source, review, and writeback records here over time.')
 			);
 		} else {
-			const list = timeline.createDiv({ cls: 'obs-wiki-timeline' });
+			const list = timeline.createDiv({ cls: 'obswiki-timeline' });
 			for (const item of timelineItems) {
-				const row = list.createDiv({ cls: 'obs-wiki-timeline__item' });
-				row.createEl('div', { text: item.type, cls: 'obs-wiki-badge' });
-				const body = row.createDiv({ cls: 'obs-wiki-timeline__body' });
+				const row = list.createDiv({ cls: 'obswiki-timeline__item' });
+				row.createEl('div', { text: item.type, cls: 'obswiki-badge' });
+				const body = row.createDiv({ cls: 'obswiki-timeline__body' });
 				body.createEl('strong', { text: `${item.title || ui('未命名', 'Untitled')} • ${this.plugin.formatDisplayTime(item.time)}` });
 				if (item.meta) {
-					body.createEl('div', { text: item.meta, cls: 'obs-wiki-view__description' });
+					body.createEl('div', { text: item.meta, cls: 'obswiki-view__description' });
 				}
 				if (item.body) {
 					body.createEl('div', { text: this.plugin.trimText(item.body, 160) });
@@ -2458,26 +2475,26 @@ class ObsWikiActivityView extends ItemView {
 	}
 
 	private renderStatusItem(container: HTMLElement, label: string, value: string): void {
-		const item = container.createDiv({ cls: 'obs-wiki-status-pill' });
+		const item = container.createDiv({ cls: 'obswiki-status-pill' });
 		item.createEl('span', { text: label });
 		item.createEl('strong', { text: value });
 	}
 
 	private renderMetricCard(container: HTMLElement, label: string, value: string, detail: string): void {
-		const card = container.createDiv({ cls: 'obs-wiki-metric-card' });
-		card.createEl('div', { text: label, cls: 'obs-wiki-metric-card__label' });
-		card.createEl('strong', { text: value, cls: 'obs-wiki-metric-card__value' });
-		card.createEl('div', { text: detail, cls: 'obs-wiki-view__description' });
+		const card = container.createDiv({ cls: 'obswiki-metric-card' });
+		card.createEl('div', { text: label, cls: 'obswiki-metric-card__label' });
+		card.createEl('strong', { text: value, cls: 'obswiki-metric-card__value' });
+		card.createEl('div', { text: detail, cls: 'obswiki-view__description' });
 	}
 
 	private renderEmptyState(container: HTMLElement, title: string, detail: string): void {
-		const empty = container.createDiv({ cls: 'obs-wiki-empty-state' });
+		const empty = container.createDiv({ cls: 'obswiki-empty-state' });
 		empty.createEl('strong', { text: title });
 		empty.createEl('p', { text: detail });
 	}
 
 	private renderTaskEntry(container: HTMLElement, task: AgentTaskRecord, expanded: boolean): void {
-		const item = container.createDiv({ cls: 'obs-wiki-view__item' });
+		const item = container.createDiv({ cls: 'obswiki-view__item' });
 		item.createEl('div', {
 			text: `${this.plugin.formatDisplayTime(task.sortTimestamp)} • ${task.taskId} • ${task.agent} • ${task.status}`,
 		});
@@ -2511,7 +2528,7 @@ class ObsWikiActivityView extends ItemView {
 	private renderTaskSummary(container: HTMLElement, task: AgentTaskRecord): void {
 		const compact = container.createEl('div', {
 			text: `${task.taskId} • ${this.plugin.formatDisplayTime(task.sortTimestamp)} • ${task.status}`,
-			cls: 'obs-wiki-view__item',
+			cls: 'obswiki-view__item',
 		});
 		if (task.objective) {
 			compact.createEl('div', { text: task.objective });
@@ -2524,18 +2541,18 @@ class ObsWikiActivityView extends ItemView {
 	}
 }
 
-class ObsWikiReviewQueueView extends ItemView {
+class ObswikiReviewQueueView extends ItemView {
 	private activeFilter: MemoryProposalStatus | 'all' = 'pending';
 
 	constructor(
 		leaf: WorkspaceLeaf,
-		private plugin: ObsWikiPlugin
+		private plugin: ObswikiPlugin
 	) {
 		super(leaf);
 	}
 
 	getViewType() {
-		return OBS_WIKI_REVIEW_QUEUE_VIEW;
+		return OBSWIKI_REVIEW_QUEUE_VIEW;
 	}
 
 	getDisplayText() {
@@ -2562,17 +2579,17 @@ class ObsWikiReviewQueueView extends ItemView {
 	private async render(snapshot: MemoryReviewQueueSnapshot): Promise<void> {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass('obs-wiki-view-root');
+		contentEl.addClass('obswiki-view-root');
 
-		const header = contentEl.createDiv({ cls: 'obs-wiki-shell-header' });
+		const header = contentEl.createDiv({ cls: 'obswiki-shell-header' });
 		const heading = header.createDiv();
-		heading.createEl('h2', { text: ui('审核队列', 'Review queue'), cls: 'obs-wiki-view__title' });
+		heading.createEl('h2', { text: ui('审核队列', 'Review queue'), cls: 'obswiki-view__title' });
 		heading.createEl('p', {
 			text: `${ui('最后刷新', 'Last refreshed')}: ${this.plugin.formatDisplayTime(Date.parse(snapshot.updatedAt))}`,
-			cls: 'obs-wiki-view__description',
+			cls: 'obswiki-view__description',
 		});
 
-		const actions = header.createDiv({ cls: 'obs-wiki-action-row' });
+		const actions = header.createDiv({ cls: 'obswiki-action-row' });
 		const refreshButton = actions.createEl('button', {
 			text: ui('刷新', 'Refresh'),
 			cls: 'mod-cta',
@@ -2584,10 +2601,10 @@ class ObsWikiReviewQueueView extends ItemView {
 		if (snapshot.missingReviewQueueFolder) {
 			contentEl.createEl('p', {
 				text: ui(
-					'还没有审核队列。请先初始化 obs-wiki 文件结构，之后 AI 助手提出的记忆更新会出现在这里。',
-					'No review queue yet. Initialize the obs-wiki file structure first; proposed memory updates will appear here afterward.'
+					'还没有审核队列。请先初始化知识库文件结构，之后 AI 助手提出的记忆更新会出现在这里。',
+					'No review queue yet. Initialize the Obswiki file structure first; proposed memory updates will appear here afterward.'
 				),
-				cls: 'obs-wiki-view__description',
+				cls: 'obswiki-view__description',
 			});
 			return;
 		}
@@ -2602,7 +2619,7 @@ class ObsWikiReviewQueueView extends ItemView {
 		}
 
 		const counts = this.countByStatus(snapshot.proposals);
-		const tabs = contentEl.createDiv({ cls: 'obs-wiki-filter-tabs' });
+		const tabs = contentEl.createDiv({ cls: 'obswiki-filter-tabs' });
 		for (const filter of REVIEW_QUEUE_FILTERS) {
 			const label = filter === 'all' ? ui('全部', 'All') : memoryProposalStatusLabel(filter);
 			const count = filter === 'all' ? snapshot.proposals.length : counts[filter] || 0;
@@ -2619,7 +2636,7 @@ class ObsWikiReviewQueueView extends ItemView {
 		const visibleProposals = snapshot.proposals.filter((proposal) =>
 			this.activeFilter === 'all' ? true : proposal.approvalStatus === this.activeFilter
 		);
-		const grid = contentEl.createDiv({ cls: 'obs-wiki-proposal-grid' });
+		const grid = contentEl.createDiv({ cls: 'obswiki-proposal-grid' });
 		if (visibleProposals.length === 0) {
 			this.renderEmptyState(
 				grid,
@@ -2667,27 +2684,27 @@ class ObsWikiReviewQueueView extends ItemView {
 	}
 
 	private renderProposalCard(container: HTMLElement, proposal: MemoryProposalRecord): void {
-		const card = container.createDiv({ cls: 'obs-wiki-card obs-wiki-proposal-card' });
-		const header = card.createDiv({ cls: 'obs-wiki-card__header' });
+		const card = container.createDiv({ cls: 'obswiki-card obswiki-proposal-card' });
+		const header = card.createDiv({ cls: 'obswiki-card__header' });
 		header.createEl('strong', { text: proposal.proposalId || ui('未命名记忆更新', 'Untitled memory update') });
-		const badges = header.createDiv({ cls: 'obs-wiki-badge-row' });
-		badges.createEl('span', { text: proposal.proposalKind, cls: 'obs-wiki-badge' });
-		badges.createEl('span', { text: this.plugin.formatRiskLabel(proposal.riskLevel), cls: `obs-wiki-badge obs-wiki-badge--risk-${proposal.riskLevel.toLowerCase()}` });
-		badges.createEl('span', { text: memoryProposalStatusLabel(proposal.approvalStatus), cls: 'obs-wiki-badge' });
+		const badges = header.createDiv({ cls: 'obswiki-badge-row' });
+		badges.createEl('span', { text: proposal.proposalKind, cls: 'obswiki-badge' });
+		badges.createEl('span', { text: this.plugin.formatRiskLabel(proposal.riskLevel), cls: `obswiki-badge obswiki-badge--risk-${proposal.riskLevel.toLowerCase()}` });
+		badges.createEl('span', { text: memoryProposalStatusLabel(proposal.approvalStatus), cls: 'obswiki-badge' });
 
-		const facts = card.createDiv({ cls: 'obs-wiki-detail-grid' });
+		const facts = card.createDiv({ cls: 'obswiki-detail-grid' });
 		this.renderDetail(facts, ui('目标笔记', 'Target note'), proposal.targetNote || ui('未指定', 'Not specified'));
 		this.renderDetail(facts, ui('证据数量', 'Evidence count'), String(proposal.evidence.length));
 		this.renderDetail(facts, ui('任务', 'Task'), proposal.taskId || ui('无', 'None'));
 		this.renderDetail(facts, ui('创建时间', 'Created'), proposal.created || ui('未知', 'Unknown'));
 		this.renderDetail(facts, ui('提出来源', 'Proposed by'), proposal.proposedBy || 'unknown');
 		if (proposal.snippet) {
-			card.createEl('p', { text: this.plugin.trimText(proposal.snippet, 180), cls: 'obs-wiki-view__description' });
+			card.createEl('p', { text: this.plugin.trimText(proposal.snippet, 180), cls: 'obswiki-view__description' });
 		}
 		card.createEl('small', { text: `${ui('文件', 'File')}: ${proposal.path}` });
 
 		if (proposal.evidence.length > 0) {
-			const detailPanel = card.createDiv({ cls: 'obs-wiki-detail-panel' });
+			const detailPanel = card.createDiv({ cls: 'obswiki-detail-panel' });
 			detailPanel.createEl('strong', { text: ui('证据引用', 'Evidence refs') });
 			detailPanel.createEl('div', { text: proposal.evidence.join(', ') });
 		}
@@ -2696,14 +2713,14 @@ class ObsWikiReviewQueueView extends ItemView {
 	}
 
 	private renderDetail(container: HTMLElement, label: string, value: string): void {
-		const item = container.createDiv({ cls: 'obs-wiki-detail' });
+		const item = container.createDiv({ cls: 'obswiki-detail' });
 		item.createEl('span', { text: label });
 		item.createEl('strong', { text: value });
 	}
 
 	private renderProposalActions(card: HTMLElement, proposal: MemoryProposalRecord): void {
 		if (proposal.approvalStatus === 'pending') {
-			const actionRow = card.createDiv({ cls: 'obs-wiki-action-row' });
+			const actionRow = card.createDiv({ cls: 'obswiki-action-row' });
 			const approve = actionRow.createEl('button', {
 				text: ui('批准', 'Approve'),
 				cls: 'mod-cta',
@@ -2739,7 +2756,7 @@ class ObsWikiReviewQueueView extends ItemView {
 			defer.addEventListener('click', () => void updateStatus('deferred'));
 			requestRevision.addEventListener('click', () => void updateStatus('revision_requested'));
 		} else if (proposal.approvalStatus === 'approved') {
-			const actionRow = card.createDiv({ cls: 'obs-wiki-action-row' });
+			const actionRow = card.createDiv({ cls: 'obswiki-action-row' });
 			const apply = actionRow.createEl('button', {
 				text: ui('应用已批准写回', 'Apply approved writeback'),
 				cls: 'mod-cta',
@@ -2754,22 +2771,22 @@ class ObsWikiReviewQueueView extends ItemView {
 	}
 
 	private renderEmptyState(container: HTMLElement, title: string, detail: string): void {
-		const empty = container.createDiv({ cls: 'obs-wiki-empty-state' });
+		const empty = container.createDiv({ cls: 'obswiki-empty-state' });
 		empty.createEl('strong', { text: title });
 		empty.createEl('p', { text: detail });
 	}
 }
 
-class ObsWikiAgentConnectionsView extends ItemView {
+class ObswikiAgentConnectionsView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
-		private plugin: ObsWikiPlugin
+		private plugin: ObswikiPlugin
 	) {
 		super(leaf);
 	}
 
 	getViewType() {
-		return OBS_WIKI_AGENT_CONNECTIONS_VIEW;
+		return OBSWIKI_AGENT_CONNECTIONS_VIEW;
 	}
 
 	getDisplayText() {
@@ -2801,50 +2818,51 @@ class ObsWikiAgentConnectionsView extends ItemView {
 	private async render(snapshot: AgentConnectionsSnapshot): Promise<void> {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass('obs-wiki-view-root');
+		contentEl.addClass('obswiki-view-root');
 
-		const header = contentEl.createDiv({ cls: 'obs-wiki-shell-header' });
+		const header = contentEl.createDiv({ cls: 'obswiki-shell-header' });
 		const heading = header.createDiv();
-		heading.createEl('h2', { text: ui('AI 助手连接', 'AI Assistant Connections'), cls: 'obs-wiki-view__title' });
+		heading.createEl('h2', { text: ui('AI 助手连接', 'AI Assistant Connections'), cls: 'obswiki-view__title' });
 		heading.createEl('p', {
 			text: ui(
 				'复制常用 AI 工具的连接信息，并查看最近的连接和使用记录。',
 				'Copy connection details for common AI tools and review recent connection activity.'
 			),
-			cls: 'obs-wiki-view__description',
+			cls: 'obswiki-view__description',
 		});
-		const actions = header.createDiv({ cls: 'obs-wiki-action-row' });
+		const actions = header.createDiv({ cls: 'obswiki-action-row' });
 		const refreshButton = actions.createEl('button', { text: ui('刷新', 'Refresh'), cls: 'mod-cta' });
 		refreshButton.addEventListener('click', async () => this.refresh());
 
-		const statusBar = contentEl.createDiv({ cls: 'obs-wiki-status-bar' });
+		const statusBar = contentEl.createDiv({ cls: 'obswiki-status-bar' });
 		this.renderStatusItem(statusBar, ui('连接位置', 'Connection location'), ui('这台电脑', 'This computer'));
 		this.renderStatusItem(statusBar, ui('连接状态', 'Connection status'), snapshot.localConnection.label);
 		this.renderStatusItem(statusBar, ui('当前知识库', 'Current knowledge base'), snapshot.vaultRoot);
 		this.renderStatusItem(statusBar, ui('最近连接', 'Recent connections'), String(snapshot.recentAgents.length));
 		this.renderStatusItem(statusBar, ui('使用记录', 'Usage records'), String(snapshot.recentToolCalls.length));
 
-		const connectionPanel = contentEl.createDiv({ cls: 'obs-wiki-card obs-wiki-connection-panel' });
+		const connectionPanel = contentEl.createDiv({ cls: 'obswiki-card obswiki-connection-panel' });
 		connectionPanel.createEl('h3', { text: ui('AI 工具连接', 'AI tool connections') });
 
-		const connectionCheck = connectionPanel.createDiv({ cls: 'obs-wiki-connection-check' });
+		const connectionCheck = connectionPanel.createDiv({ cls: 'obswiki-connection-check' });
 		connectionCheck.createEl('h4', { text: ui('连接检查', 'Connection check') });
 		connectionCheck.createEl('p', {
 			text: ui(
-				'这里检查你要填到 AI 工具里的 obs-wiki 地址是否可用。未运行时也可以先复制配置；启动 obs-wiki 后点刷新确认。',
-				'This checks whether the obs-wiki URL you will put into an AI tool is reachable. You can copy configs first, then refresh after starting obs-wiki.'
+				'这里检查你在设置中填写的知识库连接地址是否可用。插件不会预设固定地址。',
+				'This checks the Obswiki connection URL from settings. The plugin does not assume a fixed URL.'
 			),
-			cls: 'obs-wiki-view__description',
+			cls: 'obswiki-view__description',
 		});
-		const endpointGrid = connectionCheck.createDiv({ cls: 'obs-wiki-detail-grid obs-wiki-connection-detail-grid' });
+		const endpointGrid = connectionCheck.createDiv({ cls: 'obswiki-detail-grid obswiki-connection-detail-grid' });
 		this.renderDetail(endpointGrid, ui('当前状态', 'Current status'), snapshot.localConnection.label);
 		this.renderDetail(endpointGrid, ui('建议操作', 'Suggested action'), snapshot.localConnection.detail, 'description');
 		this.renderCopyableDetail(
 			endpointGrid,
 			ui('AI 工具连接地址', 'AI tool URL'),
-			snapshot.httpEndpoint,
+			snapshot.httpEndpoint || ui('未配置', 'Not configured'),
 			ui('复制连接地址', 'Copy URL'),
-			ui('已复制 AI 工具连接地址。', 'AI tool URL copied.')
+			ui('已复制 AI 工具连接地址。', 'AI tool URL copied.'),
+			Boolean(snapshot.httpEndpoint)
 		);
 		this.renderDetail(
 			endpointGrid,
@@ -2859,25 +2877,25 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		const coreClientConfigs = snapshot.clientConfigs.filter((config) => coreClientIds.has(config.clientId));
 		const advancedClientConfigs = snapshot.clientConfigs.filter((config) => !coreClientIds.has(config.clientId));
 
-		const commonConnections = connectionPanel.createDiv({ cls: 'obs-wiki-connection-section' });
+		const commonConnections = connectionPanel.createDiv({ cls: 'obswiki-connection-section' });
 		commonConnections.createEl('h4', { text: ui('常用连接方式', 'Common connection methods') });
-		const configGrid = commonConnections.createDiv({ cls: 'obs-wiki-config-grid' });
+		const configGrid = commonConnections.createDiv({ cls: 'obswiki-config-grid' });
 		for (const clientConfig of coreClientConfigs) {
 			this.renderConfigCard(configGrid, clientConfig);
 		}
 		if (advancedClientConfigs.length > 0) {
-			const advanced = connectionPanel.createDiv({ cls: 'obs-wiki-connection-section obs-wiki-advanced-config' });
+			const advanced = connectionPanel.createDiv({ cls: 'obswiki-connection-section obswiki-advanced-config' });
 			advanced.createEl('h4', { text: ui('更多连接方式', 'More connection methods') });
 			advanced.createEl('p', {
 				text: ui(
 					'上方列表没有你的 AI 工具时再使用。多数工具只需要连接地址；只有工具要求 command 和 args 时才使用命令启动配置。',
 					'Use this only when your AI tool is not listed above. Most tools only need the URL; use the command config only when a tool asks for command and args.'
 				),
-				cls: 'obs-wiki-view__description',
+				cls: 'obswiki-view__description',
 			});
-			const advancedDetails = advanced.createEl('details', { cls: 'obs-wiki-advanced-details' });
+			const advancedDetails = advanced.createEl('details', { cls: 'obswiki-advanced-details' });
 			const summary = advancedDetails.createEl('summary', { text: ui('查看手动方式', 'Show manual methods') });
-			const advancedList = advancedDetails.createDiv({ cls: 'obs-wiki-advanced-list' });
+			const advancedList = advancedDetails.createDiv({ cls: 'obswiki-advanced-list' });
 			for (const clientConfig of advancedClientConfigs) {
 				this.renderAdvancedConfigRow(advancedList, clientConfig);
 			}
@@ -2886,22 +2904,23 @@ class ObsWikiAgentConnectionsView extends ItemView {
 				ui('旧版 SSE 地址', 'Legacy SSE URL'),
 				ui('只有 AI 工具明确要求 SSE 地址时使用。', 'Use only when an AI tool specifically asks for an SSE URL.'),
 				ui('复制 SSE 地址', 'Copy SSE URL'),
-				snapshot.sseEndpoint,
-				ui('已复制旧版 SSE 地址。', 'Legacy SSE URL copied.')
+				snapshot.sseEndpoint || ui('未配置', 'Not configured'),
+				ui('已复制旧版 SSE 地址。', 'Legacy SSE URL copied.'),
+				Boolean(snapshot.sseEndpoint)
 			);
-			summary.addClass('obs-wiki-advanced-summary');
+			summary.addClass('obswiki-advanced-summary');
 		}
 
-		const exposedTools = contentEl.createDiv({ cls: 'obs-wiki-card' });
+		const exposedTools = contentEl.createDiv({ cls: 'obswiki-card' });
 		exposedTools.createEl('h3', { text: ui('可用能力', 'Available capabilities') });
 		exposedTools.createEl('p', {
 			text: ui(
 				'连接成功后，AI 助手可以使用这些能力。需要写入长期记忆的内容仍会先进入审核。',
 				'After connecting, your AI assistant can use these capabilities. Anything that updates long-term memory still goes through review first.'
 			),
-			cls: 'obs-wiki-view__description',
+			cls: 'obswiki-view__description',
 		});
-		const toolGrid = exposedTools.createDiv({ cls: 'obs-wiki-detail-grid' });
+		const toolGrid = exposedTools.createDiv({ cls: 'obswiki-detail-grid' });
 		this.renderToolset(toolGrid, ui('只读', 'Read-only'), [
 			ui('查看连接和资料状态', 'Check connection and knowledge base status'),
 			ui('查找相关笔记', 'Find related notes'),
@@ -2927,20 +2946,20 @@ class ObsWikiAgentConnectionsView extends ItemView {
 			ui('批量删除或重写内容', 'Delete or rewrite content in bulk'),
 		]);
 
-		const agents = contentEl.createDiv({ cls: 'obs-wiki-card' });
+		const agents = contentEl.createDiv({ cls: 'obswiki-card' });
 		agents.createEl('h3', { text: ui('最近连接的 AI 工具', 'Recently connected AI tools') });
 		if (snapshot.recentAgents.length === 0) {
 			this.renderEmptyState(
 				agents,
 				ui('还没有连接记录。', 'No connection records yet.'),
 				snapshot.missingAuditSources
-					? ui('还没有记录文件。初始化 obs-wiki 后，连接和操作记录会显示在这里。', 'No activity file yet. After obs-wiki is initialized, connection and usage records will appear here.')
-					: ui('启动 obs-wiki 后，把上方配置复制到你的 AI 工具。', 'Start obs-wiki, then copy one of the configs above into your AI tool.')
+					? ui('还没有记录文件。初始化知识库后，连接和操作记录会显示在这里。', 'No activity file yet. After Obswiki is initialized, connection and usage records will appear here.')
+					: ui('启动知识库服务后，把上方配置复制到你的 AI 工具。', 'Start Obswiki, then copy one of the configs above into your AI tool.')
 			);
 		} else {
-			const list = agents.createDiv({ cls: 'obs-wiki-table-list' });
+			const list = agents.createDiv({ cls: 'obswiki-table-list' });
 			for (const agent of snapshot.recentAgents) {
-				const row = list.createDiv({ cls: 'obs-wiki-table-row' });
+				const row = list.createDiv({ cls: 'obswiki-table-row' });
 				row.createEl('strong', { text: agent.clientName || agent.agentId });
 				row.createEl('span', { text: this.plugin.formatResultLabel(agent.status) });
 				row.createEl('span', { text: `${ui('最后出现', 'Last seen')}: ${this.plugin.formatDisplayTime(agent.sortTimestamp)}` });
@@ -2949,24 +2968,24 @@ class ObsWikiAgentConnectionsView extends ItemView {
 			}
 		}
 
-		const calls = contentEl.createDiv({ cls: 'obs-wiki-card' });
+		const calls = contentEl.createDiv({ cls: 'obswiki-card' });
 		calls.createEl('h3', { text: ui('最近使用记录', 'Recent usage') });
 		if (snapshot.recentToolCalls.length === 0) {
 			this.renderEmptyState(
 				calls,
 				ui('还没有使用记录。', 'No usage records yet.'),
-				ui('AI 助手使用 obs-wiki 后，这里会显示使用时间、结果和相关笔记。', 'After your AI assistant uses obs-wiki, this panel shows time, result, and related notes.')
+				ui('AI 助手使用知识库后，这里会显示使用时间、结果和相关笔记。', 'After your AI assistant uses Obswiki, this panel shows time, result, and related notes.')
 			);
 		} else {
-			const timeline = calls.createDiv({ cls: 'obs-wiki-timeline' });
+			const timeline = calls.createDiv({ cls: 'obswiki-timeline' });
 			for (const call of snapshot.recentToolCalls) {
-				const row = timeline.createDiv({ cls: 'obs-wiki-timeline__item' });
-				row.createEl('div', { text: this.plugin.formatResultLabel(call.resultStatus), cls: 'obs-wiki-badge' });
-				const body = row.createDiv({ cls: 'obs-wiki-timeline__body' });
+				const row = timeline.createDiv({ cls: 'obswiki-timeline__item' });
+				row.createEl('div', { text: this.plugin.formatResultLabel(call.resultStatus), cls: 'obswiki-badge' });
+				const body = row.createDiv({ cls: 'obswiki-timeline__body' });
 				body.createEl('strong', { text: `${this.plugin.formatToolDisplayName(call.toolName)} • ${this.plugin.formatDisplayTime(call.sortTimestamp)}` });
 				body.createEl('div', {
 					text: `${call.clientName || call.agentId} • ${ui('权限', 'Permission')}: ${this.plugin.formatRiskLabel(call.riskLevel)}`,
-					cls: 'obs-wiki-view__description',
+					cls: 'obswiki-view__description',
 				});
 				if (call.targetPaths.length > 0) {
 					body.createEl('small', { text: call.targetPaths.join(', ') });
@@ -2974,15 +2993,15 @@ class ObsWikiAgentConnectionsView extends ItemView {
 				if (call.argsSummary) {
 					body.createEl('div', {
 						text: ui('本次使用包含输入参数，详细内容已按安全规则记录。', 'This use included input details, recorded under the safety rules.'),
-						cls: 'obs-wiki-view__description',
+						cls: 'obswiki-view__description',
 					});
 				}
 			}
 		}
 
-		const policy = contentEl.createDiv({ cls: 'obs-wiki-card' });
+		const policy = contentEl.createDiv({ cls: 'obswiki-card' });
 		policy.createEl('h3', { text: ui('权限说明', 'Permission guide') });
-		const matrix = policy.createDiv({ cls: 'obs-wiki-detail-grid' });
+		const matrix = policy.createDiv({ cls: 'obswiki-detail-grid' });
 		this.renderDetail(matrix, ui('默认', 'Default'), ui('只读', 'Read-only'));
 		this.renderDetail(matrix, ui('工作记录', 'Working records'), ui('保存前检查', 'Checked before saving'));
 		this.renderDetail(matrix, ui('长期记忆', 'Long-term memory'), ui('先审核再写入', 'Review before writing'));
@@ -2990,15 +3009,17 @@ class ObsWikiAgentConnectionsView extends ItemView {
 	}
 
 	private renderConfigCard(container: HTMLElement, config: GeneratedClientConfig): void {
-		const row = container.createDiv({ cls: 'obs-wiki-config-row' });
-		row.createDiv({ cls: 'obs-wiki-config-row__client' }).createEl('strong', { text: config.displayName });
-		const actions = row.createDiv({ cls: 'obs-wiki-config-row__actions obs-wiki-action-row' });
+		const row = container.createDiv({ cls: 'obswiki-config-row' });
+		row.createDiv({ cls: 'obswiki-config-row__client' }).createEl('strong', { text: config.displayName });
+		const actions = row.createDiv({ cls: 'obswiki-config-row__actions obswiki-action-row' });
 		const copy = actions.createEl('button', { text: ui('复制配置', 'Copy config') });
+		copy.disabled = config.transport !== 'stdio' && !this.plugin.getMcpHttpEndpoint();
 		copy.addEventListener('click', () => {
 			void this.plugin.copyToClipboard(config.configText, ui('已复制连接配置。', 'Connection config copied.'));
 		});
 		if (config.supportsAutoConfigure && config.targetPath) {
 			const autoConfigure = actions.createEl('button', { text: ui('自动配置', 'Auto setup'), cls: 'mod-cta' });
+			autoConfigure.disabled = !this.plugin.getMcpHttpEndpoint();
 			autoConfigure.addEventListener('click', () => {
 				new ClientConfigPreviewModal(this.app, this.plugin, config, 'apply').open();
 			});
@@ -3016,16 +3037,17 @@ class ObsWikiAgentConnectionsView extends ItemView {
 	}
 
 	private renderAdvancedConfigRow(container: HTMLElement, config: GeneratedClientConfig): void {
-		const row = container.createDiv({ cls: 'obs-wiki-advanced-config-row' });
-		const info = row.createDiv({ cls: 'obs-wiki-advanced-config-row__info' });
+		const row = container.createDiv({ cls: 'obswiki-advanced-config-row' });
+		const info = row.createDiv({ cls: 'obswiki-advanced-config-row__info' });
 		info.createEl('strong', { text: config.displayName });
 		info.createEl('small', { text: config.description });
-		const actions = row.createDiv({ cls: 'obs-wiki-action-row' });
+		const actions = row.createDiv({ cls: 'obswiki-action-row' });
 		const copy = actions.createEl('button', {
 			text: config.transport === 'stdio'
 				? ui('复制命令配置', 'Copy command config')
 				: ui('复制地址配置', 'Copy URL config'),
 		});
+		copy.disabled = config.transport !== 'stdio' && !this.plugin.getMcpHttpEndpoint();
 		copy.addEventListener('click', () => {
 			void this.plugin.copyToClipboard(config.configText, ui('已复制连接配置。', 'Connection config copied.'));
 		});
@@ -3037,14 +3059,16 @@ class ObsWikiAgentConnectionsView extends ItemView {
 		detail: string,
 		buttonText: string,
 		value: string,
-		notice: string
+		notice: string,
+		canCopy = true
 	): void {
-		const row = container.createDiv({ cls: 'obs-wiki-advanced-config-row' });
-		const info = row.createDiv({ cls: 'obs-wiki-advanced-config-row__info' });
+		const row = container.createDiv({ cls: 'obswiki-advanced-config-row' });
+		const info = row.createDiv({ cls: 'obswiki-advanced-config-row__info' });
 		info.createEl('strong', { text: title });
 		info.createEl('small', { text: detail });
-		const actions = row.createDiv({ cls: 'obs-wiki-action-row' });
+		const actions = row.createDiv({ cls: 'obswiki-action-row' });
 		const copy = actions.createEl('button', { text: buttonText });
+		copy.disabled = !canCopy;
 		copy.addEventListener('click', () => {
 			void this.plugin.copyToClipboard(value, notice);
 		});
@@ -3064,25 +3088,26 @@ class ObsWikiAgentConnectionsView extends ItemView {
 	}
 
 	private renderStatusItem(container: HTMLElement, label: string, value: string): void {
-		const item = container.createDiv({ cls: 'obs-wiki-status-pill' });
+		const item = container.createDiv({ cls: 'obswiki-status-pill' });
 		item.createEl('span', { text: label });
 		item.createEl('strong', { text: value });
 	}
 
 	private renderDetail(container: HTMLElement, label: string, value: string, variant?: 'description'): void {
 		const item = container.createDiv({
-			cls: variant === 'description' ? 'obs-wiki-detail obs-wiki-detail--description' : 'obs-wiki-detail',
+			cls: variant === 'description' ? 'obswiki-detail obswiki-detail--description' : 'obswiki-detail',
 		});
 		item.createEl('span', { text: label });
 		item.createEl('strong', { text: value });
 	}
 
-	private renderCopyableDetail(container: HTMLElement, label: string, value: string, buttonLabel: string, notice: string): void {
-		const item = container.createDiv({ cls: 'obs-wiki-detail obs-wiki-detail--copyable' });
+	private renderCopyableDetail(container: HTMLElement, label: string, value: string, buttonLabel: string, notice: string, canCopy = true): void {
+		const item = container.createDiv({ cls: 'obswiki-detail obswiki-detail--copyable' });
 		item.createEl('span', { text: label });
-		const row = item.createDiv({ cls: 'obs-wiki-detail__value-row' });
+		const row = item.createDiv({ cls: 'obswiki-detail__value-row' });
 		row.createEl('strong', { text: value });
-		const copy = row.createEl('button', { cls: 'obs-wiki-copy-icon-button' });
+		const copy = row.createEl('button', { cls: 'obswiki-copy-icon-button' });
+		copy.disabled = !canCopy;
 		setIcon(copy, 'copy');
 		copy.setAttr('aria-label', buttonLabel);
 		copy.setAttr('title', buttonLabel);
@@ -3092,7 +3117,7 @@ class ObsWikiAgentConnectionsView extends ItemView {
 	}
 
 	private renderToolset(container: HTMLElement, title: string, tools: string[]): void {
-		const item = container.createDiv({ cls: 'obs-wiki-detail-panel' });
+		const item = container.createDiv({ cls: 'obswiki-detail-panel' });
 		item.createEl('strong', { text: title });
 		const list = item.createEl('ul');
 		for (const tool of tools) {
@@ -3101,7 +3126,7 @@ class ObsWikiAgentConnectionsView extends ItemView {
 	}
 
 	private renderEmptyState(container: HTMLElement, title: string, detail: string): void {
-		const empty = container.createDiv({ cls: 'obs-wiki-empty-state' });
+		const empty = container.createDiv({ cls: 'obswiki-empty-state' });
 		empty.createEl('strong', { text: title });
 		empty.createEl('p', { text: detail });
 	}
@@ -3110,7 +3135,7 @@ class ObsWikiAgentConnectionsView extends ItemView {
 class ClientConfigPreviewModal extends Modal {
 	constructor(
 		app: App,
-		private plugin: ObsWikiPlugin,
+		private plugin: ObswikiPlugin,
 		private config: GeneratedClientConfig,
 		private mode: 'apply' | 'remove'
 	) {
@@ -3127,18 +3152,18 @@ class ClientConfigPreviewModal extends Modal {
 		});
 		contentEl.createEl('p', {
 			text: this.mode === 'apply'
-				? ui('将只写入 obs-wiki 连接配置，不会修改其他 MCP server。写入前会创建备份。', 'Only the obs-wiki connection will be written. Other MCP servers will not be changed. A backup will be created first.')
-				: ui('将只移除 obs-wiki 连接配置，不会删除其他 MCP server。移除前会创建备份。', 'Only the obs-wiki connection will be removed. Other MCP servers will not be deleted. A backup will be created first.'),
-			cls: 'obs-wiki-view__description',
+				? ui('将只写入知识库连接配置，不会修改其他 MCP server。写入前会创建备份。', 'Only the Obswiki connection will be written. Other MCP servers will not be changed. A backup will be created first.')
+				: ui('将只移除知识库连接配置，不会删除其他 MCP server。移除前会创建备份。', 'Only the Obswiki connection will be removed. Other MCP servers will not be deleted. A backup will be created first.'),
+			cls: 'obswiki-view__description',
 		});
-		const details = contentEl.createDiv({ cls: 'obs-wiki-detail-grid' });
+		const details = contentEl.createDiv({ cls: 'obswiki-detail-grid' });
 		this.renderDetail(details, ui('AI 工具', 'AI tool'), this.config.displayName);
 		this.renderDetail(details, ui('配置文件', 'Config file'), this.config.targetPath || ui('不可用', 'Unavailable'));
 		this.renderDetail(details, ui('连接方式', 'Connection'), this.transportLabel(this.config.transport));
 		if (this.mode === 'apply') {
-			contentEl.createEl('pre', { text: this.config.configText, cls: 'obs-wiki-code-block' });
+			contentEl.createEl('pre', { text: this.config.configText, cls: 'obswiki-code-block' });
 		}
-		const actions = contentEl.createDiv({ cls: 'obs-wiki-action-row' });
+		const actions = contentEl.createDiv({ cls: 'obswiki-action-row' });
 		const cancel = actions.createEl('button', { text: ui('取消', 'Cancel') });
 		cancel.addEventListener('click', () => this.close());
 		const confirm = actions.createEl('button', {
@@ -3157,7 +3182,7 @@ class ClientConfigPreviewModal extends Modal {
 	}
 
 	private renderDetail(container: HTMLElement, label: string, value: string): void {
-		const item = container.createDiv({ cls: 'obs-wiki-detail' });
+		const item = container.createDiv({ cls: 'obswiki-detail' });
 		item.createEl('span', { text: label });
 		item.createEl('strong', { text: value });
 	}
@@ -3176,13 +3201,13 @@ class ClientConfigPreviewModal extends Modal {
 	}
 }
 
-class ObsWikiMemoryInspectorView extends ItemView {
+class ObswikiMemoryInspectorView extends ItemView {
 	constructor(leaf: WorkspaceLeaf) {
 		super(leaf);
 	}
 
 	getViewType() {
-		return OBS_WIKI_MEMORY_INSPECTOR_VIEW;
+		return OBSWIKI_MEMORY_INSPECTOR_VIEW;
 	}
 
 	getDisplayText() {
@@ -3209,29 +3234,29 @@ class ObsWikiMemoryInspectorView extends ItemView {
 	private render() {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass('obs-wiki-view-root');
+		contentEl.addClass('obswiki-view-root');
 
-		contentEl.createEl('h2', { text: ui('记忆查看', 'Memory view'), cls: 'obs-wiki-view__title' });
+		contentEl.createEl('h2', { text: ui('记忆查看', 'Memory view'), cls: 'obswiki-view__title' });
 		contentEl.createEl('p', {
 			text: ui(
 				'这里用于查看已保存的记忆、来源证据和最近使用情况。完成一次审核或记录后，相关内容会逐步出现在这里。',
 				'Use this page to review saved memories, source evidence, and recent usage. Related details appear here after review or recording activity.'
 			),
-			cls: 'obs-wiki-view__description',
+			cls: 'obswiki-view__description',
 		});
 	}
 }
 
-class ObsWikiAuditLogView extends ItemView {
+class ObswikiAuditLogView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
-		private plugin: ObsWikiPlugin
+		private plugin: ObswikiPlugin
 	) {
 		super(leaf);
 	}
 
 	getViewType() {
-		return OBS_WIKI_AUDIT_LOG_VIEW;
+		return OBSWIKI_AUDIT_LOG_VIEW;
 	}
 
 	getDisplayText() {
@@ -3258,26 +3283,26 @@ class ObsWikiAuditLogView extends ItemView {
 	private render() {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass('obs-wiki-view-root');
+		contentEl.addClass('obswiki-view-root');
 
-		contentEl.createEl('h2', { text: ui('操作记录', 'Activity log'), cls: 'obs-wiki-view__title' });
+		contentEl.createEl('h2', { text: ui('操作记录', 'Activity log'), cls: 'obswiki-view__title' });
 		contentEl.createEl('p', {
 			text: ui(
 				'连接、审核和写回操作会形成记录，便于你追溯谁在什么时候改了什么。最近活动也会显示在活动页中。',
 				'Connection, review, and writeback actions are recorded so you can trace what changed and when. Recent activity is also shown on the activity page.'
 			),
-			cls: 'obs-wiki-view__description',
+			cls: 'obswiki-view__description',
 		});
 	}
 }
 
-class ObsWikiRuntimeStatusView extends ItemView {
+class ObswikiRuntimeStatusView extends ItemView {
 	constructor(leaf: WorkspaceLeaf) {
 		super(leaf);
 	}
 
 	getViewType() {
-		return OBS_WIKI_RUNTIME_STATUS_VIEW;
+		return OBSWIKI_RUNTIME_STATUS_VIEW;
 	}
 
 	getDisplayText() {
@@ -3304,26 +3329,26 @@ class ObsWikiRuntimeStatusView extends ItemView {
 	private render() {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass('obs-wiki-view-root');
+		contentEl.addClass('obswiki-view-root');
 
-		contentEl.createEl('h2', { text: ui('连接状态', 'Connection status'), cls: 'obs-wiki-view__title' });
+		contentEl.createEl('h2', { text: ui('连接状态', 'Connection status'), cls: 'obswiki-view__title' });
 		contentEl.createEl('p', {
 			text: ui(
-				'这里用于确认 AI 工具连接、资料索引和资料处理是否正常。若连接中心没有记录，请先确认你的 AI 工具已使用 obs-wiki 连接。',
-				'Use this page to check AI tool connections, the knowledge base index, and material processing status. If no records appear, confirm that your AI tool is using the obs-wiki connection.'
+				'这里用于确认 AI 工具连接、资料索引和资料处理是否正常。若连接中心没有记录，请先确认你的 AI 工具已使用知识库连接。',
+				'Use this page to check AI tool connections, the knowledge base index, and material processing status. If no records appear, confirm that your AI tool is using the Obswiki connection.'
 			),
-			cls: 'obs-wiki-view__description',
+			cls: 'obswiki-view__description',
 		});
 	}
 }
 
-class ObsWikiPermissionPolicyView extends ItemView {
+class ObswikiPermissionPolicyView extends ItemView {
 	constructor(leaf: WorkspaceLeaf) {
 		super(leaf);
 	}
 
 	getViewType() {
-		return OBS_WIKI_PERMISSION_POLICY_VIEW;
+		return OBSWIKI_PERMISSION_POLICY_VIEW;
 	}
 
 	getDisplayText() {
@@ -3350,15 +3375,15 @@ class ObsWikiPermissionPolicyView extends ItemView {
 	private render() {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass('obs-wiki-view-root');
+		contentEl.addClass('obswiki-view-root');
 
-		contentEl.createEl('h2', { text: ui('权限说明', 'Permission guide'), cls: 'obs-wiki-view__title' });
+		contentEl.createEl('h2', { text: ui('权限说明', 'Permission guide'), cls: 'obswiki-view__title' });
 		contentEl.createEl('p', {
 			text: ui(
-				'obs-wiki 默认先读取和整理资料；任何会影响长期记忆的重要写入，都必须先经过你审核。',
-				'obs-wiki reads and organizes material by default; important writes that affect long-term memory must be reviewed by you first.'
+				'知识库默认先读取和整理资料；任何会影响长期记忆的重要写入，都必须先经过你审核。',
+				'Obswiki reads and organizes material by default; important writes that affect long-term memory must be reviewed by you first.'
 			),
-			cls: 'obs-wiki-view__description',
+			cls: 'obswiki-view__description',
 		});
 
 		const sections = [
@@ -3417,30 +3442,30 @@ class ObsWikiPermissionPolicyView extends ItemView {
 		];
 
 		for (const policySection of sections) {
-			const section = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
+			const section = contentEl.createDiv({ cls: 'obswiki-view__section' });
 			section.createEl('h3', { text: policySection.title });
-			const list = section.createEl('ul', { cls: 'obs-wiki-view__list' });
+			const list = section.createEl('ul', { cls: 'obswiki-view__list' });
 			for (const item of policySection.items) {
-				list.createEl('li', { text: item, cls: 'obs-wiki-view__item' });
+				list.createEl('li', { text: item, cls: 'obswiki-view__item' });
 			}
 		}
 
-		const source = contentEl.createDiv({ cls: 'obs-wiki-view__section' });
+		const source = contentEl.createDiv({ cls: 'obswiki-view__section' });
 		source.createEl('h3', { text: ui('使用提示', 'Tip') });
 		source.createEl('p', {
 			text: ui(
 				'如果不确定某条记忆是否应该保存，请选择“要求修订”或“暂缓”，不要直接批准。',
 				'If you are unsure whether a memory should be saved, choose request revision or defer instead of approving it.'
 			),
-			cls: 'obs-wiki-view__description',
+			cls: 'obswiki-view__description',
 		});
 	}
 }
 
-class ObsWikiSettingTab extends PluginSettingTab {
+class ObswikiSettingTab extends PluginSettingTab {
 	constructor(
 		app: App,
-		private plugin: ObsWikiPlugin
+		private plugin: ObswikiPlugin
 	) {
 		super(app, plugin);
 	}
@@ -3484,15 +3509,15 @@ class ObsWikiSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName(ui('AI 工具连接地址', 'AI tool connection URL'))
 			.setDesc(ui(
-				'常用 AI 工具优先使用这个本机地址连接 obs-wiki；不确定时保持默认。',
-				'Most AI tools should use this local address to connect to obs-wiki. Keep the default if unsure.'
+				'填写你本机知识库服务提供的 MCP 地址。插件不会预设固定端口或开发者路径。',
+				'Enter the MCP URL provided by your local Obswiki service. The plugin does not assume a fixed port or developer path.'
 			))
 			.addText((text) =>
 				text
-					.setPlaceholder(DEFAULT_MCP_HTTP_ENDPOINT)
+					.setPlaceholder(MCP_HTTP_ENDPOINT_PLACEHOLDER)
 					.setValue(this.plugin.settings.mcpHttpEndpoint)
 					.onChange(async (value) => {
-						this.plugin.settings.mcpHttpEndpoint = value.trim() || DEFAULT_MCP_HTTP_ENDPOINT;
+						this.plugin.settings.mcpHttpEndpoint = value.trim();
 						await this.plugin.saveSettings();
 						await this.plugin.refreshGovernanceViews();
 					})
@@ -3501,15 +3526,15 @@ class ObsWikiSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName(ui('旧版 SSE 地址', 'Legacy SSE URL'))
 			.setDesc(ui(
-				'少数旧版 AI 工具需要这个地址；不确定时保持默认。',
-				'Some older AI tools need this address. Keep the default if unsure.'
+				'只有旧版工具明确要求 SSE 时才填写。',
+				'Fill this only when an older tool specifically requires SSE.'
 			))
 			.addText((text) =>
 				text
-					.setPlaceholder(DEFAULT_MCP_SSE_ENDPOINT)
+					.setPlaceholder(MCP_SSE_ENDPOINT_PLACEHOLDER)
 					.setValue(this.plugin.settings.mcpSseEndpoint)
 					.onChange(async (value) => {
-						this.plugin.settings.mcpSseEndpoint = value.trim() || DEFAULT_MCP_SSE_ENDPOINT;
+						this.plugin.settings.mcpSseEndpoint = value.trim();
 						await this.plugin.saveSettings();
 						await this.plugin.refreshGovernanceViews();
 					})

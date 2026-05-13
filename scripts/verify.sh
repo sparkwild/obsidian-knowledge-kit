@@ -19,4 +19,4 @@ if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   git -C "$ROOT" diff --check
 fi
 
-printf '\nPhase 11 verification finished.\n'
+printf '\nObswiki verification finished.\n'

@@ -1,33 +1,30 @@
-# obs-wiki
+# obsidian-obswiki
 
 [简体中文说明](./README.zh-CN.md)
 
-obs-wiki is an Agent-first memory system that uses an Obsidian vault as the durable knowledge layer and an Obsidian plugin as the human governance surface.
+Obswiki connects AI assistants with an Obsidian vault. Agents use the MCP server to read, organize, and prepare memory work; the Obsidian plugin gives the user a local review surface for activity, proposals, permissions, connection setup, and approved writeback.
 
-The current product line is Obsidian-native and Agent-first. Agent clients are the only operation entry for URL/file submission, source analysis, context packs, lint, distill, and memory proposals. The Obsidian plugin is the user's review, audit, permission, status, and approval interface. MCP is the primary interface for agents. The vault remains the only source of truth for durable memory and knowledge.
+The vault remains the durable knowledge layer. The plugin does not submit URLs, analyze files, run lint, distill sessions, or capture sources directly; those actions start from an AI assistant through MCP.
 
-## Current Direction
+## Names
 
-- Product name: `obs-wiki`.
-- Plugin id: `obs-wiki`.
-- Obsidian plugin listing name: `Obswiki`; in-plugin localized display uses `知识库` for Chinese and `Obswiki` for English.
-- Main product surface: Agent operation entry plus Obsidian governance plugin.
-- Agent interface: MCP tools, resources, and prompts.
-- Memory carrier: Obsidian vault notes, Properties, wikilinks, block references, review queues, and audit logs.
-- Runtime role: indexing, recall, context packs, lint previews, source analysis, proposal generation, approved writeback, permission checks, and audit event generation.
-- Obsidian plugin role: Agent Activity, Review Queue, Audit Log, Memory Inspector, Runtime Status, and Permission Policy.
-- Removed from Obsidian plugin entry points: Analyze URL, Analyze Local File, Capture Source, Build Context Pack, Run Lint, Run Distill, and other source submission or maintenance actions.
+- Product: `Obswiki`
+- Repository: `obsidian-obswiki`
+- Obsidian plugin id: `obswiki`
+- Obsidian plugin display name: `Obswiki`
+- Chinese in-plugin display: `知识库`
+- MCP server id/config key: `obswiki`
+- MCP tool prefix: `obswiki.*`
+- Initial version: `0.1.0`
 
-The previous Codex local plugin package, Python runtime, root skills, benchmark scaffold, and transition-only brief documents have been removed from this repository. New implementation work belongs under `apps/`, `packages/`, and current `docs/`.
-
-## Verification
+## Verify
 
 ```bash
-cd /Users/zhangjie/AgentProjects/sparkwild/obs-wiki
+cd <repo>
 npm run verify
 ```
 
-Root workspace scripts are available for narrower checks:
+Narrower checks are also available:
 
 ```bash
 npm run typecheck
@@ -38,43 +35,24 @@ npm run package
 
 ## Install The Obsidian Plugin
 
-Current plugin release: [`0.1.3`](https://github.com/sparkwild/obs-wiki/releases/tag/0.1.3).
+This project is currently private and is not intended for official Obsidian community listing yet.
 
-### Beta Install With BRAT
+### Manual Install
 
-Before the plugin is listed in the official Obsidian community plugin directory, testers can install it with the BRAT community plugin when they have access to this repository:
-
-1. Install and enable `BRAT` in Obsidian.
-2. Run `BRAT: Add a beta plugin for testing`.
-3. Enter `sparkwild/obs-wiki`.
-4. Enable `Obswiki` in `Settings -> Community plugins`.
-
-If the repository or release is private for your account, use the manual release-asset install path below.
-
-### Manual Install From Release Assets
-
-1. Download `manifest.json`, `main.js`, and `styles.css` from the latest GitHub release.
-2. Create this folder inside your Obsidian vault if it does not already exist:
-
-```text
-.obsidian/plugins/obs-wiki/
-```
-
-3. Place the three downloaded files in `.obsidian/plugins/obs-wiki/`.
-4. Restart Obsidian or reload community plugins.
-5. Enable `Obswiki` in `Settings -> Community plugins`.
-6. Open the command palette and run `obs-wiki: Open agent activity` or `obs-wiki: 打开 Agent 活动`, depending on the Obsidian language.
-
-### Local Development Install
-
-Build and package the plugin from this checkout:
+1. Build the plugin:
 
 ```bash
-cd /Users/zhangjie/AgentProjects/sparkwild/obs-wiki
+cd <repo>
 npm run package
 ```
 
-Then copy these generated files into your vault plugin folder:
+2. Copy the generated files into the vault plugin folder:
+
+```text
+<vault>/.obsidian/plugins/obswiki/
+```
+
+Required files:
 
 ```text
 apps/obsidian-plugin/plugin/manifest.json
@@ -82,142 +60,60 @@ apps/obsidian-plugin/plugin/main.js
 apps/obsidian-plugin/plugin/styles.css
 ```
 
-Expected target folder:
-
-```text
-<your-vault>/.obsidian/plugins/obs-wiki/
-```
-
-If you use the Obsidian CLI during local development, validate the installed plugin with:
+3. Restart Obsidian or reload community plugins.
+4. Enable `Obswiki` in `Settings -> Community plugins`.
+5. Validate the installed plugin:
 
 ```bash
-obsidian plugin id=obs-wiki
-obsidian plugin:reload id=obs-wiki
+obsidian plugin id=obswiki
+obsidian plugin:reload id=obswiki
 obsidian dev:errors
 ```
 
-The installed plugin should report id `obs-wiki`, name `Obswiki`, version `0.1.3`, and no developer console errors after reload. In a Chinese Obsidian interface, the plugin's internal views and settings use `知识库` as the localized display name.
+The installed plugin should report id `obswiki`, name `Obswiki`, version `0.1.0`, and no developer console errors after reload.
 
-## Desktop And Mobile Declaration
+## Connection Model
 
-The Obsidian plugin manifest keeps `isDesktopOnly: false`. The plugin runtime uses Obsidian plugin APIs only; it does not call Node.js, Electron, shell commands, network APIs, or arbitrary local filesystem APIs.
+Obswiki does not hardcode a vault path, repository checkout path, local port, or developer machine path.
 
-This declaration applies to the Obsidian governance plugin: Agent Activity, Review Queue, Audit Log, Memory Inspector, Runtime Status, and Permission Policy. The MCP server and Agent/runtime workflows are separate local agent processes and are not bundled into the mobile plugin.
+- Vault path: read from the current Obsidian vault at runtime.
+- MCP URL: configured by the user in plugin settings.
+- SSE URL: optional, configured by the user only for older clients.
+- stdio command: configurable, default command name is `obswiki-mcp`.
+- Client config writeback: user-confirmed only, with backup, and only for the `obswiki` MCP server block.
 
-## Product Principles
+Use a loopback URL such as `http://127.0.0.1:<port>/mcp` when your local runtime provides one. The plugin treats this as user configuration, not a built-in default.
 
-- Single Agent Operation Entry: users submit URLs, files, source analysis, context pack, lint, distill, and proposal work through an Agent client.
-- Obsidian-native: the vault is the knowledge body; caches and indexes are acceleration layers only.
-- Review-first: agents may propose long-term memory, but high-risk memory should not be silently committed.
-- Evidence-first: important claims should trace back to sources, evidence blocks, and review state.
-- Audit-first: critical agent reads and writes should be visible and reviewable in Obsidian.
-- MCP-first for agent access: expose memory semantics, not arbitrary filesystem operations. The MCP server is read-only by default with controlled write tools for bounded working records.
-- Human Governance in Obsidian: Obsidian is the UI for review, approval, rejection, revision requests, audit, permissions, and status.
+## Product Boundary
 
-## Disclosures
+- Agent clients are the only operation entry for URL/file submission, source analysis, context pack generation, lint, distill, and memory proposal generation.
+- The Obsidian plugin is the human review surface: Agent Activity, Review Queue, Audit Log, Memory Inspector, Runtime Status, Permission Policy, and Agent Connections.
+- Long-term memory, user preferences, important project decisions, and high-confidence claims should enter Review Queue before being written.
+- Approved writeback is executed by the runtime and recorded in audit logs.
+- The plugin does not read or write files outside the active vault, except when the user explicitly confirms client configuration file changes from the connection center.
 
-- Network: the Obsidian plugin does not make network requests.
-- Telemetry: the Obsidian plugin does not collect analytics, usage metrics, or client-side telemetry.
-- Vault writes: the Obsidian plugin can initialize obs-wiki control folders/files, update review queue approval status, and append audit events inside the active vault after user action.
-- External files: the Obsidian plugin does not read or write files outside the active vault.
-- Agent/runtime boundary: URL/file submission, source analysis, context pack generation, lint, distill, and protected memory writeback are Agent/runtime workflows, not direct Obsidian plugin actions.
-
-## Target Architecture
+## Repository Layout
 
 ```text
-Agent / AI Client
-Codex / Claude / Cursor / ChatGPT / Local Agent
-        ↓ MCP
-obs-wiki MCP Server
-        ↓
-obs-wiki Memory Runtime
-        ↓
-obs-wiki Obsidian Plugin Bridge
-        ↓
-Obsidian Vault
-        ↓
-Human Review / Audit / Correction in Obsidian App
-```
-
-## Local MCP Runtime Model
-
-Agent Connection Center must not generate configuration that points to this repository checkout or `apps/mcp-server/dist/server.js`. That source-tree path is only a development detail.
-
-User-facing connections should use a local obs-wiki Runtime/Gateway:
-
-- Preferred transport: Streamable HTTP on loopback, default `http://127.0.0.1:37241/mcp`.
-- Legacy fallback: SSE on loopback, default `http://127.0.0.1:37241/sse`.
-- Installed-runtime fallback: stdio command `obs-wiki-mcp --vault-root <active vault>`.
-- Client configs should be copyable for Codex, Claude Code, Cursor, and generic MCP clients.
-- The local Runtime owns vault access, permission checks, audit writes, and tool exposure. Agent clients should not receive a path to the development repository.
-
-The current MCP server implementation is stdio-first. The local HTTP/SSE Runtime daemon is the next connection-layer milestone.
-
-## Planned Repository Layout
-
-```text
-obs-wiki/
+obsidian-obswiki/
 ├─ apps/
 │  ├─ obsidian-plugin/
-│  ├─ mcp-server/
-│  └─ cli/
+│  └─ mcp-server/
 ├─ packages/
-│  ├─ core/
-│  ├─ schemas/
-│  └─ shared/
+│  └─ core/
 ├─ docs/
-├─ tests/
+├─ scripts/
 └─ package.json
 ```
 
-## First Implementation Track
+## Documentation
 
-The first implementation track follows [docs/obs_wiki_new_start_plan](./docs/obs_wiki_new_start_plan/00_README.md):
-
-1. Direction reset and documentation landing.
-2. Obsidian plugin scaffold in `apps/obsidian-plugin/`.
-3. Vault memory structure initialization.
-4. Agent Activity and Audit UI.
-5. Review Queue and human approval actions.
-6. Agent-created source status visibility.
-7. Memory Runtime v0.
-8. Read-only-by-default MCP server MVP with controlled write tools and review-gated apply.
-
-The first coding milestone is a buildable Obsidian plugin scaffold with:
-
-- `manifest.json` using id `obs-wiki`.
-- TypeScript project configuration.
-- `main.ts`.
-- Ribbon icon.
-- command palette entries for governance views and confirmed vault initialization only.
-- settings tab with persistent settings.
-- basic ItemView.
-
-## New Direction Docs
-
-- [Plan package README](./docs/obs_wiki_new_start_plan/00_README.md)
-- [Product Vision](./docs/obs_wiki_new_start_plan/01_Product_Vision.md)
-- [System Architecture](./docs/obs_wiki_new_start_plan/02_System_Architecture.md)
-- [Knowledge and Memory Model](./docs/obs_wiki_new_start_plan/03_Knowledge_And_Memory_Model.md)
-- [Obsidian Plugin Design](./docs/obs_wiki_new_start_plan/04_Obsidian_Plugin_Design.md)
-- [Agent Memory API](./docs/obs_wiki_new_start_plan/05_Agent_Memory_API.md)
-- [Runtime and MCP Design](./docs/obs_wiki_new_start_plan/06_Runtime_And_MCP_Design.md)
-- [Phased Execution Plan](./docs/obs_wiki_new_start_plan/07_Phased_Execution_Plan.md)
-- [Codex Task Prompts](./docs/obs_wiki_new_start_plan/08_Codex_Task_Prompts.md)
-- [Acceptance Checklists](./docs/obs_wiki_new_start_plan/09_Acceptance_Checklists.md)
-- [Open Questions](./docs/obs_wiki_new_start_plan/10_Open_Questions.md)
-- [First Batch Adjustment](./docs/obs_wiki_new_start_plan/12_First_Batch_Adjustment.md)
-- [MCP Tool Permission Matrix](./docs/MCP_Tool_Permission_Matrix.md)
-- [MCP Client Auto-Configuration Plan](./docs/obs_wiki_ui_agent_connections_plan/04_CLIENT_AUTO_CONFIGURATION_PLAN.md)
-- [Implementation Manifest](./docs/obs_wiki_new_start_plan/IMPLEMENTATION_MANIFEST.json)
-
-## Repository Scope
-
-- `apps/obsidian-plugin/`: Obsidian governance plugin.
-- `apps/mcp-server/`: Agent-facing MCP server.
-- `packages/core/`: shared TypeScript memory/runtime primitives.
-- `docs/obs_wiki_new_start_plan/`: current planning and acceptance docs.
-- `scripts/`: repository verification scripts only.
+- [Docs index](./docs/README.md)
+- [Architecture](./docs/ARCHITECTURE.md)
+- [Obsidian plugin](./docs/PLUGIN.md)
+- [MCP and permissions](./docs/MCP.md)
+- [Client auto-configuration](./docs/CLIENT_AUTO_CONFIGURATION.md)
+- [Roadmap](./docs/ROADMAP.md)
 
 ## License
 
