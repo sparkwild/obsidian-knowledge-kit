@@ -312,6 +312,35 @@ async function main() {
 		assert.ok(proposalText.includes('approval_status: applied'));
 		assert.ok(proposalText.includes('status: applied'));
 
+		writeNote(vaultRoot, '01_inbox/review_queue/approved-secret-writeback.md', [
+			'---',
+			'type: memory-proposal',
+			'proposal_id: prop_secret_apply',
+			'proposal_kind: project_update',
+			'approval_status: approved',
+			'target_note: 04_projects/demo/project_overview.md',
+			'risk_level: medium',
+			'---',
+			'',
+			'# Approved Secret Writeback Proposal',
+			'',
+			'## Writeback',
+			'',
+			'api_key: sk-secretvalue123456789012345',
+			'',
+		].join('\n'));
+		await assert.rejects(
+			() =>
+				client.call('tools/call', {
+					name: 'obs_wiki.apply_approved_writeback',
+					arguments: {
+						proposal_id: 'prop_secret_apply',
+					},
+				}),
+			/Refusing to write potential secret/,
+			'should reject approved writeback content that looks like a secret'
+		);
+
 		console.log(JSON.stringify({ result: 'pass', vaultRoot }, null, 2));
 	} finally {
 		await client.close().catch(() => {});

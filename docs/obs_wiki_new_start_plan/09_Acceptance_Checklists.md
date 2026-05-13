@@ -92,7 +92,7 @@
 - [x] 默认 read-only。
 - [x] 写入白名单。
 - [x] 禁止任意 shell。
-- [ ] 禁止 secrets 写入。
+- [x] 禁止 secrets 写入。
 - [x] 禁止 vault 外路径。
 - [x] 用户偏好必须显式确认。
 

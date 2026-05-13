@@ -1694,6 +1694,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 		assertNoSensitiveText([
 			{ label: 'source', value: request.source },
 			{ label: 'purpose', value: request.purpose },
+			{ label: 'source content', value: sourceText },
 			{ label: 'summary', value: analysis.summary },
 			{ label: 'excerpt', value: analysis.excerpt },
 		]);
@@ -1918,6 +1919,11 @@ function handleApplyApprovedWriteback(rawArgs: ApplyApprovedWritebackArgs, conte
 	if (!plan.ready) {
 		throw new ToolInputError(plan.reason || 'approved writeback is not ready to apply.');
 	}
+	assertNoSensitiveText([
+		{ label: 'proposal id', value: proposal.proposalId },
+		{ label: 'target note', value: plan.targetNote },
+		{ label: 'writeback content', value: plan.writebackContent },
+	]);
 
 	const targetAbsolute = resolveSafeNotePath(vaultRoot, plan.targetNote);
 	const targetRelative = relativeFromAbsolute(vaultRoot, targetAbsolute);

@@ -1380,6 +1380,7 @@ function handleAnalyzeSourceRequest(rawArgs, context) {
         assertNoSensitiveText([
             { label: 'source', value: request.source },
             { label: 'purpose', value: request.purpose },
+            { label: 'source content', value: sourceText },
             { label: 'summary', value: analysis.summary },
             { label: 'excerpt', value: analysis.excerpt },
         ]);
@@ -1566,6 +1567,11 @@ function handleApplyApprovedWriteback(rawArgs, context) {
     if (!plan.ready) {
         throw new safety_1.ToolInputError(plan.reason || 'approved writeback is not ready to apply.');
     }
+    assertNoSensitiveText([
+        { label: 'proposal id', value: proposal.proposalId },
+        { label: 'target note', value: plan.targetNote },
+        { label: 'writeback content', value: plan.writebackContent },
+    ]);
     const targetAbsolute = (0, safety_1.resolveSafeNotePath)(vaultRoot, plan.targetNote);
     const targetRelative = (0, safety_1.relativeFromAbsolute)(vaultRoot, targetAbsolute);
     assertAllowedWritebackTarget(targetRelative);
