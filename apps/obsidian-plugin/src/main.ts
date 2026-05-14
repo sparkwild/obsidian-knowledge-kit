@@ -11,7 +11,6 @@ import {
 	TFolder,
 	WorkspaceLeaf,
 	getLanguage,
-	setIcon,
 } from 'obsidian';
 import { randomBytes } from 'node:crypto';
 import {
@@ -3507,36 +3506,36 @@ class TracekeeperAgentConnectionsView extends ItemView {
 
 		const statusBar = contentEl.createDiv({ cls: 'tracekeeper-status-bar' });
 		this.renderStatusItem(statusBar, 'MCP Runtime', snapshot.runtimeStatus.label);
-		this.renderStatusItem(statusBar, ui('绑定范围', 'Binding'), '127.0.0.1');
-		this.renderStatusItem(statusBar, ui('当前知识库', 'Current knowledge base'), snapshot.vaultRoot);
+		this.renderStatusItem(statusBar, ui('当前仓库', 'Current repository'), this.formatVaultLabel(snapshot.vaultRoot), snapshot.vaultRoot);
 		this.renderStatusItem(statusBar, ui('最近连接', 'Recent connections'), String(snapshot.recentAgents.length));
 		this.renderStatusItem(statusBar, ui('使用记录', 'Usage records'), String(snapshot.recentToolCalls.length));
 
 		const connectionPanel = contentEl.createDiv({ cls: 'tracekeeper-card tracekeeper-connection-panel' });
-		connectionPanel.createEl('h3', { text: ui('AI 工具连接', 'AI tool connections') });
+		connectionPanel.createEl('h3', { text: ui('连接配置', 'Connection setup') });
 
 		const connectionCheck = connectionPanel.createDiv({ cls: 'tracekeeper-connection-check' });
-		connectionCheck.createEl('h4', { text: 'MCP Runtime' });
+		const runtimeHeader = connectionCheck.createDiv({ cls: 'tracekeeper-connection-check__header' });
+		runtimeHeader.createEl('h4', { text: 'MCP Runtime' });
+		const copyUrl = runtimeHeader.createEl('button', {
+			text: ui('复制连接地址', 'Copy connection URL'),
+			cls: 'mod-cta',
+		});
+		copyUrl.disabled = !snapshot.connectionUrl;
+		copyUrl.addEventListener('click', () => {
+			void this.plugin.copyToClipboard(
+				snapshot.connectionUrl,
+				ui('已复制 AI 工具连接地址。', 'AI tool URL copied.')
+			);
+		});
 		connectionCheck.createEl('p', {
 			text: ui(
-				'MCP Runtime 随 Obsidian 启动和关闭；保持 Obsidian 开启时，AI 工具可以连接本机地址。',
-				'The MCP Runtime starts and stops with Obsidian; AI tools can connect to the local URL while Obsidian is open.'
+				'保持 Obsidian 开启后，AI 工具即可通过本机 Runtime 访问当前知识库。',
+				'Keep Obsidian open so AI tools can reach this knowledge base through the local Runtime.'
 			),
 			cls: 'tracekeeper-view__description',
 		});
 		const endpointGrid = connectionCheck.createDiv({ cls: 'tracekeeper-detail-grid tracekeeper-connection-detail-grid' });
 		this.renderDetail(endpointGrid, ui('运行状态', 'Runtime status'), snapshot.runtimeStatus.label);
-		this.renderDetail(endpointGrid, ui('状态说明', 'Status detail'), snapshot.runtimeStatus.detail, 'description');
-		this.renderCopyableDetail(
-			endpointGrid,
-			ui('连接地址', 'Connection URL'),
-			snapshot.connectionUrl || ui('未配置', 'Not configured'),
-			ui('复制连接地址', 'Copy URL'),
-			ui('已复制 AI 工具连接地址。', 'AI tool URL copied.'),
-			Boolean(snapshot.connectionUrl)
-		);
-		this.renderDetail(endpointGrid, ui('绑定范围', 'Binding'), ui('仅本机 127.0.0.1', 'Localhost only, 127.0.0.1'));
-		this.renderDetail(endpointGrid, ui('生命周期', 'Lifecycle'), ui('随 Obsidian 启动和关闭', 'Starts and stops with Obsidian'));
 		if (snapshot.runtimeStatus.startedAt) {
 			this.renderDetail(
 				endpointGrid,
@@ -3545,6 +3544,9 @@ class TracekeeperAgentConnectionsView extends ItemView {
 			);
 		}
 		this.renderDetail(endpointGrid, ui('活跃会话', 'Active sessions'), String(snapshot.runtimeStatus.activeSessions));
+		if (snapshot.runtimeStatus.lastError) {
+			this.renderDetail(endpointGrid, ui('最近错误', 'Last error'), snapshot.runtimeStatus.lastError, 'description');
+		}
 
 		const coreClientIds = new Set(['codex', 'claude-code', 'claude-desktop', 'cursor']);
 		const coreClientConfigs = snapshot.clientConfigs.filter((config) => coreClientIds.has(config.clientId));
@@ -3774,8 +3776,16 @@ class TracekeeperAgentConnectionsView extends ItemView {
 		}
 	}
 
-	private renderStatusItem(container: HTMLElement, label: string, value: string): void {
+	private formatVaultLabel(vaultRoot: string): string {
+		const normalized = vaultRoot.replace(/\\/g, '/').replace(/\/+$/g, '');
+		return normalized.split('/').pop() || vaultRoot;
+	}
+
+	private renderStatusItem(container: HTMLElement, label: string, value: string, title?: string): void {
 		const item = container.createDiv({ cls: 'tracekeeper-status-pill' });
+		if (title) {
+			item.setAttr('title', title);
+		}
 		item.createEl('span', { text: label });
 		item.createEl('strong', { text: value });
 	}
@@ -3786,21 +3796,6 @@ class TracekeeperAgentConnectionsView extends ItemView {
 		});
 		item.createEl('span', { text: label });
 		item.createEl('strong', { text: value });
-	}
-
-	private renderCopyableDetail(container: HTMLElement, label: string, value: string, buttonLabel: string, notice: string, canCopy = true): void {
-		const item = container.createDiv({ cls: 'tracekeeper-detail tracekeeper-detail--copyable' });
-		item.createEl('span', { text: label });
-		const row = item.createDiv({ cls: 'tracekeeper-detail__value-row' });
-		row.createEl('strong', { text: value });
-		const copy = row.createEl('button', { cls: 'tracekeeper-copy-icon-button' });
-		copy.disabled = !canCopy;
-		setIcon(copy, 'copy');
-		copy.setAttr('aria-label', buttonLabel);
-		copy.setAttr('title', buttonLabel);
-		copy.addEventListener('click', () => {
-			void this.plugin.copyToClipboard(value, notice);
-		});
 	}
 
 	private renderToolset(container: HTMLElement, title: string, tools: string[]): void {
