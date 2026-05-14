@@ -12,11 +12,10 @@ import {
 	lintNotes,
 	parseMarkdown,
 	recallNotes,
-	type RecallMatch,
 	type ScanResult,
 	type ScannedNote,
 	scanVault,
-} from '@tracekeeper/core';
+} from '../../../packages/core/dist/index';
 import {
 	isRecord,
 	type McpPrompt,
