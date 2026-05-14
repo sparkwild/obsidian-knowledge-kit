@@ -2,39 +2,44 @@
 
 [简体中文说明](./README.zh-CN.md)
 
-Build an AI-assisted wiki in desktop Obsidian. Tracekeeper connects AI assistants to your vault through an Obsidian-hosted local MCP Runtime, then lets you review proposed knowledge updates before they are written.
+Tracekeeper is an Obsidian plugin for people who want AI to help maintain a personal wiki without letting automation rewrite their memory unchecked.
 
-## Key Features
+It turns AI-assisted knowledge work into reviewable traces: source notes, proposed updates, and human decisions stay visible inside Obsidian.
 
-- Read Obsidian notes from AI clients through `tracekeeper.*` MCP tools.
-- Queue proposed wiki and long-term memory updates for human review.
-- Inspect agent activity, pending reviews, audit logs, runtime status, and client connections inside Obsidian.
-- Keep writes vault-scoped and approval-gated for durable memory changes.
-- Run the Streamable HTTP MCP Runtime only while desktop Obsidian is open.
+## The Idea
 
-## Get Started
+AI assistants are useful for finding patterns, summarizing long conversations, and turning scattered material into structured knowledge. A personal vault still needs a human steward.
 
-Tracekeeper is a desktop-only Obsidian plugin because its MCP Runtime depends on a local HTTP server. It is being prepared for the official Obsidian community plugin directory; until it is accepted, install it manually from a packaged build.
+Tracekeeper keeps that boundary clear. AI can help recall context, draft wiki updates, and prepare long-term memory entries, while you keep the final decision before anything becomes durable knowledge.
 
-- [Obsidian plugin setup](./docs/PLUGIN.md)
-- [MCP and permissions](./docs/MCP.md)
-- [Client auto-configuration](./docs/CLIENT_AUTO_CONFIGURATION.md)
+## Why It Exists
 
-## Documentation
+Personal knowledge bases often fail in two opposite ways: conversations stay trapped in chat history, or automation writes too eagerly and pollutes the vault. Tracekeeper sits between those extremes.
 
-- [Docs index](./docs/README.md)
-- [Architecture](./docs/ARCHITECTURE.md)
-- [Obsidian plugin](./docs/PLUGIN.md)
-- [MCP and permissions](./docs/MCP.md)
-- [Client auto-configuration](./docs/CLIENT_AUTO_CONFIGURATION.md)
-- [Development and release notes](./docs/DEVELOPMENT.md)
-- [Roadmap](./docs/ROADMAP.md)
+The plugin treats every AI suggestion as a candidate. You can inspect it, adjust it, approve it, or reject it from the same place where your notes already live.
 
-## Acknowledgements
+## How It Fits Your Workflow
 
-Tracekeeper uses ChatGPT and Codex as development assistants during planning, implementation, and review. The project is also influenced by Andrej Karpathy's public writing and demos on AI-assisted software development.
+1. Write and collect notes in Obsidian as usual.
+2. Ask an AI assistant to help summarize, connect, or refine a topic.
+3. Review the proposed wiki or memory updates inside Tracekeeper.
+4. Edit, approve, or reject each candidate before it changes your vault.
+5. Let approved knowledge accumulate into a more durable, traceable personal wiki.
 
-These acknowledgements are not GitHub contributor credits, sponsorship claims, or endorsements.
+## What It Helps With
+
+- Turning scattered project notes into coherent wiki pages.
+- Capturing recurring preferences, decisions, and lessons as long-term memory.
+- Reviewing AI-generated knowledge before it becomes part of your vault.
+- Keeping AI collaboration grounded in your own Obsidian workspace.
+- Building a personal knowledge system where automation suggests and the user decides.
+
+## Design Principles
+
+- Vault first: Obsidian remains the durable knowledge home.
+- Human review first: lasting memory changes should be approved.
+- Traceability first: knowledge should keep enough context to be trusted later.
+- AI as collaborator: the assistant helps organize and propose, but does not own the vault.
 
 ## License
 

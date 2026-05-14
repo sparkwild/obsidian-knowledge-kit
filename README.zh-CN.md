@@ -2,39 +2,44 @@
 
 [English README](./README.md)
 
-在桌面端 Obsidian 中构建 AI 辅助的 wiki。Tracekeeper 通过 Obsidian 托管的本机 MCP Runtime 把 AI 助手连接到你的 vault，并在写入前由你审核候选知识更新。
+Tracekeeper 是一个 Obsidian 插件，适合想让 AI 帮忙维护个人 wiki、但不希望自动化直接改写自己知识库的人。
 
-## 核心能力
+它把 AI 辅助的知识整理变成可追踪、可审阅、可决定的候选内容：来源笔记、候选更新和人工决策都留在 Obsidian 里。
 
-- AI 客户端通过 `tracekeeper.*` MCP tools 读取 Obsidian 笔记。
-- wiki 与长期记忆候选内容先进入 Review Queue，由用户审核后再写回。
-- 在 Obsidian 内查看 agent activity、待审核内容、审计日志、runtime 状态和客户端连接。
-- 写入范围限制在 vault 内，长期记忆变更必须经过批准。
-- Streamable HTTP MCP Runtime 只在桌面端 Obsidian 开启时运行。
+## 创意
 
-## 开始使用
+AI 很擅长发现模式、总结长对话、把散落材料整理成结构化知识。但个人知识库仍然需要一个真正的主人。
 
-Tracekeeper 是桌面端插件，因为 MCP Runtime 依赖本机 HTTP server。项目正在准备提交到 Obsidian 官方社区插件目录；审核通过前，需要先使用打包产物手动安装。
+Tracekeeper 的核心想法是把边界划清楚：AI 可以帮助回忆上下文、草拟 wiki 更新、整理长期记忆，但是否写入、怎么写入，最后由你决定。
 
-- [Obsidian 插件设置](./docs/PLUGIN.md)
-- [MCP 与权限](./docs/MCP.md)
-- [客户端自动配置](./docs/CLIENT_AUTO_CONFIGURATION.md)
+## 背景
 
-## 文档
+个人知识库经常卡在两个极端：有价值的内容停留在一次性对话里，无法沉淀；或者自动化写入太积极，把 vault 变得混乱。Tracekeeper 选择站在中间。
 
-- [文档索引](./docs/README.md)
-- [架构说明](./docs/ARCHITECTURE.md)
-- [Obsidian 插件](./docs/PLUGIN.md)
-- [MCP 与权限](./docs/MCP.md)
-- [客户端自动配置](./docs/CLIENT_AUTO_CONFIGURATION.md)
-- [开发与发布说明](./docs/DEVELOPMENT.md)
-- [路线图](./docs/ROADMAP.md)
+插件会把 AI 给出的整理结果当成候选内容。你可以在熟悉的 Obsidian 环境里检查它、修改它、批准它，或者拒绝它。
 
-## 致谢
+## 使用方式
 
-Tracekeeper 在规划、实现和审阅过程中使用 ChatGPT 与 Codex 作为开发助手。项目也受到 Andrej Karpathy 关于 AI 辅助软件开发的公开文章和演示启发。
+1. 像平时一样在 Obsidian 中记录和收集资料。
+2. 让 AI 助手围绕某个项目、主题或问题进行总结、关联和提炼。
+3. 在 Tracekeeper 中查看候选的 wiki 更新或长期记忆更新。
+4. 逐条审阅、调整、批准或拒绝。
+5. 让通过审核的内容逐步沉淀成更可靠、可追踪的个人 wiki。
 
-这些内容属于致谢，不是 GitHub 贡献者署名、赞助声明或认可背书。
+## 适合场景
+
+- 把散落的项目记录整理成清晰的主题 wiki。
+- 将反复出现的偏好、决策和经验沉淀为长期记忆。
+- 在 AI 生成内容写入 vault 前进行人工审核。
+- 让 AI 协作始终围绕自己的 Obsidian 知识库展开。
+- 建立一种“AI 提议，人来决定”的个人知识工作流。
+
+## 设计原则
+
+- Vault 优先：Obsidian 仍然是长期知识的归宿。
+- 人工审核优先：长期记忆变更应当先经过确认。
+- 可追踪优先：知识需要保留足够上下文，方便之后重新理解和判断。
+- AI 是协作者：助手负责整理和提出建议，但不拥有你的 vault。
 
 ## 许可证
 
