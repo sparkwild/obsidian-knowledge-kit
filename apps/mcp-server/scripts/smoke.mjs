@@ -276,7 +276,7 @@ async function main() {
 			capabilities: {},
 			clientInfo: {
 				name: 'tracekeeper-smoke',
-				version: '0.1.4',
+				version: '0.1.5',
 			},
 		});
 		assert.equal(initialize.capabilities.tools.listChanged, false);
