@@ -11,6 +11,11 @@ function parseArgs(argv) {
             index += 1;
             continue;
         }
+        if (value === '--vault-config-dir' && next) {
+            result.vaultConfigDir = next;
+            index += 1;
+            continue;
+        }
         if (value === '--host' && next) {
             result.host = next;
             index += 1;

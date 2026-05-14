@@ -46,6 +46,7 @@ const RESOURCES = [
 class McpJsonRpcHandler {
     constructor(options = {}) {
         this.defaultVaultRoot = options.defaultVaultRoot;
+        this.vaultConfigDir = options.vaultConfigDir;
         this.runtimeVersion = options.runtimeVersion || exports.MCP_SERVER_VERSION;
         this.transport = options.transport || exports.STREAMABLE_HTTP_TRANSPORT;
     }
@@ -103,7 +104,7 @@ class McpJsonRpcHandler {
                         title: 'Tracekeeper MCP Server (read-only default + controlled write + review-gated apply)',
                         version: this.runtimeVersion,
                     },
-                    instructions: 'This MCP server is read-only-by-default; controlled write tools are allowed for bounded working records, and review-gated apply requires approved proposals before protected writeback. All reads and writes are vault-local only, reject vault-outside or .obsidian access, and sensitive payloads are never persisted in audit events.',
+                    instructions: 'This MCP server is read-only-by-default; controlled write tools are allowed for bounded working records, and review-gated apply requires approved proposals before protected writeback. All reads and writes are vault-local only, reject vault-outside and Obsidian configuration paths, and sensitive payloads are never persisted in audit events.',
                 };
             case 'tools/list':
                 return { tools: (0, tools_1.toolDefinitions)() };
@@ -132,6 +133,7 @@ class McpJsonRpcHandler {
         }
         const toolInvocationContext = {
             defaultVaultRoot: this.defaultVaultRoot,
+            vaultConfigDir: this.vaultConfigDir,
             agentId: state.agentId,
             sessionId: state.sessionId,
             clientName: state.clientName,

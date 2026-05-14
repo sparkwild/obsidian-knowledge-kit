@@ -64,8 +64,9 @@ function assertContainsNoSensitiveText(log, values) {
 }
 
 class McpTestClient {
-	constructor(vaultRoot) {
+	constructor(vaultRoot, vaultConfigDir) {
 		this.vaultRoot = vaultRoot;
+		this.vaultConfigDir = vaultConfigDir;
 		this.token = 'tracekeeper-smoke-token';
 		this.nextId = 1;
 		this.sessionId = '';
@@ -77,6 +78,7 @@ class McpTestClient {
 			port: 0,
 			token: this.token,
 			defaultVaultRoot: this.vaultRoot,
+			vaultConfigDir: this.vaultConfigDir,
 		});
 		const status = await this.runtime.start();
 		this.endpoint = `${status.endpoint}?token=${encodeURIComponent(this.token)}`;
@@ -196,9 +198,10 @@ function ensureToolNames(result, names) {
 async function main() {
 	const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'tracekeeper-mcp-smoke-'));
 	const vaultRoot = path.join(tempRoot, 'vault');
+	const vaultConfigDir = 'vault-config';
 	const fixturePath = path.join(vaultRoot, '01_inbox', 'agent_requests', 'local-source-request.md');
 	const lintFixturePath = path.join(vaultRoot, '04_projects', 'demo', 'smoke-lint-fixture.md');
-	const client = new McpTestClient(vaultRoot);
+	const client = new McpTestClient(vaultRoot, vaultConfigDir);
 
 	try {
 		if (!fs.existsSync(path.join(process.cwd(), 'dist', 'server.js'))) {
@@ -212,6 +215,7 @@ async function main() {
 			host: '127.0.0.1',
 			port: 0,
 			defaultVaultRoot: vaultRoot,
+			vaultConfigDir,
 			allowMissingTokenForDev: true,
 		});
 		const devStatus = await devRuntime.start();
@@ -219,6 +223,7 @@ async function main() {
 		await devRuntime.stop();
 
 		fs.mkdirSync(vaultRoot, { recursive: true });
+		writeNote(vaultRoot, `${vaultConfigDir}/config.md`, '# Config\n');
 		writeNote(vaultRoot, '00_control/system.md', '# System\n');
 		writeNote(vaultRoot, '00_control/audit_log.md', '# Audit Log\n');
 		writeNote(vaultRoot, '04_projects/demo/project_overview.md', '# Demo Project\n\nInitial project memory.');
@@ -330,6 +335,16 @@ async function main() {
 		assert.equal(readNote.path, '00_control/system.md');
 		const afterReadAudit = readAuditLog(vaultRoot);
 		assertToolCallEvent(afterReadAudit, 'tracekeeper.read_note', 'success');
+
+		await assert.rejects(
+			() =>
+				client.call('tools/call', {
+					name: 'tracekeeper.read_note',
+					arguments: { path: `${vaultConfigDir}/config.md` },
+				}),
+			/Obsidian configuration paths are not allowed/,
+			'should reject reads from the configured Obsidian settings directory'
+		);
 
 		const sensitiveText = 'SENSITIVE_TOKEN_123ABC456DEF';
 		const startTask = buildStructured(await client.call('tools/call', {

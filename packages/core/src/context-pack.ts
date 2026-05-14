@@ -30,6 +30,7 @@ export interface ContextPack {
 export interface ContextPackOptions {
 	limit?: number;
 	staleAfterDays?: number;
+	vaultConfigDir?: string;
 }
 
 interface SourceCandidate {
@@ -92,7 +93,7 @@ function isStaleNote(note: ScannedNote, staleAfterDays: number): boolean {
 }
 
 export function buildContextPack(vaultRoot: string, query: string, options: ContextPackOptions = {}): ContextPack {
-	const scan = scanVault(vaultRoot);
+	const scan = scanVault(vaultRoot, { vaultConfigDir: options.vaultConfigDir });
 	const recall = recallNotes(scan.notes, query, { limit: options.limit });
 	const topNotes = recall.map((item: RecallMatch) => item.note);
 	const staleAfterDays = options.staleAfterDays ?? 180;

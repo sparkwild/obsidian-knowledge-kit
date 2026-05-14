@@ -28,7 +28,7 @@ const lint = lintNotes(scan.vaultRoot, scan.notes);
 ## Security behavior
 
 - Scan and link resolution are read-only.
-- `/.obsidian/` directories are skipped.
+- The active Obsidian configuration directory can be skipped when callers provide it.
 - Paths are checked to remain inside the configured vault root.
 
 ## Verification
@@ -42,6 +42,6 @@ npm run test
 `npm run test` runs a local Node smoke script under `scripts/test.mjs` and validates:
 
 - vault root containment rules
-- `.obsidian` skip behavior
+- Obsidian configuration directory skip behavior
 - symlink-safe scan behavior (skip if supported)
 - basic source-analysis output shape

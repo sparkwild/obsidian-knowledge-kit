@@ -6,6 +6,5 @@
   "description": "Review AI-proposed wiki and memory updates before they reach your vault.",
   "author": "sparkwild",
   "authorUrl": "https://github.com/sparkwild",
-  "isDesktopOnly": true,
-  "main": "main.js"
+  "isDesktopOnly": true
 }

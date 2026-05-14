@@ -2,6 +2,7 @@ import { StreamableHttpMcpRuntime } from './http-runtime';
 
 interface ServerArgs {
 	defaultVaultRoot?: string;
+	vaultConfigDir?: string;
 	host?: string;
 	port?: number;
 	token?: string;
@@ -15,6 +16,11 @@ function parseArgs(argv: string[]): ServerArgs {
 		const next = argv[index + 1];
 		if ((value === '--vault-root' || value === '--vault') && next) {
 			result.defaultVaultRoot = next;
+			index += 1;
+			continue;
+		}
+		if (value === '--vault-config-dir' && next) {
+			result.vaultConfigDir = next;
 			index += 1;
 			continue;
 		}

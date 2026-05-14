@@ -72,17 +72,20 @@ export interface McpConnectionState {
 
 export interface McpJsonRpcHandlerOptions {
 	defaultVaultRoot?: string;
+	vaultConfigDir?: string;
 	runtimeVersion?: string;
 	transport?: string;
 }
 
 export class McpJsonRpcHandler {
 	private defaultVaultRoot?: string;
+	private vaultConfigDir?: string;
 	private runtimeVersion: string;
 	private transport: string;
 
 	constructor(options: McpJsonRpcHandlerOptions = {}) {
 		this.defaultVaultRoot = options.defaultVaultRoot;
+		this.vaultConfigDir = options.vaultConfigDir;
 		this.runtimeVersion = options.runtimeVersion || MCP_SERVER_VERSION;
 		this.transport = options.transport || STREAMABLE_HTTP_TRANSPORT;
 	}
@@ -146,7 +149,7 @@ export class McpJsonRpcHandler {
 						version: this.runtimeVersion,
 					},
 					instructions:
-						'This MCP server is read-only-by-default; controlled write tools are allowed for bounded working records, and review-gated apply requires approved proposals before protected writeback. All reads and writes are vault-local only, reject vault-outside or .obsidian access, and sensitive payloads are never persisted in audit events.',
+						'This MCP server is read-only-by-default; controlled write tools are allowed for bounded working records, and review-gated apply requires approved proposals before protected writeback. All reads and writes are vault-local only, reject vault-outside and Obsidian configuration paths, and sensitive payloads are never persisted in audit events.',
 				};
 			case 'tools/list':
 				return { tools: toolDefinitions() };
@@ -176,6 +179,7 @@ export class McpJsonRpcHandler {
 		}
 		const toolInvocationContext: ToolInvocationContext = {
 			defaultVaultRoot: this.defaultVaultRoot,
+			vaultConfigDir: this.vaultConfigDir,
 			agentId: state.agentId,
 			sessionId: state.sessionId,
 			clientName: state.clientName,

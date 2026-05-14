@@ -13,7 +13,6 @@ exports.relativeFromAbsolute = relativeFromAbsolute;
 const node_path_1 = __importDefault(require("node:path"));
 const node_fs_1 = __importDefault(require("node:fs"));
 const core_1 = require("@tracekeeper/core");
-const FORBIDDEN_SEGMENTS = new Set(['.obsidian']);
 const TEXT_LIKE_EXTENSIONS = new Set(['.md', '.markdown', '.txt', '.text']);
 const MARKDOWN_EXTENSIONS = new Set(['.md']);
 class ToolInputError extends Error {
@@ -29,7 +28,27 @@ function toSafeVaultRoot(vaultRoot) {
     }
     return (0, core_1.resolveVaultRoot)(vaultRoot);
 }
-function normalizeNotePath(rawPath) {
+function normalizeConfigDir(configDir) {
+    const normalizedInput = (configDir || '').replace(/\\/g, '/').trim();
+    if (!normalizedInput || node_path_1.default.posix.isAbsolute(normalizedInput)) {
+        return '';
+    }
+    const normalized = node_path_1.default.posix.normalize(normalizedInput).replace(/\/+$/g, '');
+    if (!normalized || normalized === '.' || normalized === '..' || normalized.startsWith('../') || normalized.includes('/../')) {
+        return '';
+    }
+    return normalized;
+}
+function isVaultConfigPath(relativePath, options = {}) {
+    const configDir = normalizeConfigDir(options.vaultConfigDir);
+    return Boolean(configDir && (relativePath === configDir || relativePath.startsWith(`${configDir}/`)));
+}
+function assertNotVaultConfigPath(relativePath, action, options = {}) {
+    if (isVaultConfigPath(relativePath.replace(/\\/g, '/'), options)) {
+        throw new core_1.VaultPathError(`${action} Obsidian configuration paths are not allowed.`);
+    }
+}
+function normalizeNotePath(rawPath, options = {}) {
     if (typeof rawPath !== 'string' || rawPath.trim() === '') {
         throw new ToolInputError('path is required and must be a non-empty string.');
     }
@@ -44,6 +63,7 @@ function normalizeNotePath(rawPath) {
     if (normalized === '' || normalized.startsWith('..') || normalized.includes('/../')) {
         throw new ToolInputError('Path traversal is not allowed.');
     }
+    assertNotVaultConfigPath(normalized, 'Reading', options);
     const segments = normalized.split('/');
     for (const segment of segments) {
         if (segment === '') {
@@ -51,9 +71,6 @@ function normalizeNotePath(rawPath) {
         }
         if (!(0, core_1.isSafeDirectoryName)(segment, { allowHidden: true })) {
             throw new ToolInputError(`Path contains unsafe segment: ${segment}`);
-        }
-        if (FORBIDDEN_SEGMENTS.has(segment)) {
-            throw new ToolInputError('Reading .obsidian paths is not allowed.');
         }
     }
     return normalized;
@@ -85,17 +102,14 @@ function assertNoSymlinkSegments(vaultRoot, absolutePath) {
         }
     }
 }
-function resolveSafeNotePath(vaultRoot, rawPath) {
-    const candidate = normalizeNotePath(rawPath);
+function resolveSafeNotePath(vaultRoot, rawPath, options = {}) {
+    const candidate = normalizeNotePath(rawPath, options);
     const candidatePaths = hasTextLikeExtension(candidate)
         ? [candidate]
         : [candidate, `${candidate}.md`, `${candidate}.markdown`, `${candidate}.txt`, `${candidate}.text`];
     for (const candidatePath of candidatePaths) {
         const absolute = resolveCandidatePath(vaultRoot, candidatePath);
-        const relParts = node_path_1.default.relative(vaultRoot, absolute).split(node_path_1.default.sep);
-        if (relParts.some((segment) => FORBIDDEN_SEGMENTS.has(segment))) {
-            throw new core_1.VaultPathError('Reading .obsidian paths is not allowed.');
-        }
+        assertNotVaultConfigPath(relativeFromAbsolute(vaultRoot, absolute), 'Reading', options);
         if (!hasTextLikeExtension(absolute)) {
             continue;
         }
@@ -111,8 +125,8 @@ function resolveSafeNotePath(vaultRoot, rawPath) {
     }
     throw new core_1.VaultPathError('Note not found or not a markdown/text-like file inside vault.');
 }
-function resolveSafeWritableNotePath(vaultRoot, rawPath, allowedDirectory) {
-    const candidate = normalizeNotePath(rawPath);
+function resolveSafeWritableNotePath(vaultRoot, rawPath, allowedDirectory, options = {}) {
+    const candidate = normalizeNotePath(rawPath, options);
     const withMarkdown = hasMarkdownExtension(candidate) ? candidate : `${candidate}.md`;
     const absolute = node_path_1.default.resolve(vaultRoot, withMarkdown);
     const resolved = (0, core_1.ensureInsideVaultRoot)(vaultRoot, absolute);
@@ -131,10 +145,7 @@ function resolveSafeWritableNotePath(vaultRoot, rawPath, allowedDirectory) {
     if (!hasMarkdownExtension(relative)) {
         throw new ToolInputError('Only markdown (.md) files can be written.');
     }
-    const relParts = node_path_1.default.relative(vaultRoot, resolved).split(node_path_1.default.sep);
-    if (relParts.some((segment) => FORBIDDEN_SEGMENTS.has(segment))) {
-        throw new core_1.VaultPathError('Writing .obsidian paths is not allowed.');
-    }
+    assertNotVaultConfigPath(relative, 'Writing', options);
     assertNoSymlinkSegments(vaultRoot, resolved);
     if (node_fs_1.default.existsSync(resolved)) {
         throw new ToolInputError('Target file already exists and cannot be overwritten.');

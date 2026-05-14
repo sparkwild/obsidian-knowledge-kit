@@ -31,8 +31,16 @@ function getAliases(frontmatter) {
     }
     return [...new Set(aliases)];
 }
-function shouldSkipDirectory(entryName) {
-    return !(0, safety_1.isSafeDirectoryName)(entryName);
+function normalizeProtectedDirectoryName(configDir) {
+    const normalized = (configDir || '').replace(/\\/g, '/').trim().replace(/\/+$/g, '');
+    if (!normalized || normalized.includes('/')) {
+        return '';
+    }
+    return normalized;
+}
+function shouldSkipDirectory(entryName, options) {
+    const protectedDirectoryName = normalizeProtectedDirectoryName(options.vaultConfigDir);
+    return !(0, safety_1.isSafeDirectoryName)(entryName, { protectedDirectoryName });
 }
 function isSkippableEntry(entry) {
     if (entry.isSymbolicLink()) {
@@ -40,10 +48,10 @@ function isSkippableEntry(entry) {
     }
     return false;
 }
-function scanDirectory(vaultRoot, directory, notes, errors) {
+function scanDirectory(vaultRoot, directory, notes, errors, options) {
     const entries = node_fs_1.default.readdirSync(directory, { withFileTypes: true });
     for (const entry of entries) {
-        if (shouldSkipDirectory(entry.name)) {
+        if (shouldSkipDirectory(entry.name, options)) {
             continue;
         }
         if (isSkippableEntry(entry)) {
@@ -52,7 +60,7 @@ function scanDirectory(vaultRoot, directory, notes, errors) {
         const resolved = node_path_1.default.join(directory, entry.name);
         const safePath = (0, safety_1.ensureInsideVaultRoot)(vaultRoot, resolved);
         if (entry.isDirectory()) {
-            scanDirectory(vaultRoot, safePath, notes, errors);
+            scanDirectory(vaultRoot, safePath, notes, errors, options);
             continue;
         }
         if (!entry.isFile()) {
@@ -95,11 +103,11 @@ function scanDirectory(vaultRoot, directory, notes, errors) {
         }
     }
 }
-function scanVault(vaultRoot) {
+function scanVault(vaultRoot, options = {}) {
     const resolvedRoot = (0, safety_1.resolveVaultRoot)(vaultRoot);
     const notes = [];
     const errors = [];
-    scanDirectory(resolvedRoot, resolvedRoot, notes, errors);
+    scanDirectory(resolvedRoot, resolvedRoot, notes, errors, options);
     return {
         vaultRoot: resolvedRoot,
         scannedAt: new Date().toISOString(),

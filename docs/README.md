@@ -1,16 +1,12 @@
 # Tracekeeper Documentation
 
-This directory keeps the current Tracekeeper product documentation. Historical execution prompts, batch notes, and migration records have been removed so the docs describe the product as it exists now.
+This directory keeps the maintained Tracekeeper product and release documentation. Runtime, permission, plugin-surface, and client-configuration notes are consolidated so there is one canonical place to update each topic.
 
 ## Current Docs
 
-- [Architecture](./ARCHITECTURE.md)
-- [Obsidian plugin](./PLUGIN.md)
-- [MCP and permissions](./MCP.md)
-- [Client auto-configuration](./CLIENT_AUTO_CONFIGURATION.md)
-- [Community plugin submission](./COMMUNITY_PLUGIN_SUBMISSION.md)
-- [Development and release notes](./DEVELOPMENT.md)
-- [Roadmap](./ROADMAP.md)
+- [Architecture](./ARCHITECTURE.md): product architecture, plugin surface, MCP permissions, Runtime security, and agent client configuration.
+- [Community plugin submission](./COMMUNITY_PLUGIN_SUBMISSION.md): Obsidian community checklist, release creation steps, and submission entry.
+- [Development and release notes](./DEVELOPMENT.md): repository layout, verification commands, release readiness, roadmap, and acknowledgement policy.
 
 ## Core Boundary
 
