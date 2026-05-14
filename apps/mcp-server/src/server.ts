@@ -49,6 +49,16 @@ function parseArgs(argv: string[]): ServerArgs {
 	return result;
 }
 
+function toErrorMessage(error: unknown): string {
+	if (error instanceof Error) {
+		return error.message || 'Unknown MCP Runtime error.';
+	}
+	if (typeof error === 'string') {
+		return error;
+	}
+	return 'Unknown MCP Runtime error.';
+}
+
 async function main(): Promise<void> {
 	const args = parseArgs(process.argv.slice(2));
 	const runtime = new StreamableHttpMcpRuntime(args);
@@ -68,7 +78,7 @@ async function main(): Promise<void> {
 }
 
 void main().catch((error) => {
-	const message = error instanceof Error ? error.message : 'Unknown MCP Runtime error.';
+	const message = toErrorMessage(error);
 	process.stderr.write(`${message}\n`);
 	process.exit(1);
 });

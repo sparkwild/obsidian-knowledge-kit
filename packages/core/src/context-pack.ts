@@ -38,11 +38,30 @@ interface SourceCandidate {
 	reason: string;
 }
 
+function isStringArrayValue(value: unknown): value is unknown[] {
+	return Array.isArray(value);
+}
+
+function normalizeStringList(value: unknown): string[] {
+	if (!isStringArrayValue(value)) {
+		return [];
+	}
+
+	const normalized: string[] = [];
+	for (const item of value) {
+		if (typeof item === 'string') {
+			normalized.push(item);
+		}
+	}
+	return normalized;
+}
+
 function gatherSourceCandidates(notes: ScannedNote[]): SourceCandidate[] {
 	const candidates: SourceCandidate[] = [];
 	for (const note of notes) {
 		const type = note.type ?? '';
-		const frontmatterSourceKind = typeof note.frontmatter.source_kind === 'string' ? note.frontmatter.source_kind : '';
+		const frontmatterSourceKind =
+			typeof note.frontmatter.source_kind === 'string' ? note.frontmatter.source_kind : '';
 		if (
 			type === 'source' ||
 			type === 'source-note' ||
@@ -51,7 +70,9 @@ function gatherSourceCandidates(notes: ScannedNote[]): SourceCandidate[] {
 		) {
 			candidates.push({
 				note,
-				reason: frontmatterSourceKind ? `type=${type || 'source'} source_kind=${frontmatterSourceKind}` : `type=${type || 'source'}`,
+				reason: frontmatterSourceKind
+					? `type=${type || 'source'} source_kind=${frontmatterSourceKind}`
+					: `type=${type || 'source'}`,
 			});
 		}
 	}
@@ -59,7 +80,9 @@ function gatherSourceCandidates(notes: ScannedNote[]): SourceCandidate[] {
 	return candidates;
 }
 
-function gatherEvidenceCandidates(notes: ScannedNote[]): Array<{ note: ScannedNote; blockId?: string; excerpt: string }> {
+function gatherEvidenceCandidates(
+	notes: ScannedNote[]
+): Array<{ note: ScannedNote; blockId?: string; excerpt: string }> {
 	const candidates: Array<{ note: ScannedNote; blockId?: string; excerpt: string }> = [];
 
 	for (const note of notes) {
@@ -92,14 +115,20 @@ function isStaleNote(note: ScannedNote, staleAfterDays: number): boolean {
 	return modified < cutoff;
 }
 
-export function buildContextPack(vaultRoot: string, query: string, options: ContextPackOptions = {}): ContextPack {
+export function buildContextPack(
+	vaultRoot: string,
+	query: string,
+	options: ContextPackOptions = {}
+): ContextPack {
 	const scan = scanVault(vaultRoot, { vaultConfigDir: options.vaultConfigDir });
 	const recall = recallNotes(scan.notes, query, { limit: options.limit });
 	const topNotes = recall.map((item: RecallMatch) => item.note);
 	const staleAfterDays = options.staleAfterDays ?? 180;
 
 	const sourceCandidates = gatherSourceCandidates(topNotes)
-		.filter((candidate, index, list) => list.findIndex((item) => item.note.relativePath === candidate.note.relativePath) === index)
+		.filter(
+			(candidate, index, list) => list.findIndex((item) => item.note.relativePath === candidate.note.relativePath) === index
+		)
 		.map((candidate) => ({
 			note: candidate.note.relativePath,
 			reason: candidate.reason,
@@ -136,7 +165,7 @@ export function buildContextPack(vaultRoot: string, query: string, options: Cont
 		relevantNotes: recall.map((match) => ({
 			relativePath: match.note.relativePath,
 			score: match.score,
-			matchedTokens: match.matchedTokens,
+			matchedTokens: normalizeStringList(match.matchedTokens),
 			type: match.note.type,
 			title: match.note.title,
 		})),

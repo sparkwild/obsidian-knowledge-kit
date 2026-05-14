@@ -7,6 +7,21 @@ exports.buildContextPack = buildContextPack;
 const node_path_1 = __importDefault(require("node:path"));
 const scan_1 = require("./scan");
 const recall_1 = require("./recall");
+function isStringArrayValue(value) {
+    return Array.isArray(value);
+}
+function normalizeStringList(value) {
+    if (!isStringArrayValue(value)) {
+        return [];
+    }
+    const normalized = [];
+    for (const item of value) {
+        if (typeof item === 'string') {
+            normalized.push(item);
+        }
+    }
+    return normalized;
+}
 function gatherSourceCandidates(notes) {
     const candidates = [];
     for (const note of notes) {
@@ -18,7 +33,9 @@ function gatherSourceCandidates(notes) {
             frontmatterSourceKind) {
             candidates.push({
                 note,
-                reason: frontmatterSourceKind ? `type=${type || 'source'} source_kind=${frontmatterSourceKind}` : `type=${type || 'source'}`,
+                reason: frontmatterSourceKind
+                    ? `type=${type || 'source'} source_kind=${frontmatterSourceKind}`
+                    : `type=${type || 'source'}`,
             });
         }
     }
@@ -90,7 +107,7 @@ function buildContextPack(vaultRoot, query, options = {}) {
         relevantNotes: recall.map((match) => ({
             relativePath: match.note.relativePath,
             score: match.score,
-            matchedTokens: match.matchedTokens,
+            matchedTokens: normalizeStringList(match.matchedTokens),
             type: match.note.type,
             title: match.note.title,
         })),

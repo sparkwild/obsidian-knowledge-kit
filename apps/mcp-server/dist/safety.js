@@ -1,7 +1,37 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ToolInputError = void 0;
 exports.toSafeVaultRoot = toSafeVaultRoot;
@@ -10,8 +40,8 @@ exports.assertNoSymlinkSegments = assertNoSymlinkSegments;
 exports.resolveSafeNotePath = resolveSafeNotePath;
 exports.resolveSafeWritableNotePath = resolveSafeWritableNotePath;
 exports.relativeFromAbsolute = relativeFromAbsolute;
-const node_path_1 = __importDefault(require("node:path"));
-const node_fs_1 = __importDefault(require("node:fs"));
+const fs = __importStar(require("node:fs"));
+const path = __importStar(require("node:path"));
 const core_1 = require("@tracekeeper/core");
 const TEXT_LIKE_EXTENSIONS = new Set(['.md', '.markdown', '.txt', '.text']);
 const MARKDOWN_EXTENSIONS = new Set(['.md']);
@@ -30,10 +60,10 @@ function toSafeVaultRoot(vaultRoot) {
 }
 function normalizeConfigDir(configDir) {
     const normalizedInput = (configDir || '').replace(/\\/g, '/').trim();
-    if (!normalizedInput || node_path_1.default.posix.isAbsolute(normalizedInput)) {
+    if (!normalizedInput || path.posix.isAbsolute(normalizedInput)) {
         return '';
     }
-    const normalized = node_path_1.default.posix.normalize(normalizedInput).replace(/\/+$/g, '');
+    const normalized = path.posix.normalize(normalizedInput).replace(/\/+$/g, '');
     if (!normalized || normalized === '.' || normalized === '..' || normalized.startsWith('../') || normalized.includes('/../')) {
         return '';
     }
@@ -53,13 +83,13 @@ function normalizeNotePath(rawPath, options = {}) {
         throw new ToolInputError('path is required and must be a non-empty string.');
     }
     const normalizedInput = rawPath.replace(/\\/g, '/').trim();
-    if (node_path_1.default.posix.isAbsolute(normalizedInput)) {
+    if (path.posix.isAbsolute(normalizedInput)) {
         throw new ToolInputError('Absolute paths are not allowed. Use vault-relative paths.');
     }
     if (normalizedInput === '' || normalizedInput === '.' || normalizedInput === '..' || normalizedInput.startsWith('..' + '/')) {
         throw new ToolInputError('Path traversal is not allowed.');
     }
-    const normalized = node_path_1.default.posix.normalize(normalizedInput);
+    const normalized = path.posix.normalize(normalizedInput);
     if (normalized === '' || normalized.startsWith('..') || normalized.includes('/../')) {
         throw new ToolInputError('Path traversal is not allowed.');
     }
@@ -76,27 +106,27 @@ function normalizeNotePath(rawPath, options = {}) {
     return normalized;
 }
 function hasTextLikeExtension(candidate) {
-    const ext = node_path_1.default.extname(candidate).toLowerCase();
+    const ext = path.extname(candidate).toLowerCase();
     return TEXT_LIKE_EXTENSIONS.has(ext);
 }
 function hasMarkdownExtension(candidate) {
-    const ext = node_path_1.default.extname(candidate).toLowerCase();
+    const ext = path.extname(candidate).toLowerCase();
     return MARKDOWN_EXTENSIONS.has(ext);
 }
 function resolveCandidatePath(vaultRoot, candidate) {
-    const absoluteCandidate = node_path_1.default.resolve(vaultRoot, candidate);
+    const absoluteCandidate = path.resolve(vaultRoot, candidate);
     return (0, core_1.ensureInsideVaultRoot)(vaultRoot, absoluteCandidate);
 }
 function assertNoSymlinkSegments(vaultRoot, absolutePath) {
-    const relative = node_path_1.default.relative(vaultRoot, absolutePath);
-    const segments = relative.split(node_path_1.default.sep).filter(Boolean);
+    const relative = path.relative(vaultRoot, absolutePath);
+    const segments = relative.split(path.sep).filter(Boolean);
     let cursor = vaultRoot;
     for (const segment of segments) {
-        cursor = node_path_1.default.join(cursor, segment);
-        if (!node_fs_1.default.existsSync(cursor)) {
+        cursor = path.join(cursor, segment);
+        if (!fs.existsSync(cursor)) {
             continue;
         }
-        const stat = node_fs_1.default.lstatSync(cursor);
+        const stat = fs.lstatSync(cursor);
         if (stat.isSymbolicLink()) {
             throw new core_1.VaultPathError('Symlink paths are not allowed for note reads.');
         }
@@ -113,11 +143,11 @@ function resolveSafeNotePath(vaultRoot, rawPath, options = {}) {
         if (!hasTextLikeExtension(absolute)) {
             continue;
         }
-        if (!node_fs_1.default.existsSync(absolute)) {
+        if (!fs.existsSync(absolute)) {
             continue;
         }
         assertNoSymlinkSegments(vaultRoot, absolute);
-        const stat = node_fs_1.default.lstatSync(absolute);
+        const stat = fs.lstatSync(absolute);
         if (!stat.isFile()) {
             throw new ToolInputError(`Path is not a file: ${candidatePath}`);
         }
@@ -128,13 +158,13 @@ function resolveSafeNotePath(vaultRoot, rawPath, options = {}) {
 function resolveSafeWritableNotePath(vaultRoot, rawPath, allowedDirectory, options = {}) {
     const candidate = normalizeNotePath(rawPath, options);
     const withMarkdown = hasMarkdownExtension(candidate) ? candidate : `${candidate}.md`;
-    const absolute = node_path_1.default.resolve(vaultRoot, withMarkdown);
+    const absolute = path.resolve(vaultRoot, withMarkdown);
     const resolved = (0, core_1.ensureInsideVaultRoot)(vaultRoot, absolute);
-    const relative = node_path_1.default.relative(vaultRoot, resolved).replace(/\\/g, '/');
-    if (relative === '' || relative.startsWith('..') || node_path_1.default.isAbsolute(relative)) {
+    const relative = path.relative(vaultRoot, resolved).replace(/\\/g, '/');
+    if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
         throw new core_1.VaultPathError('Path is outside vault root.');
     }
-    const normalizedAllowed = node_path_1.default.posix.normalize(allowedDirectory.replace(/\\/g, '/')).replace(/\/+$/g, '');
+    const normalizedAllowed = path.posix.normalize(allowedDirectory.replace(/\\/g, '/')).replace(/\/+$/g, '');
     if (!normalizedAllowed || normalizedAllowed.includes('..')) {
         throw new ToolInputError('Allowed directory prefix is invalid.');
     }
@@ -147,14 +177,14 @@ function resolveSafeWritableNotePath(vaultRoot, rawPath, allowedDirectory, optio
     }
     assertNotVaultConfigPath(relative, 'Writing', options);
     assertNoSymlinkSegments(vaultRoot, resolved);
-    if (node_fs_1.default.existsSync(resolved)) {
+    if (fs.existsSync(resolved)) {
         throw new ToolInputError('Target file already exists and cannot be overwritten.');
     }
     return {
         absolutePath: resolved,
-        relativePath: node_path_1.default.relative(vaultRoot, resolved).replace(/\\/g, '/'),
+        relativePath: path.relative(vaultRoot, resolved).replace(/\\/g, '/'),
     };
 }
 function relativeFromAbsolute(vaultRoot, absolutePath) {
-    return node_path_1.default.relative(vaultRoot, absolutePath).replace(/\\/g, '/');
+    return path.relative(vaultRoot, absolutePath).replace(/\\/g, '/');
 }

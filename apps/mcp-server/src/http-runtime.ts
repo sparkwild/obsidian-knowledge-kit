@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from 'node:http';
-import crypto from 'node:crypto';
+import type { AddressInfo } from 'node:net';
+import * as crypto from 'node:crypto';
 import { URL } from 'node:url';
 import type { JsonRpcResponse } from './protocol';
 import {
@@ -94,7 +95,7 @@ export class StreamableHttpMcpRuntime {
 				reject(error);
 				return;
 			}
-			server.once('error', (error: Error & { code?: string }) => {
+			server.once('error', (error: NodeJS.ErrnoException) => {
 				this.state = error.code === 'EADDRINUSE' ? 'port_conflict' : 'failed';
 				this.lastError = error.message;
 				this.server = null;
@@ -102,7 +103,7 @@ export class StreamableHttpMcpRuntime {
 			});
 			server.listen(this.port, this.host, () => {
 				const address = server.address();
-				if (address && typeof address === 'object') {
+				if (isAddressInfo(address)) {
 					this.port = address.port;
 				}
 				this.state = 'running';
@@ -189,7 +190,7 @@ export class StreamableHttpMcpRuntime {
 		try {
 			message = JSON.parse(body || '{}');
 		} catch (error) {
-			const messageText = error instanceof Error ? error.message : 'Invalid JSON.';
+			const messageText = toErrorMessage(error, 'Invalid JSON.');
 			this.writeJson(response, 400, this.errorResponse(null, -32700, messageText), request);
 			return;
 		}
@@ -297,11 +298,11 @@ export class StreamableHttpMcpRuntime {
 	}
 
 	private readMethod(message: unknown): string {
-		if (!message || typeof message !== 'object' || Array.isArray(message)) {
+		if (!isRecordLike(message)) {
 			return '';
 		}
-		const method = (message as { method?: unknown }).method;
-		return typeof method === 'string' ? method : '';
+		const methodValue = message.method;
+		return typeof methodValue === 'string' ? methodValue : '';
 	}
 
 	private async readBody(request: IncomingMessage): Promise<string> {
@@ -383,4 +384,24 @@ export class StreamableHttpMcpRuntime {
 		}
 		return { jsonrpc: '2.0', id, error };
 	}
+}
+
+function toErrorMessage(error: unknown, fallback: string): string {
+	if (error instanceof Error) {
+		return error.message || fallback;
+	}
+	return fallback;
+}
+
+function isAddressInfo(address: ReturnType<HttpServer['address']>): address is AddressInfo {
+	return (
+		typeof address === 'object' &&
+		address !== null &&
+		'port' in address &&
+		typeof address.port === 'number'
+	);
+}
+
+function isRecordLike(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === 'object' && !Array.isArray(value);
 }

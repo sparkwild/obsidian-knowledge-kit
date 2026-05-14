@@ -33,10 +33,11 @@ function isInsideVault(vaultRoot, candidatePath) {
     return relative === '' || (!relative.startsWith('..') && !node_path_1.default.isAbsolute(relative));
 }
 function hasFile(candidatePath) {
-    if (!candidatePath || !node_fs_1.default.existsSync(candidatePath)) {
+    const normalizedPath = node_path_1.default.normalize(candidatePath);
+    if (!normalizedPath || !node_fs_1.default.existsSync(normalizedPath)) {
         return false;
     }
-    const stat = node_fs_1.default.statSync(candidatePath);
+    const stat = node_fs_1.default.statSync(normalizedPath);
     return stat.isFile();
 }
 function lintNotes(vaultRoot, notes) {

@@ -40,21 +40,41 @@ export interface ScanVaultOptions {
 
 const NOTES_EXTENSIONS = new Set(['.md', '.markdown']);
 
+function isCommaSeparatedAliases(value: unknown): value is string {
+	return typeof value === 'string';
+}
+
+function aliasEntries(value: unknown): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+
+	const aliases: string[] = [];
+	for (const item of value) {
+		if (typeof item === 'string' && item.trim()) {
+			aliases.push(item.trim());
+		}
+	}
+	return aliases;
+}
+
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
 function getAliases(frontmatter: Record<string, unknown>): string[] {
 	const aliases: string[] = [];
 	const aliasesFromFrontmatter = frontmatter.aliases;
 
-	if (typeof aliasesFromFrontmatter === 'string') {
+	if (isCommaSeparatedAliases(aliasesFromFrontmatter)) {
 		for (const alias of aliasesFromFrontmatter.split(',').map((item) => item.trim())) {
 			if (alias) {
 				aliases.push(alias);
 			}
 		}
-	} else if (Array.isArray(aliasesFromFrontmatter)) {
-		for (const alias of aliasesFromFrontmatter) {
-			if (typeof alias === 'string' && alias.trim()) {
-				aliases.push(alias.trim());
-			}
+	} else {
+		for (const alias of aliasEntries(aliasesFromFrontmatter)) {
+			aliases.push(alias);
 		}
 	}
 
@@ -142,10 +162,10 @@ function scanDirectory(
 				evidenceBlocks: parsed.evidenceBlocks,
 				content: parsed.body,
 			});
-		} catch (error) {
+		} catch (error: unknown) {
 			errors.push({
 				path: safePath,
-				error: error instanceof Error ? error.message : String(error),
+				error: errorMessage(error),
 			});
 		}
 	}

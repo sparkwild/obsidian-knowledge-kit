@@ -1,6 +1,6 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import crypto from 'node:crypto';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as crypto from 'node:crypto';
 import {
 	VaultPathError,
 	analyzeSourceText,
@@ -116,6 +116,51 @@ const SENSITIVE_KEY_PATTERNS = [
 ];
 
 const MAX_ARGS_SUMMARY_LENGTH = 512;
+
+type ToolName =
+	| 'tracekeeper.status'
+	| 'tracekeeper.start_task'
+	| 'tracekeeper.recall'
+	| 'tracekeeper.read_note'
+	| 'tracekeeper.list_review_queue'
+	| 'tracekeeper.list_source_requests'
+	| 'tracekeeper.list_approved_writebacks'
+	| 'tracekeeper.audit_recent'
+	| 'tracekeeper.analyze_source_request'
+	| 'tracekeeper.apply_approved_writeback'
+	| 'tracekeeper.build_context_pack'
+	| 'tracekeeper.lint'
+	| 'tracekeeper.finish_task'
+	| 'tracekeeper.distill_session'
+	| 'tracekeeper.write_context_pack'
+	| 'tracekeeper.write_session_note'
+	| 'tracekeeper.capture_source'
+	| 'tracekeeper.propose_memory';
+
+const TOOL_NAME_SET = new Set<string>([
+	'tracekeeper.status',
+	'tracekeeper.start_task',
+	'tracekeeper.recall',
+	'tracekeeper.read_note',
+	'tracekeeper.list_review_queue',
+	'tracekeeper.list_source_requests',
+	'tracekeeper.list_approved_writebacks',
+	'tracekeeper.audit_recent',
+	'tracekeeper.analyze_source_request',
+	'tracekeeper.apply_approved_writeback',
+	'tracekeeper.build_context_pack',
+	'tracekeeper.lint',
+	'tracekeeper.finish_task',
+	'tracekeeper.distill_session',
+	'tracekeeper.write_context_pack',
+	'tracekeeper.write_session_note',
+	'tracekeeper.capture_source',
+	'tracekeeper.propose_memory',
+]);
+
+function isToolName(value: string): value is ToolName {
+	return TOOL_NAME_SET.has(value);
+}
 
 interface ToolArgs {
 	vaultRoot?: unknown;
@@ -1061,6 +1106,31 @@ function buildSafeFilename(rawFilename: unknown, fallbackPrefix: string, context
 	const now = new Date().toISOString().replace(/[:.]/g, '-');
 	const token = crypto.randomUUID().slice(0, 8);
 	return `${fallbackPrefix}_${now}_${token}`;
+}
+
+function toErrorMessage(error: unknown): string {
+	if (error instanceof Error) {
+		return error.message || 'Unknown error.';
+	}
+	if (typeof error === 'string') {
+		return error;
+	}
+	if (error === undefined || error === null) {
+		return 'Unknown error.';
+	}
+	return typeof error === 'number' || typeof error === 'boolean'
+		? String(error)
+		: (() => {
+			try {
+				const json = JSON.stringify(error);
+				if (typeof json === 'string' && json.length > 0) {
+					return json;
+				}
+			} catch {
+				// Intentionally fall through to generic message.
+			}
+			return 'Unknown error.';
+		})();
 }
 
 function buildAndWriteNote(
@@ -2145,6 +2215,9 @@ export function callTool(
 	if (!requestName) {
 		return toolError('Tool name is required.');
 	}
+	if (!isToolName(requestName)) {
+		return toolError(`Unknown tool: ${requestName}`);
+	}
 	const args = rawParams;
 	const startTime = Date.now();
 	const agentId = context.agentId || 'unknown session id';
@@ -2160,58 +2233,58 @@ export function callTool(
 	try {
 		switch (requestName) {
 			case 'tracekeeper.status':
-				toolResult = toolResultWithError(handleStatus(args as StatusArgs, context));
+				toolResult = toolResultWithError(handleStatus(args, context));
 				break;
 			case 'tracekeeper.start_task':
-				toolResult = toolResultWithError(handleStartTask(args as StartTaskArgs, context));
+				toolResult = toolResultWithError(handleStartTask(args, context));
 				break;
 			case 'tracekeeper.recall':
-				toolResult = toolResultWithError(handleRecall(args as RecallArgs, context));
+				toolResult = toolResultWithError(handleRecall(args, context));
 				break;
 			case 'tracekeeper.read_note':
-				toolResult = toolResultWithError(handleReadNote(args as ReadNoteArgs, context));
+				toolResult = toolResultWithError(handleReadNote(args, context));
 				break;
 			case 'tracekeeper.list_review_queue':
-				toolResult = toolResultWithError(handleReviewQueue(args as ListReviewQueueArgs, context));
+				toolResult = toolResultWithError(handleReviewQueue(args, context));
 				break;
 			case 'tracekeeper.list_source_requests':
-				toolResult = toolResultWithError(handleListSourceRequests(args as ListSourceRequestsArgs, context));
+				toolResult = toolResultWithError(handleListSourceRequests(args, context));
 				break;
 			case 'tracekeeper.list_approved_writebacks':
-				toolResult = toolResultWithError(handleListApprovedWritebacks(args as ListApprovedWritebacksArgs, context));
+				toolResult = toolResultWithError(handleListApprovedWritebacks(args, context));
 				break;
 			case 'tracekeeper.audit_recent':
-				toolResult = toolResultWithError(handleAuditRecent(args as AuditRecentArgs, context));
+				toolResult = toolResultWithError(handleAuditRecent(args, context));
 				break;
 			case 'tracekeeper.analyze_source_request':
-				toolResult = toolResultWithError(handleAnalyzeSourceRequest(args as AnalyzeSourceRequestArgs, context));
+				toolResult = toolResultWithError(handleAnalyzeSourceRequest(args, context));
 				break;
 			case 'tracekeeper.apply_approved_writeback':
-				toolResult = toolResultWithError(handleApplyApprovedWriteback(args as ApplyApprovedWritebackArgs, context));
+				toolResult = toolResultWithError(handleApplyApprovedWriteback(args, context));
 				break;
 			case 'tracekeeper.build_context_pack':
-				toolResult = toolResultWithError(handleBuildContextPack(args as BuildContextPackArgs, context));
+				toolResult = toolResultWithError(handleBuildContextPack(args, context));
 				break;
 			case 'tracekeeper.lint':
-				toolResult = toolResultWithError(handleLint(args as LintArgs, context));
+				toolResult = toolResultWithError(handleLint(args, context));
 				break;
 			case 'tracekeeper.finish_task':
-				toolResult = toolResultWithError(handleFinishTask(args as FinishTaskArgs, context));
+				toolResult = toolResultWithError(handleFinishTask(args, context));
 				break;
 			case 'tracekeeper.distill_session':
-				toolResult = toolResultWithError(handleDistillSession(args as DistillSessionArgs, context));
+				toolResult = toolResultWithError(handleDistillSession(args, context));
 				break;
 			case 'tracekeeper.write_context_pack':
-				toolResult = toolResultWithError(handleWriteContextPack(args as WriteContextPackArgs, context));
+				toolResult = toolResultWithError(handleWriteContextPack(args, context));
 				break;
 			case 'tracekeeper.write_session_note':
-				toolResult = toolResultWithError(handleWriteSessionNote(args as WriteSessionNoteArgs, context));
+				toolResult = toolResultWithError(handleWriteSessionNote(args, context));
 				break;
 			case 'tracekeeper.capture_source':
-				toolResult = toolResultWithError(handleCaptureSource(args as CaptureSourceArgs, context));
+				toolResult = toolResultWithError(handleCaptureSource(args, context));
 				break;
 			case 'tracekeeper.propose_memory':
-				toolResult = toolResultWithError(handleProposeMemory(args as ProposeMemoryArgs, context));
+				toolResult = toolResultWithError(handleProposeMemory(args, context));
 				break;
 			default:
 				toolResult = toolError(`Unknown tool: ${requestName}`);
@@ -2223,7 +2296,7 @@ export function callTool(
 		} else if (error instanceof Error) {
 			toolResult = toolError(error.message);
 		} else {
-			toolResult = toolError('Unknown tool error.');
+			toolResult = toolError(toErrorMessage(error));
 		}
 		status = 'failed';
 	} finally {
@@ -2724,7 +2797,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 					taskId: coerceOptionalString(rawArgs.task_id) || null,
 					metadata: {
 						action: 'source.request.failed',
-						error: error instanceof Error ? error.message : String(error),
+						error: toErrorMessage(error),
 					},
 				});
 			} catch {

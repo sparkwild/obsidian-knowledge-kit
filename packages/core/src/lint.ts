@@ -47,10 +47,11 @@ function isInsideVault(vaultRoot: string, candidatePath: string): boolean {
 }
 
 function hasFile(candidatePath: string): boolean {
-	if (!candidatePath || !fs.existsSync(candidatePath)) {
+	const normalizedPath = path.normalize(candidatePath);
+	if (!normalizedPath || !fs.existsSync(normalizedPath)) {
 		return false;
 	}
-	const stat = fs.statSync(candidatePath);
+	const stat = fs.statSync(normalizedPath);
 	return stat.isFile();
 }
 
