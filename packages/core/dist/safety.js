@@ -27,7 +27,7 @@ function isInsideVaultRoot(vaultRoot, candidatePath) {
     const root = resolveVaultRoot(vaultRoot);
     const candidate = node_path_1.default.resolve(candidatePath);
     const relative = node_path_1.default.relative(root, candidate);
-    return relative === '' || (!relative.startsWith('..') && !node_path_1.default.isAbsolute(relative));
+    return relative === '' || (!relative.startsWith(`..${node_path_1.default.sep}`) && relative !== '..' && !node_path_1.default.isAbsolute(relative));
 }
 function ensureInsideVaultRoot(vaultRoot, candidatePath) {
     const resolved = node_path_1.default.resolve(candidatePath);

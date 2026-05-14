@@ -1,7 +1,7 @@
 {
   "id": "tracekeeper",
   "name": "Tracekeeper",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "minAppVersion": "1.6.0",
   "description": "Review AI-proposed wiki and memory updates before they reach your vault.",
   "author": "sparkwild",

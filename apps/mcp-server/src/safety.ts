@@ -1,5 +1,5 @@
-import path from 'node:path';
-import fs from 'node:fs';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { ensureInsideVaultRoot, resolveVaultRoot, isSafeDirectoryName, VaultPathError } from '@tracekeeper/core';
 
 const TEXT_LIKE_EXTENSIONS = new Set(['.md', '.markdown', '.txt', '.text']);

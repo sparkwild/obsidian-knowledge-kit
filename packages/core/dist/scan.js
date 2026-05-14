@@ -9,21 +9,37 @@ const node_path_1 = __importDefault(require("node:path"));
 const safety_1 = require("./safety");
 const markdown_1 = require("./markdown");
 const NOTES_EXTENSIONS = new Set(['.md', '.markdown']);
+function isCommaSeparatedAliases(value) {
+    return typeof value === 'string';
+}
+function aliasEntries(value) {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+    const aliases = [];
+    for (const item of value) {
+        if (typeof item === 'string' && item.trim()) {
+            aliases.push(item.trim());
+        }
+    }
+    return aliases;
+}
+function errorMessage(error) {
+    return error instanceof Error ? error.message : String(error);
+}
 function getAliases(frontmatter) {
     const aliases = [];
     const aliasesFromFrontmatter = frontmatter.aliases;
-    if (typeof aliasesFromFrontmatter === 'string') {
+    if (isCommaSeparatedAliases(aliasesFromFrontmatter)) {
         for (const alias of aliasesFromFrontmatter.split(',').map((item) => item.trim())) {
             if (alias) {
                 aliases.push(alias);
             }
         }
     }
-    else if (Array.isArray(aliasesFromFrontmatter)) {
-        for (const alias of aliasesFromFrontmatter) {
-            if (typeof alias === 'string' && alias.trim()) {
-                aliases.push(alias.trim());
-            }
+    else {
+        for (const alias of aliasEntries(aliasesFromFrontmatter)) {
+            aliases.push(alias);
         }
     }
     if (typeof frontmatter.title === 'string' && frontmatter.title.trim()) {
@@ -98,7 +114,7 @@ function scanDirectory(vaultRoot, directory, notes, errors, options) {
         catch (error) {
             errors.push({
                 path: safePath,
-                error: error instanceof Error ? error.message : String(error),
+                error: errorMessage(error),
             });
         }
     }

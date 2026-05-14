@@ -1,16 +1,46 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.appendConnectionAuditEvent = appendConnectionAuditEvent;
 exports.recordToolCallAuditEvent = recordToolCallAuditEvent;
 exports.toolDefinitions = toolDefinitions;
 exports.toolPrompts = toolPrompts;
 exports.callTool = callTool;
-const node_fs_1 = __importDefault(require("node:fs"));
-const node_path_1 = __importDefault(require("node:path"));
-const node_crypto_1 = __importDefault(require("node:crypto"));
+const fs = __importStar(require("node:fs"));
+const path = __importStar(require("node:path"));
+const crypto = __importStar(require("node:crypto"));
 const core_1 = require("@tracekeeper/core");
 const protocol_1 = require("./protocol");
 const safety_1 = require("./safety");
@@ -60,6 +90,29 @@ const SENSITIVE_KEY_PATTERNS = [
     /refresh[_-]?token/i,
 ];
 const MAX_ARGS_SUMMARY_LENGTH = 512;
+const TOOL_NAME_SET = new Set([
+    'tracekeeper.status',
+    'tracekeeper.start_task',
+    'tracekeeper.recall',
+    'tracekeeper.read_note',
+    'tracekeeper.list_review_queue',
+    'tracekeeper.list_source_requests',
+    'tracekeeper.list_approved_writebacks',
+    'tracekeeper.audit_recent',
+    'tracekeeper.analyze_source_request',
+    'tracekeeper.apply_approved_writeback',
+    'tracekeeper.build_context_pack',
+    'tracekeeper.lint',
+    'tracekeeper.finish_task',
+    'tracekeeper.distill_session',
+    'tracekeeper.write_context_pack',
+    'tracekeeper.write_session_note',
+    'tracekeeper.capture_source',
+    'tracekeeper.propose_memory',
+]);
+function isToolName(value) {
+    return TOOL_NAME_SET.has(value);
+}
 function toolResult(payload, isError = false) {
     return {
         content: [
@@ -287,7 +340,7 @@ function safeReadNote(vaultRoot, notePath, context) {
     const absolute = (0, safety_1.resolveSafeNotePath)(vaultRoot, normalized, options);
     return {
         path: (0, safety_1.relativeFromAbsolute)(vaultRoot, absolute),
-        text: node_fs_1.default.readFileSync(absolute, 'utf8'),
+        text: fs.readFileSync(absolute, 'utf8'),
     };
 }
 function safeReadTextFile(vaultRoot, notePath, context) {
@@ -295,7 +348,7 @@ function safeReadTextFile(vaultRoot, notePath, context) {
     const normalized = (0, safety_1.normalizeNotePath)(notePath, options);
     const absolute = (0, safety_1.resolveSafeNotePath)(vaultRoot, normalized, options);
     (0, safety_1.assertNoSymlinkSegments)(vaultRoot, absolute);
-    return node_fs_1.default.readFileSync(absolute, 'utf8');
+    return fs.readFileSync(absolute, 'utf8');
 }
 function assertSourceRequestPath(relativePath) {
     if (!relativePath.startsWith(`${SOURCE_REQUESTS_DIR}/`)) {
@@ -356,7 +409,7 @@ function readMemoryProposal(vaultRoot, proposalPath, context) {
     const absolutePath = (0, safety_1.resolveSafeNotePath)(vaultRoot, normalized, options);
     const relative = (0, safety_1.relativeFromAbsolute)(vaultRoot, absolutePath);
     assertReviewQueuePath(relative);
-    const text = node_fs_1.default.readFileSync(absolutePath, 'utf8');
+    const text = fs.readFileSync(absolutePath, 'utf8');
     const parsed = (0, core_1.parseMarkdown)(text);
     const frontmatter = parsed.frontmatter.fields;
     if (!isMemoryProposalFrontmatter(frontmatter)) {
@@ -366,7 +419,7 @@ function readMemoryProposal(vaultRoot, proposalPath, context) {
         absolutePath,
         path: relative,
         proposalId: stripYamlQuotes(readFrontmatterString(frontmatter, ['proposal_id', 'proposalId'])) ||
-            node_path_1.default.basename(relative, node_path_1.default.extname(relative)),
+            path.basename(relative, path.extname(relative)),
         proposalKind: stripYamlQuotes(readFrontmatterString(frontmatter, ['proposal_kind', 'proposalKind'])) || 'unknown',
         approvalStatus: readProposalApprovalStatus(frontmatter),
         targetNote: stripYamlQuotes(readFrontmatterString(frontmatter, ['target_note', 'targetNote'])),
@@ -388,7 +441,7 @@ function findMemoryProposalPathById(vaultRoot, proposalId, context) {
             return false;
         }
         const noteProposalId = stripYamlQuotes(readFrontmatterString(note.frontmatter, ['proposal_id', 'proposalId'])) ||
-            node_path_1.default.basename(note.relativePath, node_path_1.default.extname(note.relativePath));
+            path.basename(note.relativePath, path.extname(note.relativePath));
         return noteProposalId === normalizedId || note.relativePath === normalizedId;
     });
     if (!match) {
@@ -565,7 +618,7 @@ function resolveRequestStatusPath(vaultRoot, requestPath, context) {
 }
 function updateRequestStatus(vaultRoot, requestPath, nextStatus, context) {
     const absolutePath = resolveRequestStatusPath(vaultRoot, requestPath, context);
-    let text = node_fs_1.default.readFileSync(absolutePath, 'utf8');
+    let text = fs.readFileSync(absolutePath, 'utf8');
     const fmMatch = text.match(/^---\n[\s\S]*?\n---\n?/);
     if (!fmMatch) {
         throw new safety_1.ToolInputError(`Request note does not have frontmatter: ${requestPath}`);
@@ -582,7 +635,7 @@ function updateRequestStatus(vaultRoot, requestPath, nextStatus, context) {
         updatedFrontmatter = fmBlock.replace(/\n---\n?$/, `\nstatus: ${nextStatus}\n---\n`);
     }
     text = `${updatedFrontmatter}${body}`;
-    node_fs_1.default.writeFileSync(absolutePath, text, 'utf8');
+    fs.writeFileSync(absolutePath, text, 'utf8');
     return {
         path: (0, safety_1.relativeFromAbsolute)(vaultRoot, absolutePath),
     };
@@ -704,8 +757,33 @@ function buildSafeFilename(rawFilename, fallbackPrefix, context) {
         return (0, safety_1.normalizeNotePath)(candidate, pathSafetyOptions(context));
     }
     const now = new Date().toISOString().replace(/[:.]/g, '-');
-    const token = node_crypto_1.default.randomUUID().slice(0, 8);
+    const token = crypto.randomUUID().slice(0, 8);
     return `${fallbackPrefix}_${now}_${token}`;
+}
+function toErrorMessage(error) {
+    if (error instanceof Error) {
+        return error.message || 'Unknown error.';
+    }
+    if (typeof error === 'string') {
+        return error;
+    }
+    if (error === undefined || error === null) {
+        return 'Unknown error.';
+    }
+    return typeof error === 'number' || typeof error === 'boolean'
+        ? String(error)
+        : (() => {
+            try {
+                const json = JSON.stringify(error);
+                if (typeof json === 'string' && json.length > 0) {
+                    return json;
+                }
+            }
+            catch {
+                // Intentionally fall through to generic message.
+            }
+            return 'Unknown error.';
+        })();
 }
 function buildAndWriteNote(vaultRoot, toolName, allowedDir, filename, frontmatter, body, taskId, context, metadata = {}) {
     const options = pathSafetyOptions(context);
@@ -713,12 +791,12 @@ function buildAndWriteNote(vaultRoot, toolName, allowedDir, filename, frontmatte
     const normalized = safeLeaf.endsWith('.md') ? safeLeaf : `${safeLeaf}.md`;
     const targetPath = `${allowedDir}/${normalized}`;
     const resolved = (0, safety_1.resolveSafeWritableNotePath)(vaultRoot, targetPath, allowedDir, options);
-    node_fs_1.default.mkdirSync(node_path_1.default.dirname(resolved.absolutePath), { recursive: true });
-    if (node_fs_1.default.existsSync(resolved.absolutePath)) {
+    fs.mkdirSync(path.dirname(resolved.absolutePath), { recursive: true });
+    if (fs.existsSync(resolved.absolutePath)) {
         throw new safety_1.ToolInputError(`Target already exists: ${resolved.relativePath}`);
     }
     const markdown = buildMarkdownNote(frontmatter, body);
-    node_fs_1.default.writeFileSync(resolved.absolutePath, markdown, 'utf8');
+    fs.writeFileSync(resolved.absolutePath, markdown, 'utf8');
     const audit = appendAuditEvent(vaultRoot, {
         tool: toolName,
         targetPath: resolved.relativePath,
@@ -783,7 +861,7 @@ function updateAgentTaskRecord(vaultRoot, taskId, fields, context, references = 
         }
         throw error;
     }
-    const current = node_fs_1.default.readFileSync(absolute, 'utf8');
+    const current = fs.readFileSync(absolute, 'utf8');
     const frontmatter = (0, core_1.parseMarkdown)(current).frontmatter.fields;
     const nextFields = { ...fields };
     for (const [key, values] of Object.entries(references)) {
@@ -796,7 +874,7 @@ function updateAgentTaskRecord(vaultRoot, taskId, fields, context, references = 
     if (appendBody.trim()) {
         next = `${next.replace(/\s*$/, '')}\n\n${appendBody.trim()}\n`;
     }
-    node_fs_1.default.writeFileSync(absolute, next, 'utf8');
+    fs.writeFileSync(absolute, next, 'utf8');
     return (0, safety_1.relativeFromAbsolute)(vaultRoot, absolute);
 }
 function createAgentTaskRecord(vaultRoot, input) {
@@ -834,15 +912,15 @@ function createAgentTaskRecord(vaultRoot, input) {
 }
 function ensureAuditLog(vaultRoot) {
     const safeAuditPath = (0, safety_1.normalizeNotePath)(AUDIT_LOG_PATH);
-    const absolute = node_path_1.default.resolve(vaultRoot, safeAuditPath);
-    const relative = node_path_1.default.relative(vaultRoot, absolute).replace(/\\/g, '/');
-    if (relative === '' || relative.startsWith('..') || node_path_1.default.isAbsolute(relative)) {
+    const absolute = path.resolve(vaultRoot, safeAuditPath);
+    const relative = path.relative(vaultRoot, absolute).replace(/\\/g, '/');
+    if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
         throw new safety_1.ToolInputError('Audit log path must be inside vault.');
     }
     (0, safety_1.assertNoSymlinkSegments)(vaultRoot, absolute);
-    node_fs_1.default.mkdirSync(node_path_1.default.dirname(absolute), { recursive: true });
-    if (!node_fs_1.default.existsSync(absolute)) {
-        node_fs_1.default.writeFileSync(absolute, '# Audit Log\n\n');
+    fs.mkdirSync(path.dirname(absolute), { recursive: true });
+    if (!fs.existsSync(absolute)) {
+        fs.writeFileSync(absolute, '# Audit Log\n\n');
     }
     return { absolute, relative };
 }
@@ -921,7 +999,7 @@ function appendAuditEvent(vaultRoot, input) {
             eventLines.push(`- ${key}: ${sanitizeYamlValue(value)}`);
         }
     }
-    node_fs_1.default.appendFileSync(audit.absolute, `${eventLines.join('\n')}\n\n`);
+    fs.appendFileSync(audit.absolute, `${eventLines.join('\n')}\n\n`);
     return { path: audit.relative };
 }
 function normalizeAuditTargets(paths) {
@@ -1703,6 +1781,9 @@ function callTool(name, rawParams, context = {}) {
     if (!requestName) {
         return toolError('Tool name is required.');
     }
+    if (!isToolName(requestName)) {
+        return toolError(`Unknown tool: ${requestName}`);
+    }
     const args = rawParams;
     const startTime = Date.now();
     const agentId = context.agentId || 'unknown session id';
@@ -1782,7 +1863,7 @@ function callTool(name, rawParams, context = {}) {
             toolResult = toolError(error.message);
         }
         else {
-            toolResult = toolError('Unknown tool error.');
+            toolResult = toolError(toErrorMessage(error));
         }
         status = 'failed';
     }
@@ -1839,7 +1920,7 @@ function handleStartTask(rawArgs, context) {
     }
     const scan = scanVaultForContext(vaultRoot, context);
     const contextPack = buildContextPackForContext(vaultRoot, goal, context, { limit: 8 });
-    const taskId = `obs_task_${Date.now()}_${node_crypto_1.default.randomUUID().slice(0, 8)}`;
+    const taskId = `obs_task_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
     const relatedProjects = scan.notes
         .filter((note) => note.relativePath.startsWith('05_projects/'))
         .slice(0, 10)
@@ -1906,7 +1987,7 @@ function handleReadNote(rawArgs, context) {
         read_only: true,
         vault_root: vaultRoot,
         path: data.path,
-        title: parsed.title || node_path_1.default.basename(data.path),
+        title: parsed.title || path.basename(data.path),
         mime_type: data.path.endsWith('.txt') || data.path.endsWith('.text') ? 'text/plain' : 'text/markdown',
         content: data.text,
         excerpt: parsed.body.slice(0, 1024),
@@ -2206,7 +2287,7 @@ function handleAnalyzeSourceRequest(rawArgs, context) {
                     taskId: coerceOptionalString(rawArgs.task_id) || null,
                     metadata: {
                         action: 'source.request.failed',
-                        error: error instanceof Error ? error.message : String(error),
+                        error: toErrorMessage(error),
                     },
                 });
             }
@@ -2325,16 +2406,16 @@ function handleApplyApprovedWriteback(rawArgs, context) {
             writeback_preview: writebackBlock,
         };
     }
-    const currentTarget = node_fs_1.default.readFileSync(targetAbsolute, 'utf8');
+    const currentTarget = fs.readFileSync(targetAbsolute, 'utf8');
     const targetWithWriteback = `${currentTarget.replace(/\s*$/, '')}\n\n${writebackBlock}\n`;
-    node_fs_1.default.writeFileSync(targetAbsolute, targetWithWriteback, 'utf8');
+    fs.writeFileSync(targetAbsolute, targetWithWriteback, 'utf8');
     const updatedProposal = updateFrontmatterFields(proposal.text, {
         approval_status: 'applied',
         status: 'applied',
         writeback_applied_at: now,
         writeback_target: targetRelative,
     });
-    node_fs_1.default.writeFileSync(proposal.absolutePath, updatedProposal, 'utf8');
+    fs.writeFileSync(proposal.absolutePath, updatedProposal, 'utf8');
     const audit = appendAuditEvent(vaultRoot, {
         tool: 'tracekeeper.apply_approved_writeback',
         targetPath: targetRelative,
@@ -2370,7 +2451,7 @@ function handleAuditRecent(rawArgs, context) {
     let text = '';
     try {
         auditPath = (0, safety_1.resolveSafeNotePath)(vaultRoot, AUDIT_LOG_PATH, pathSafetyOptions(context));
-        text = node_fs_1.default.readFileSync(auditPath, 'utf8');
+        text = fs.readFileSync(auditPath, 'utf8');
     }
     catch (error) {
         if (!(error instanceof safety_1.ToolInputError || error instanceof core_1.VaultPathError)) {
@@ -2701,7 +2782,7 @@ function createDistillProposal(vaultRoot, taskId, proposalKind, kindLabel, conte
         `- task_id: ${taskId}`,
     ].join('\n');
     const now = new Date().toISOString();
-    const filenameToken = `${proposalKind}-${taskId}-${now.replace(/[:.]/g, '-')}-${node_crypto_1.default.randomUUID().slice(0, 8)}`;
+    const filenameToken = `${proposalKind}-${taskId}-${now.replace(/[:.]/g, '-')}-${crypto.randomUUID().slice(0, 8)}`;
     const proposal = buildAndWriteNote(vaultRoot, 'tracekeeper.distill_session', MEMORY_PROPOSAL_DIR, buildSafeFilename(filenameToken, proposalKind, context), {
         tool: 'tracekeeper.distill_session',
         type: 'memory_proposal',

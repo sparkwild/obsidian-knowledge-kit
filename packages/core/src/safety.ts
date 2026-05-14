@@ -24,8 +24,7 @@ export function isInsideVaultRoot(vaultRoot: string, candidatePath: string): boo
 	const root = resolveVaultRoot(vaultRoot);
 	const candidate = path.resolve(candidatePath);
 	const relative = path.relative(root, candidate);
-
-	return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+	return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
 }
 
 export function ensureInsideVaultRoot(vaultRoot: string, candidatePath: string): string {

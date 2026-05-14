@@ -40,6 +40,15 @@ function parseArgs(argv) {
     }
     return result;
 }
+function toErrorMessage(error) {
+    if (error instanceof Error) {
+        return error.message || 'Unknown MCP Runtime error.';
+    }
+    if (typeof error === 'string') {
+        return error;
+    }
+    return 'Unknown MCP Runtime error.';
+}
 async function main() {
     const args = parseArgs(process.argv.slice(2));
     const runtime = new http_runtime_1.StreamableHttpMcpRuntime(args);
@@ -57,7 +66,7 @@ async function main() {
     });
 }
 void main().catch((error) => {
-    const message = error instanceof Error ? error.message : 'Unknown MCP Runtime error.';
+    const message = toErrorMessage(error);
     process.stderr.write(`${message}\n`);
     process.exit(1);
 });

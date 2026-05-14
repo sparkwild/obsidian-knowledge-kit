@@ -1,11 +1,41 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.StreamableHttpMcpRuntime = void 0;
 const node_http_1 = require("node:http");
-const node_crypto_1 = __importDefault(require("node:crypto"));
+const crypto = __importStar(require("node:crypto"));
 const node_url_1 = require("node:url");
 const handler_1 = require("./handler");
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
@@ -60,7 +90,7 @@ class StreamableHttpMcpRuntime {
             });
             server.listen(this.port, this.host, () => {
                 const address = server.address();
-                if (address && typeof address === 'object') {
+                if (isAddressInfo(address)) {
                     this.port = address.port;
                 }
                 this.state = 'running';
@@ -139,7 +169,7 @@ class StreamableHttpMcpRuntime {
             message = JSON.parse(body || '{}');
         }
         catch (error) {
-            const messageText = error instanceof Error ? error.message : 'Invalid JSON.';
+            const messageText = toErrorMessage(error, 'Invalid JSON.');
             this.writeJson(response, 400, this.errorResponse(null, -32700, messageText), request);
             return;
         }
@@ -194,7 +224,7 @@ class StreamableHttpMcpRuntime {
         response.end();
     }
     createSession() {
-        const sessionId = node_crypto_1.default.randomUUID();
+        const sessionId = crypto.randomUUID();
         const session = {
             sessionId,
             agentId: sessionId,
@@ -238,11 +268,11 @@ class StreamableHttpMcpRuntime {
         }
     }
     readMethod(message) {
-        if (!message || typeof message !== 'object' || Array.isArray(message)) {
+        if (!isRecordLike(message)) {
             return '';
         }
-        const method = message.method;
-        return typeof method === 'string' ? method : '';
+        const methodValue = message.method;
+        return typeof methodValue === 'string' ? methodValue : '';
     }
     async readBody(request) {
         const chunks = [];
@@ -318,3 +348,18 @@ class StreamableHttpMcpRuntime {
     }
 }
 exports.StreamableHttpMcpRuntime = StreamableHttpMcpRuntime;
+function toErrorMessage(error, fallback) {
+    if (error instanceof Error) {
+        return error.message || fallback;
+    }
+    return fallback;
+}
+function isAddressInfo(address) {
+    return (typeof address === 'object' &&
+        address !== null &&
+        'port' in address &&
+        typeof address.port === 'number');
+}
+function isRecordLike(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}

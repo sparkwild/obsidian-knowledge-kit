@@ -10,6 +10,7 @@ import {
 	Setting,
 	TFile,
 	TFolder,
+	requestUrl,
 	WorkspaceLeaf,
 	getLanguage,
 } from 'obsidian';
@@ -1087,9 +1088,11 @@ export default class TracekeeperPlugin extends Plugin {
 
 	private getVaultRoot(): string {
 		const { adapter } = this.app.vault;
-		return adapter instanceof FileSystemAdapter
-			? adapter.getBasePath()
-			: ui('当前知识库路径不可用', 'Current knowledge base path unavailable');
+		if (!(adapter instanceof FileSystemAdapter)) {
+			return ui('当前知识库路径不可用', 'Current knowledge base path unavailable');
+		}
+		const basePath = adapter.getBasePath();
+		return basePath || ui('当前知识库路径不可用', 'Current knowledge base path unavailable');
 	}
 
 	private buildClientConfigs(): GeneratedClientConfig[] {
@@ -1462,6 +1465,55 @@ export default class TracekeeperPlugin extends Plugin {
 		return this.isRecord(value) && typeof value.openPath === 'function';
 	}
 
+	private errorToString(value: unknown, fallback = 'Unknown error'): string {
+		if (typeof value === 'string') {
+			return value.trim();
+		}
+		if (value instanceof Error) {
+			return value.message.trim();
+		}
+		if (typeof value === 'number' || typeof value === 'boolean') {
+			return String(value);
+		}
+		if (value === null || value === undefined) {
+			return '';
+		}
+		if (this.isRecord(value)) {
+			if (typeof value.message === 'string' && value.message.trim()) {
+				return value.message.trim();
+			}
+			if (typeof value.error === 'string' && value.error.trim()) {
+				return value.error.trim();
+			}
+		}
+		try {
+			return JSON.stringify(value) ?? fallback;
+		} catch {
+			return fallback;
+		}
+	}
+
+	private getHeaderValue(headers: Record<string, string>, name: string): string | undefined {
+		const exact = headers[name];
+		if (exact) {
+			return exact;
+		}
+		const lowered = headers[name.toLowerCase()];
+		if (lowered) {
+			return lowered;
+		}
+		const key = Object.keys(headers).find((candidate) => candidate.toLowerCase() === name.toLowerCase());
+		return key ? headers[key] : undefined;
+	}
+
+	private parseJsonPayload(text: string): unknown | null {
+		try {
+			return text ? JSON.parse(text) : null;
+		} catch {
+			return null;
+		}
+	}
+
 	private async ensureUiMcpSession(): Promise<void> {
 		if (this.uiMcpSessionId) {
 			return;
@@ -1471,7 +1523,7 @@ export default class TracekeeperPlugin extends Plugin {
 			capabilities: {},
 			clientInfo: {
 				name: 'tracekeeper-plugin-ui',
-				version: '0.1.1',
+				version: '0.1.2',
 			},
 		}, false);
 		if (!this.isRecord(result)) {
@@ -1487,7 +1539,8 @@ export default class TracekeeperPlugin extends Plugin {
 		if (includeSession) {
 			headers['mcp-session-id'] = this.uiMcpSessionId;
 		}
-		const response = await fetch(this.getMcpConnectionUrl(), {
+		const response = await requestUrl({
+			url: this.getMcpConnectionUrl(),
 			method: 'POST',
 			headers,
 			body: JSON.stringify({
@@ -1497,14 +1550,17 @@ export default class TracekeeperPlugin extends Plugin {
 				params,
 			}),
 		});
-		const payload = await response.json().catch(() => null);
+		const payload = this.parseJsonPayload(response.text);
 		if (method === 'initialize') {
-			this.uiMcpSessionId = response.headers.get('mcp-session-id') || '';
+			const sessionHeader = this.getHeaderValue(response.headers, 'mcp-session-id');
+			if (sessionHeader) {
+				this.uiMcpSessionId = sessionHeader;
+			}
 		}
-		const errorMessage = this.isRecord(payload) && this.isRecord(payload.error)
-			? String(payload.error.message || '')
+		const errorMessage = this.isRecord(payload) && 'error' in payload
+			? this.errorToString(payload.error)
 			: '';
-		if (!response.ok) {
+		if (response.status < 200 || response.status >= 300) {
 			throw new Error(errorMessage || `MCP request failed with HTTP ${response.status}.`);
 		}
 		if (errorMessage) {
@@ -1528,14 +1584,16 @@ export default class TracekeeperPlugin extends Plugin {
 					? result.structuredContent
 					: result;
 				if (this.isRecord(result) && result.isError) {
-					const message = this.isRecord(structured) ? String(structured.error || '') : '';
+					const message = this.isRecord(structured)
+						? this.errorToString(structured.error)
+						: this.errorToString(result.error);
 					throw new Error(message || `${name} failed.`);
 				}
 				if (!this.isRecord(structured)) {
 					throw new Error(`${name} returned an invalid result.`);
 				}
 				if (structured.ok === false) {
-					throw new Error(String(structured.error || `${name} failed.`));
+					throw new Error(this.errorToString(structured.error, `${name} failed.`));
 				}
 				return structured;
 			} catch (error) {
@@ -2707,9 +2765,11 @@ class InitializeMemoryStructureModal extends Modal {
 		cancel.addEventListener('click', () => this.close());
 
 		const confirm = actions.createEl('button', { text: ui('初始化', 'Initialize'), cls: 'mod-cta' });
-		confirm.addEventListener('click', async () => {
-			await this.options.onConfirm();
-			this.close();
+		confirm.addEventListener('click', () => {
+			void (async () => {
+				await this.options.onConfirm();
+				this.close();
+			})();
 		});
 	}
 
@@ -2770,18 +2830,20 @@ class TracekeeperSourceStatusView extends ItemView {
 			text: ui('刷新', 'Refresh'),
 			cls: 'mod-cta',
 		});
-		refreshButton.addEventListener('click', async () => {
-			refreshButton.disabled = true;
-			refreshButton.setText(ui('刷新中...', 'Refreshing...'));
-			try {
-				await this.refresh();
-				new Notice(ui('来源状态已刷新。', 'Source status refreshed.'));
-			} catch (error) {
-				console.error('tracekeeper failed to refresh source status view', error);
-				refreshButton.disabled = false;
-				refreshButton.setText(ui('刷新', 'Refresh'));
-				new Notice(ui('刷新来源状态失败。', 'Failed to refresh source status.'));
-			}
+		refreshButton.addEventListener('click', () => {
+			void (async () => {
+				refreshButton.disabled = true;
+				refreshButton.setText(ui('刷新中...', 'Refreshing...'));
+				try {
+					await this.refresh();
+					new Notice(ui('来源状态已刷新。', 'Source status refreshed.'));
+				} catch (error) {
+					console.error('tracekeeper failed to refresh source status view', error);
+					refreshButton.disabled = false;
+					refreshButton.setText(ui('刷新', 'Refresh'));
+					new Notice(ui('刷新来源状态失败。', 'Failed to refresh source status.'));
+				}
+			})();
 		});
 
 		if (snapshot.missingRequestFolder) {
@@ -2834,20 +2896,22 @@ class TracekeeperSourceStatusView extends ItemView {
 					text: ui('处理资料请求', 'Process request'),
 					cls: 'mod-cta',
 				});
-				processButton.addEventListener('click', async () => {
-					processButton.disabled = true;
-					processButton.setText(ui('处理中...', 'Processing...'));
-					try {
-						await this.plugin.processSourceRequest(request);
-						new Notice(ui('资料请求已处理。', 'Source request processed.'));
-						await this.refresh();
-					} catch (error) {
-						console.error('tracekeeper failed to process source request', error);
-						new Notice(ui('处理资料请求失败。', 'Failed to process source request.'));
-					} finally {
-						processButton.disabled = false;
-						processButton.setText(ui('处理资料请求', 'Process request'));
-					}
+				processButton.addEventListener('click', () => {
+					void (async () => {
+						processButton.disabled = true;
+						processButton.setText(ui('处理中...', 'Processing...'));
+						try {
+							await this.plugin.processSourceRequest(request);
+							new Notice(ui('资料请求已处理。', 'Source request processed.'));
+							await this.refresh();
+						} catch (error) {
+							console.error('tracekeeper failed to process source request', error);
+							new Notice(ui('处理资料请求失败。', 'Failed to process source request.'));
+						} finally {
+							processButton.disabled = false;
+							processButton.setText(ui('处理资料请求', 'Process request'));
+						}
+					})();
 				});
 			}
 		}
@@ -2919,18 +2983,20 @@ class TracekeeperActivityView extends ItemView {
 			text: ui('刷新', 'Refresh'),
 			cls: 'mod-cta',
 		});
-		refreshButton.addEventListener('click', async () => {
-			refreshButton.disabled = true;
-			refreshButton.setText(ui('刷新中...', 'Refreshing...'));
-			try {
-				await this.refresh();
-				new Notice(ui('活动记录已刷新。', 'Activity refreshed.'));
-			} catch (error) {
-				console.error('tracekeeper failed to refresh activity view', error);
-				refreshButton.disabled = false;
-				refreshButton.setText(ui('刷新', 'Refresh'));
-				new Notice(ui('刷新活动记录失败。', 'Failed to refresh activity.'));
-			}
+		refreshButton.addEventListener('click', () => {
+			void (async () => {
+				refreshButton.disabled = true;
+				refreshButton.setText(ui('刷新中...', 'Refreshing...'));
+				try {
+					await this.refresh();
+					new Notice(ui('活动记录已刷新。', 'Activity refreshed.'));
+				} catch (error) {
+					console.error('tracekeeper failed to refresh activity view', error);
+					refreshButton.disabled = false;
+					refreshButton.setText(ui('刷新', 'Refresh'));
+					new Notice(ui('刷新活动记录失败。', 'Failed to refresh activity.'));
+				}
+			})();
 		});
 		if (snapshot.structureStatus.state !== 'initialized') {
 			const initializeButton = actions.createEl('button', {
@@ -3216,18 +3282,20 @@ class TracekeeperReviewQueueView extends ItemView {
 			text: ui('刷新', 'Refresh'),
 			cls: 'mod-cta',
 		});
-		refreshButton.addEventListener('click', async () => {
-			refreshButton.disabled = true;
-			refreshButton.setText(ui('刷新中...', 'Refreshing...'));
-			try {
-				await this.refresh();
-				new Notice(ui('审核队列已刷新。', 'Review queue refreshed.'));
-			} catch (error) {
-				console.error('tracekeeper failed to refresh review queue view', error);
-				refreshButton.disabled = false;
-				refreshButton.setText(ui('刷新', 'Refresh'));
-				new Notice(ui('刷新审核队列失败。', 'Failed to refresh review queue.'));
-			}
+		refreshButton.addEventListener('click', () => {
+			void (async () => {
+				refreshButton.disabled = true;
+				refreshButton.setText(ui('刷新中...', 'Refreshing...'));
+				try {
+					await this.refresh();
+					new Notice(ui('审核队列已刷新。', 'Review queue refreshed.'));
+				} catch (error) {
+					console.error('tracekeeper failed to refresh review queue view', error);
+					refreshButton.disabled = false;
+					refreshButton.setText(ui('刷新', 'Refresh'));
+					new Notice(ui('刷新审核队列失败。', 'Failed to refresh review queue.'));
+				}
+			})();
 		});
 
 		if (snapshot.missingReviewQueueFolder) {
@@ -3259,9 +3327,9 @@ class TracekeeperReviewQueueView extends ItemView {
 				text: `${label} (${count})`,
 				cls: this.activeFilter === filter ? 'is-active' : '',
 			});
-			button.addEventListener('click', async () => {
+			button.addEventListener('click', () => {
 				this.activeFilter = filter;
-				await this.render(snapshot);
+				void this.render(snapshot);
 			});
 		}
 
@@ -3468,20 +3536,22 @@ class ApprovedWritebackApplyModal extends Modal {
 		const cancel = actions.createEl('button', { text: ui('取消', 'Cancel'), cls: 'mod-warning' });
 		cancel.addEventListener('click', () => this.close());
 		const confirm = actions.createEl('button', { text: ui('确认写回', 'Apply writeback'), cls: 'mod-cta' });
-		confirm.addEventListener('click', async () => {
-			confirm.disabled = true;
-			confirm.setText(ui('写回中...', 'Applying...'));
-			try {
-				await this.plugin.applyApprovedWriteback(this.proposal);
-				new Notice(ui('已应用写回。', 'Approved writeback applied.'));
-				this.onApplied();
-				this.close();
-			} catch (error) {
-				console.error('tracekeeper failed to apply approved writeback', error);
-				new Notice(ui('应用写回失败。', 'Failed to apply writeback.'));
-				confirm.disabled = false;
-				confirm.setText(ui('确认写回', 'Apply writeback'));
-			}
+		confirm.addEventListener('click', () => {
+			void (async () => {
+				confirm.disabled = true;
+				confirm.setText(ui('写回中...', 'Applying...'));
+				try {
+					await this.plugin.applyApprovedWriteback(this.proposal);
+					new Notice(ui('已应用写回。', 'Approved writeback applied.'));
+					this.onApplied();
+					this.close();
+				} catch (error) {
+					console.error('tracekeeper failed to apply approved writeback', error);
+					new Notice(ui('应用写回失败。', 'Failed to apply writeback.'));
+					confirm.disabled = false;
+					confirm.setText(ui('确认写回', 'Apply writeback'));
+				}
+			})();
 		});
 	}
 
@@ -3901,24 +3971,26 @@ class ClientConfigPreviewModal extends Modal {
 			cls: 'mod-cta',
 		});
 		const status = actions.createEl('span', { cls: 'tracekeeper-view__description' });
-		confirm.addEventListener('click', async () => {
-			confirm.disabled = true;
-			cancel.disabled = true;
-			confirm.setText(this.mode === 'apply' ? ui('写入中...', 'Writing...') : ui('移除中...', 'Removing...'));
-			status.setText(this.mode === 'apply' ? ui('正在写入连接配置...', 'Writing connection config...') : ui('正在移除配置...', 'Removing config...'));
-			try {
-				if (this.mode === 'apply') {
-					await this.plugin.applyClientConfig(this.config);
-				} else {
-					await this.plugin.removeClientConfig(this.config);
+		confirm.addEventListener('click', () => {
+			void (async () => {
+				confirm.disabled = true;
+				cancel.disabled = true;
+				confirm.setText(this.mode === 'apply' ? ui('写入中...', 'Writing...') : ui('移除中...', 'Removing...'));
+				status.setText(this.mode === 'apply' ? ui('正在写入连接配置...', 'Writing connection config...') : ui('正在移除配置...', 'Removing config...'));
+				try {
+					if (this.mode === 'apply') {
+						await this.plugin.applyClientConfig(this.config);
+					} else {
+						await this.plugin.removeClientConfig(this.config);
+					}
+					this.close();
+				} catch (_error) {
+					status.setText(this.mode === 'apply' ? ui('写入失败，请检查配置文件权限后重试。', 'Write failed. Check config file permissions and try again.') : ui('移除失败，请检查配置文件权限后重试。', 'Removal failed. Check config file permissions and try again.'));
+					confirm.disabled = false;
+					cancel.disabled = false;
+					confirm.setText(confirmText);
 				}
-				this.close();
-			} catch (_error) {
-				status.setText(this.mode === 'apply' ? ui('写入失败，请检查配置文件权限后重试。', 'Write failed. Check config file permissions and try again.') : ui('移除失败，请检查配置文件权限后重试。', 'Removal failed. Check config file permissions and try again.'));
-				confirm.disabled = false;
-				cancel.disabled = false;
-				confirm.setText(confirmText);
-			}
+			})();
 		});
 	}
 
@@ -4243,9 +4315,9 @@ class TracekeeperSettingTab extends PluginSettingTab {
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.plugin.settings.showWelcomeMessage)
-					.onChange(async (value) => {
+					.onChange((value: boolean) => {
 						this.plugin.settings.showWelcomeMessage = value;
-						await this.plugin.saveSettings();
+						void this.plugin.saveSettings();
 					})
 			);
 
@@ -4259,19 +4331,18 @@ class TracekeeperSettingTab extends PluginSettingTab {
 				text
 					.setPlaceholder(defaultStatusMessage())
 					.setValue(this.plugin.settings.statusMessage)
-					.onChange(async (value) => {
+					.onChange((value: string) => {
 						this.plugin.settings.statusMessage = value;
-						await this.plugin.saveSettings();
+						void this.plugin.saveSettings();
 					})
 			)
 			.addExtraButton((button) =>
 				button
 					.setIcon('rotate-ccw')
 					.setTooltip(ui('恢复默认', 'Restore default'))
-					.onClick(async () => {
+					.onClick(() => {
 						this.plugin.settings.statusMessage = DEFAULT_SETTINGS.statusMessage;
-						await this.plugin.saveSettings();
-						this.display();
+						void this.plugin.saveSettings().then(() => this.display());
 					})
 			);
 
@@ -4285,25 +4356,31 @@ class TracekeeperSettingTab extends PluginSettingTab {
 				text
 					.setPlaceholder(String(DEFAULT_MCP_PORT))
 					.setValue(String(this.plugin.settings.mcpPort))
-					.onChange(async (value) => {
+					.onChange((value: string) => {
 						const parsed = Number.parseInt(value.trim(), 10);
 						if (!Number.isFinite(parsed) || parsed < 1 || parsed > 65535) {
 							return;
 						}
 						this.plugin.settings.mcpPort = parsed;
-						await this.plugin.saveSettings();
-						await this.plugin.restartMcpRuntime();
+						void this.plugin.saveSettings()
+							.then(() => this.plugin.restartMcpRuntime())
+							.catch((error) => {
+								console.error('tracekeeper failed to update MCP port', error);
+							});
 					})
 			)
 			.addExtraButton((button) =>
 				button
 					.setIcon('rotate-ccw')
 					.setTooltip(ui('恢复默认', 'Restore default'))
-					.onClick(async () => {
+					.onClick(() => {
 						this.plugin.settings.mcpPort = DEFAULT_MCP_PORT;
-						await this.plugin.saveSettings();
-						await this.plugin.restartMcpRuntime();
-						this.display();
+						void this.plugin.saveSettings()
+							.then(() => this.plugin.restartMcpRuntime())
+							.then(() => this.display())
+							.catch((error) => {
+								console.error('tracekeeper failed to restore default MCP port', error);
+							});
 					})
 			);
 
@@ -4317,9 +4394,8 @@ class TracekeeperSettingTab extends PluginSettingTab {
 			.addButton((button) =>
 				button
 					.setButtonText(ui('重新生成', 'Regenerate'))
-					.onClick(async () => {
-						await this.plugin.regenerateRuntimeToken();
-						this.display();
+					.onClick(() => {
+						void this.plugin.regenerateRuntimeToken().then(() => this.display());
 					})
 			);
 	}
