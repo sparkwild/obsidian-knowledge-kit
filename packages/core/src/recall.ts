@@ -1,4 +1,4 @@
-import { ScannedNote } from './scan';
+import type { ScannedNote } from './scan';
 
 export interface RecallOptions {
 	limit?: number;
@@ -19,10 +19,15 @@ function tokenize(input: string): string[] {
 		.filter((token) => token.length >= MIN_TOKEN_LENGTH);
 }
 
+function frontmatterString(note: ScannedNote, key: string): string {
+	const value = note.frontmatter[key];
+	return typeof value === 'string' ? value : '';
+}
+
 function weightedTokensFromNote(note: ScannedNote): Record<string, number> {
 	const tokens = new Set<string>([
 		...tokenize(note.title),
-		...tokenize(note.frontmatter.title as string ?? ''),
+		...tokenize(frontmatterString(note, 'title')),
 		...note.tags.flatMap((tag) => tokenize(tag)),
 		...note.aliases.flatMap((alias) => tokenize(alias)),
 		...note.headings.flatMap((heading) => tokenize(heading)),
@@ -88,7 +93,7 @@ function weightForNoteToken(note: ScannedNote, token: string): number {
 	if (tokenize(note.title).includes(token)) {
 		return 4;
 	}
-	if (tokenize(note.frontmatter.type as string ?? '').includes(token)) {
+	if (tokenize(frontmatterString(note, 'type')).includes(token)) {
 		return 3;
 	}
 	if (note.tags.some((tag) => tokenize(tag).includes(token))) {

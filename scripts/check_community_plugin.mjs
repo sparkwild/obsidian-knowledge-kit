@@ -6,6 +6,9 @@ const ROOT_MANIFEST_PATH = 'manifest.json';
 const PLUGIN_MANIFEST_PATH = 'apps/obsidian-plugin/manifest.json';
 const PLUGIN_PACKAGE_PATH = 'apps/obsidian-plugin/package.json';
 const VERSIONS_PATH = 'versions.json';
+const RELEASE_WORKFLOW_PATH = '.github/workflows/release.yml';
+const MCP_HANDLER_PATH = 'apps/mcp-server/src/handler.ts';
+const PLUGIN_MAIN_PATH = 'apps/obsidian-plugin/src/main.ts';
 
 function readJson(path) {
 	return JSON.parse(fs.readFileSync(path, 'utf8'));
@@ -26,6 +29,9 @@ function main() {
 	const pluginManifest = readJson(PLUGIN_MANIFEST_PATH);
 	const pluginPackage = readJson(PLUGIN_PACKAGE_PATH);
 	const versions = readJson(VERSIONS_PATH);
+	const releaseWorkflow = fs.readFileSync(RELEASE_WORKFLOW_PATH, 'utf8');
+	const mcpHandler = fs.readFileSync(MCP_HANDLER_PATH, 'utf8');
+	const pluginMain = fs.readFileSync(PLUGIN_MAIN_PATH, 'utf8');
 	const communityEntry = {
 		id: manifest.id,
 		name: manifest.name,
@@ -67,6 +73,16 @@ function main() {
 	}
 	assert(pluginPackage.version === manifest.version, 'Plugin package version must match root manifest.');
 	assert(pluginPackage.description === manifest.description, 'Plugin package description must match root manifest.');
+	assert(mcpHandler.includes(`MCP_SERVER_VERSION = '${manifest.version}'`), 'MCP server version constant must match root manifest.');
+	assert(pluginMain.includes(`version: '${manifest.version}'`), 'Plugin UI MCP client version must match root manifest.');
+	assert(releaseWorkflow.includes('workflow_dispatch:'), 'Release workflow must support manually rebuilding an existing community release.');
+	assert(releaseWorkflow.includes('id-token: write'), 'Release workflow must grant id-token: write for artifact attestations.');
+	assert(releaseWorkflow.includes('attestations: write'), 'Release workflow must grant attestations: write.');
+	assert(releaseWorkflow.includes('artifact-metadata: write'), 'Release workflow must grant artifact-metadata: write.');
+	assert(releaseWorkflow.includes('actions/attest@'), 'Release workflow must generate GitHub artifact attestations.');
+	assert(releaseWorkflow.includes('apps/obsidian-plugin/plugin/main.js'), 'Release workflow must upload the packaged main.js.');
+	assert(releaseWorkflow.includes('apps/obsidian-plugin/plugin/manifest.json'), 'Release workflow must upload the packaged manifest.json.');
+	assert(releaseWorkflow.includes('apps/obsidian-plugin/plugin/styles.css'), 'Release workflow must upload the packaged styles.css.');
 
 	console.log(JSON.stringify({ result: 'pass', communityEntry }, null, 2));
 }

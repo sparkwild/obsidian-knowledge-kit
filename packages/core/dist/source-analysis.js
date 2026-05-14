@@ -48,7 +48,7 @@ function extractEvidenceCandidates(text) {
         if (trimmed.startsWith('> ')) {
             candidates.push(`quote: ${trimmed.replace(/^>\s?/, '')}`);
         }
-        const urls = trimmed.match(/https?:\/\/[^\s\]\)"]+/gi);
+        const urls = trimmed.match(/https?:\/\/[^\s\]")]+/gi);
         if (urls) {
             for (const url of urls) {
                 candidates.push(`external_reference: ${url}`);
@@ -99,7 +99,7 @@ function buildProposalDrafts(source, sourceKind, analysisMode, summary, evidence
             `- source: ${source || 'unknown'}\n` +
             `- source_kind: ${sourceKind || 'unknown'}\n` +
             `- analysis_mode: ${analysisMode || 'default'}\n` +
-            (!!requestPath ? `- request_path: ${requestPath}\n` : '') +
+            (requestPath ? `- request_path: ${requestPath}\n` : '') +
             `- risk_level: ${sourceKind === 'url' || sourceKind === 'external_reference' ? 'medium' : 'low'}\n\n` +
             `### Proposal summary\n${summary}\n\n` +
             `### Candidate claims\n${claimText}\n\n` +

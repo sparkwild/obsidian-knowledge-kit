@@ -59,34 +59,36 @@ node -p "require('./manifest.json').version"
 npm run verify
 ```
 
-4. Create or update the GitHub release with a tag matching `manifest.json` version:
+4. Create the GitHub release from the release workflow. The tag must match `manifest.json` version, and the workflow must be the process that builds and uploads the release assets so GitHub can attach artifact attestations:
 
 ```bash
 VERSION="$(node -p "require('./manifest.json').version")"
-gh release create "$VERSION" \
-  --target "$(git rev-parse HEAD)" \
-  --title "$VERSION" \
-  --notes "Release $VERSION" \
-  apps/obsidian-plugin/plugin/main.js \
-  apps/obsidian-plugin/plugin/manifest.json \
-  apps/obsidian-plugin/plugin/styles.css
+git tag "$VERSION"
+git push origin "$VERSION"
 ```
 
-If the release already exists and the version is still being prepared before community submission, replace the assets only after re-running `npm run verify`:
+The tag push runs `.github/workflows/release.yml`, which verifies the package, uploads `main.js`, `manifest.json`, and `styles.css`, and generates GitHub artifact attestations for those assets.
+
+If a release already exists and needs to be rebuilt before community submission, run the same workflow manually instead of uploading local files:
 
 ```bash
 VERSION="$(node -p "require('./manifest.json').version")"
-gh release upload "$VERSION" \
-  apps/obsidian-plugin/plugin/main.js \
-  apps/obsidian-plugin/plugin/manifest.json \
-  apps/obsidian-plugin/plugin/styles.css \
-  --clobber
+gh workflow run release.yml \
+  --ref main \
+  -f version="$VERSION" \
+  -f ref="$VERSION"
 ```
+
+Avoid manual `gh release upload` for community-submitted assets because it does not create GitHub artifact attestations.
 
 5. Check the release:
 
 ```bash
 gh release view "$VERSION" --json tagName,targetCommitish,assets,url
+rm -rf /tmp/tracekeeper-release-check
+gh release download "$VERSION" --pattern main.js --dir /tmp/tracekeeper-release-check
+gh attestation verify /tmp/tracekeeper-release-check/main.js \
+  --repo sparkwild/obsidian-tracekeeper
 ```
 
 ## Submit To Obsidian

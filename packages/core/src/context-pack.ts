@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { scanVault, ScannedNote } from './scan';
-import { recallNotes, RecallMatch } from './recall';
+import { scanVault, type ScannedNote } from './scan';
+import { recallNotes, type RecallMatch } from './recall';
 
 export interface ContextPack {
 	query: string;

@@ -1,4 +1,4 @@
-import { ScannedNote } from './scan';
+import type { ScannedNote } from './scan';
 export interface RecallOptions {
     limit?: number;
 }

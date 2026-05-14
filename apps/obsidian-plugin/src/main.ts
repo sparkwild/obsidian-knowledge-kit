@@ -1,5 +1,6 @@
 import {
 	App,
+	FileSystemAdapter,
 	ItemView,
 	Modal,
 	Notice,
@@ -1085,8 +1086,10 @@ export default class TracekeeperPlugin extends Plugin {
 	}
 
 	private getVaultRoot(): string {
-		const adapter = this.app.vault.adapter as unknown as { basePath?: string };
-		return adapter.basePath || ui('当前知识库路径不可用', 'Current knowledge base path unavailable');
+		const { adapter } = this.app.vault;
+		return adapter instanceof FileSystemAdapter
+			? adapter.getBasePath()
+			: ui('当前知识库路径不可用', 'Current knowledge base path unavailable');
 	}
 
 	private buildClientConfigs(): GeneratedClientConfig[] {
@@ -1351,7 +1354,8 @@ export default class TracekeeperPlugin extends Plugin {
 		const rawValue = match[1].trim();
 		if (rawValue.startsWith('"')) {
 			try {
-				return JSON.parse(rawValue) as string;
+				const parsed = JSON.parse(rawValue);
+				return typeof parsed === 'string' ? parsed : null;
 			} catch (_error) {
 				return rawValue.replace(/^"|"$/g, '');
 			}
@@ -1423,6 +1427,41 @@ export default class TracekeeperPlugin extends Plugin {
 		return typeof value === 'object' && value !== null && !Array.isArray(value);
 	}
 
+	private isApprovedWritebackPreview(value: unknown): value is ApprovedWritebackPreview {
+		if (!this.isRecord(value)) {
+			return false;
+		}
+		return typeof value.proposal_id === 'string'
+			&& typeof value.proposal_path === 'string'
+			&& typeof value.target_note === 'string'
+			&& typeof value.writeback_preview === 'string'
+			&& Array.isArray(value.touched_notes)
+			&& value.touched_notes.every((item) => typeof item === 'string');
+	}
+
+	private isDesktopFsModule(value: unknown): value is DesktopNodeApi['fs'] {
+		return this.isRecord(value)
+			&& typeof value.existsSync === 'function'
+			&& typeof value.readFileSync === 'function'
+			&& typeof value.writeFileSync === 'function'
+			&& typeof value.mkdirSync === 'function'
+			&& typeof value.renameSync === 'function';
+	}
+
+	private isDesktopPathModule(value: unknown): value is DesktopNodeApi['path'] {
+		return this.isRecord(value)
+			&& typeof value.dirname === 'function'
+			&& typeof value.join === 'function';
+	}
+
+	private isDesktopOsModule(value: unknown): value is DesktopNodeApi['os'] {
+		return this.isRecord(value) && typeof value.homedir === 'function';
+	}
+
+	private isDesktopShell(value: unknown): value is NonNullable<DesktopNodeApi['shell']> {
+		return this.isRecord(value) && typeof value.openPath === 'function';
+	}
+
 	private async ensureUiMcpSession(): Promise<void> {
 		if (this.uiMcpSessionId) {
 			return;
@@ -1432,7 +1471,7 @@ export default class TracekeeperPlugin extends Plugin {
 			capabilities: {},
 			clientInfo: {
 				name: 'tracekeeper-plugin-ui',
-				version: '0.1.0',
+				version: '0.1.1',
 			},
 		}, false);
 		if (!this.isRecord(result)) {
@@ -1529,7 +1568,10 @@ export default class TracekeeperPlugin extends Plugin {
 			args.task_id = proposal.taskId;
 		}
 		const result = await this.callLocalMcpTool('tracekeeper.apply_approved_writeback', args);
-		return result as unknown as ApprovedWritebackPreview;
+		if (!this.isApprovedWritebackPreview(result)) {
+			throw new Error('Approved writeback preview returned an invalid result.');
+		}
+		return result;
 	}
 
 	async applyApprovedWriteback(proposal: MemoryProposalRecord): Promise<void> {
@@ -1737,19 +1779,23 @@ export default class TracekeeperPlugin extends Plugin {
 		if (!Platform.isDesktopApp) {
 			return null;
 		}
-		const maybeWindow = window as unknown as { require?: (moduleName: string) => unknown };
-		if (!maybeWindow.require) {
+		const maybeWindow = window as Window & { require?: (moduleName: string) => unknown };
+		if (typeof maybeWindow.require !== 'function') {
 			return null;
 		}
-		const fs = maybeWindow.require('fs') as DesktopNodeApi['fs'];
-		const path = maybeWindow.require('path') as DesktopNodeApi['path'];
-		const os = maybeWindow.require('os') as DesktopNodeApi['os'];
-		const electron = maybeWindow.require('electron') as { shell?: DesktopNodeApi['shell'] };
+		const fs = maybeWindow.require('fs');
+		const pathModule = maybeWindow.require('path');
+		const os = maybeWindow.require('os');
+		const electron = maybeWindow.require('electron');
+		if (!this.isDesktopFsModule(fs) || !this.isDesktopPathModule(pathModule) || !this.isDesktopOsModule(os)) {
+			return null;
+		}
+		const shell = this.isRecord(electron) && this.isDesktopShell(electron.shell) ? electron.shell : undefined;
 		return {
 			fs,
-			path,
+			path: pathModule,
 			os,
-			shell: electron.shell,
+			shell,
 		};
 	}
 
@@ -4187,10 +4233,6 @@ class TracekeeperSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-
-		new Setting(containerEl)
-			.setName(pluginDisplayName())
-			.setHeading();
 
 		new Setting(containerEl)
 			.setName(ui('显示欢迎信息', 'Show welcome message'))

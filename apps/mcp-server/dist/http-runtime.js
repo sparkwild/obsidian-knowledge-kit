@@ -4,7 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.StreamableHttpMcpRuntime = void 0;
-const node_http_1 = __importDefault(require("node:http"));
+const node_http_1 = require("node:http");
 const node_crypto_1 = __importDefault(require("node:crypto"));
 const node_url_1 = require("node:url");
 const handler_1 = require("./handler");
@@ -40,7 +40,7 @@ class StreamableHttpMcpRuntime {
         }
         this.state = 'starting';
         this.lastError = '';
-        this.server = node_http_1.default.createServer((request, response) => {
+        this.server = (0, node_http_1.createServer)((request, response) => {
             void this.handleRequest(request, response);
         });
         return new Promise((resolve, reject) => {

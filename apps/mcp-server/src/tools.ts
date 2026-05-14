@@ -12,10 +12,10 @@ import {
 	scanVault,
 } from '@tracekeeper/core';
 import {
-	McpToolDefinition,
-	McpStructuredToolResult,
-	McpPrompt,
 	isRecord,
+	type McpPrompt,
+	type McpStructuredToolResult,
+	type McpToolDefinition,
 } from './protocol';
 import {
 	ToolInputError,
@@ -1390,9 +1390,9 @@ function summarizeForAudit(args: Record<string, unknown>, limit = MAX_ARGS_SUMMA
 		if (typeof value === 'number' || typeof value === 'boolean') {
 			return value;
 		}
-		if (typeof value === 'object') {
+		if (isRecord(value)) {
 			const nested: Record<string, unknown> = {};
-			for (const [nestedKey, nestedValue] of Object.entries(value as Record<string, unknown>)) {
+			for (const [nestedKey, nestedValue] of Object.entries(value)) {
 				nested[nestedKey] = summarize(nestedValue, nestedKey, depth + 1);
 			}
 			return nested;
@@ -2145,7 +2145,7 @@ export function callTool(
 	if (!requestName) {
 		return toolError('Tool name is required.');
 	}
-	const args = rawParams as Record<string, unknown>;
+	const args = rawParams;
 	const startTime = Date.now();
 	const agentId = context.agentId || 'unknown session id';
 	const sessionId = context.sessionId;

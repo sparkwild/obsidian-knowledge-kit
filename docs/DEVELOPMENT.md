@@ -49,8 +49,9 @@ Before submitting to the community directory, follow [Community Plugin Submissio
 
 - Run `npm run verify`.
 - Make the repository public.
-- Create a GitHub release whose tag exactly matches `manifest.json` version.
-- Upload `main.js`, `manifest.json`, and `styles.css` as individual release assets.
+- Push a GitHub tag that exactly matches `manifest.json` version.
+- Let `.github/workflows/release.yml` create or refresh the release assets.
+- Confirm `main.js`, `manifest.json`, and `styles.css` have GitHub artifact attestations.
 
 ## Next Work
 
@@ -71,6 +72,7 @@ Before public distribution:
 - repeatable package verification
 - tested install and reload flow
 - GitHub release assets include `main.js`, `manifest.json`, and `styles.css`
+- GitHub release assets are created by the release workflow and have artifact attestations
 - community metadata passes `npm run community:check`
 
 ## Acknowledgement Policy

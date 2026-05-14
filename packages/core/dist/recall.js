@@ -9,10 +9,14 @@ function tokenize(input) {
     return [...new Set((text.match(/[a-z0-9]+|[\u4e00-\u9fff]+/g) ?? []))]
         .filter((token) => token.length >= MIN_TOKEN_LENGTH);
 }
+function frontmatterString(note, key) {
+    const value = note.frontmatter[key];
+    return typeof value === 'string' ? value : '';
+}
 function weightedTokensFromNote(note) {
     const tokens = new Set([
         ...tokenize(note.title),
-        ...tokenize(note.frontmatter.title ?? ''),
+        ...tokenize(frontmatterString(note, 'title')),
         ...note.tags.flatMap((tag) => tokenize(tag)),
         ...note.aliases.flatMap((alias) => tokenize(alias)),
         ...note.headings.flatMap((heading) => tokenize(heading)),
@@ -69,7 +73,7 @@ function weightForNoteToken(note, token) {
     if (tokenize(note.title).includes(token)) {
         return 4;
     }
-    if (tokenize(note.frontmatter.type ?? '').includes(token)) {
+    if (tokenize(frontmatterString(note, 'type')).includes(token)) {
         return 3;
     }
     if (note.tags.some((tag) => tokenize(tag).includes(token))) {
