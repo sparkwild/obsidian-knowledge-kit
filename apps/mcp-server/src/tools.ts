@@ -4,11 +4,17 @@ import * as crypto from 'node:crypto';
 import {
 	VaultPathError,
 	analyzeSourceText,
+	type ContextPack,
+	type ParsedMarkdown,
 	type SourceAnalysisResult,
+	type SourceProposalDraft,
 	buildContextPack,
 	lintNotes,
 	parseMarkdown,
 	recallNotes,
+	type RecallMatch,
+	type ScanResult,
+	type ScannedNote,
 	scanVault,
 } from '@tracekeeper/core';
 import {
@@ -166,7 +172,7 @@ interface ToolArgs {
 	vaultRoot?: unknown;
 }
 
-interface StatusArgs extends ToolArgs {}
+type StatusArgs = ToolArgs;
 
 interface StartTaskArgs extends ToolArgs {
 	goal?: unknown;
@@ -334,6 +340,21 @@ interface AuditEventOutput {
 	path: string;
 }
 
+type ToolResultPayload = Record<string, unknown>;
+
+function getRecordValue(record: unknown, key: string): unknown {
+	return isRecord(record) ? record[key] : undefined;
+}
+
+function addTrimmedTarget(targets: Set<string>, value: unknown): void {
+	if (typeof value === 'string') {
+		const trimmed = value.trim();
+		if (trimmed) {
+			targets.add(trimmed);
+		}
+	}
+}
+
 interface MemoryProposalDocument {
 	absolutePath: string;
 	path: string;
@@ -389,7 +410,7 @@ function pathSafetyOptions(context: ToolContext): { vaultConfigDir?: string } {
 	};
 }
 
-function scanVaultForContext(vaultRoot: string, context: ToolContext) {
+function scanVaultForContext(vaultRoot: string, context: ToolContext): ScanResult {
 	return scanVault(vaultRoot, pathSafetyOptions(context));
 }
 
@@ -398,7 +419,7 @@ function buildContextPackForContext(
 	query: string,
 	context: ToolContext,
 	options: Parameters<typeof buildContextPack>[2] = {}
-) {
+): ContextPack {
 	return buildContextPack(vaultRoot, query, {
 		...options,
 		...pathSafetyOptions(context),
@@ -635,7 +656,7 @@ function assertSourceRequestPath(relativePath: string): void {
 function readSourceRequest(vaultRoot: string, requestPath: string, context: ToolContext): SourceRequestRecord {
 	const data = safeReadNote(vaultRoot, requestPath, context);
 	assertSourceRequestPath(data.path);
-	const parsed = parseMarkdown(data.text);
+	const parsed: ParsedMarkdown = parseMarkdown(data.text);
 	const frontmatter = parsed.frontmatter.fields;
 	const sourceKind = readFrontmatterString(frontmatter, ['source_kind', 'sourceKind', 'source-kind']);
 	const status = readFrontmatterString(frontmatter, ['status']) || 'pending';
@@ -698,7 +719,7 @@ function readMemoryProposal(vaultRoot: string, proposalPath: string, context: To
 	assertReviewQueuePath(relative);
 
 	const text = fs.readFileSync(absolutePath, 'utf8');
-	const parsed = parseMarkdown(text);
+	const parsed: ParsedMarkdown = parseMarkdown(text);
 	const frontmatter = parsed.frontmatter.fields;
 	if (!isMemoryProposalFrontmatter(frontmatter)) {
 		throw new ToolInputError(`Review Queue note is not a memory proposal: ${relative}`);
@@ -985,7 +1006,7 @@ function parseOptionalIntendedSourcePath(rawSource: string, sourceKind: string):
 	return { requestedPath: source };
 }
 
-function buildProjectCounts(scan: ReturnType<typeof scanVault>['notes']) {
+function buildProjectCounts(scan: ScannedNote[]) {
 	const typeCount: Record<string, number> = {};
 	for (const note of scan) {
 		const type = note.type ?? 'note';
@@ -996,7 +1017,7 @@ function buildProjectCounts(scan: ReturnType<typeof scanVault>['notes']) {
 		.map(([type, count]) => ({ type, count }));
 }
 
-function buildRecentSessions(notes: ReturnType<typeof scanVault>['notes']) {
+function buildRecentSessions(notes: ScannedNote[]) {
 	return notes
 		.filter((note) => note.relativePath.startsWith('02_timeline/sessions/'))
 		.sort((a, b) => Date.parse(b.modifiedAt) - Date.parse(a.modifiedAt))
@@ -1008,7 +1029,7 @@ function buildRecentSessions(notes: ReturnType<typeof scanVault>['notes']) {
 		}));
 }
 
-function buildUserPreferences(scan: ReturnType<typeof scanVault>) {
+function buildUserPreferences(scan: ScanResult) {
 	const preferenceNote =
 		scan.notes.find((note) => note.relativePath === '01_ai_core/longterm_context.md' || note.relativePath === '01_ai_core/active_context.md');
 
@@ -1069,13 +1090,13 @@ function parseAuditSections(content: string) {
 	return sections;
 }
 
-function isPendingProposal(note: ReturnType<typeof scanVault>['notes'][number]) {
+function isPendingProposal(note: ScannedNote) {
 	const status = readProposalApprovalStatus(note.frontmatter);
 	if (!['pending', 'todo', 'open', 'review'].some((token) => status.includes(token))) {
 		return false;
 	}
 
-	const proposalKind = note.frontmatter.proposal_kind;
+	const proposalKind = readFrontmatterString(note.frontmatter, ['proposal_kind', 'proposalKind']);
 	if (typeof proposalKind === 'string' && proposalKind.toLowerCase().trim() === 'memory') {
 		return true;
 	}
@@ -1260,7 +1281,7 @@ function createAgentTaskRecord(
 		client: string;
 		projectHint: string;
 		context: ToolInvocationContext;
-		contextPack: ReturnType<typeof buildContextPack>;
+		contextPack: ContextPack;
 	}
 ): { path: string; audit_path: string; status: string; warnings: string[] } {
 	const now = new Date().toISOString();
@@ -1483,62 +1504,76 @@ function collectAuditTargetsFromArgs(toolName: string, args: Record<string, unkn
 	const targets = new Set<string>();
 	const explicitPathKeys = ['path', 'request_path', 'proposal_path', 'target_note', 'source', 'source_path'];
 	for (const key of explicitPathKeys) {
-		const value = args[key];
-		if (typeof value === 'string' && value.trim()) {
-			targets.add(value.trim());
-		}
+		addTrimmedTarget(targets, getRecordValue(args, key));
 	}
 	return Array.from(targets).filter(Boolean);
 }
 
 function collectAuditTargetsFromResult(toolName: string, args: Record<string, unknown>, resultPayload: unknown): string[] {
 	const targets = new Set<string>(collectAuditTargetsFromArgs(toolName, args));
-	if (isRecord(resultPayload)) {
-		const candidateKeys = ['path', 'target_note', 'proposal_path', 'source_note', 'report', 'audit_path'];
+	const payload: ToolResultPayload | null = isRecord(resultPayload) ? resultPayload : null;
+	if (payload) {
+		const candidateKeys = [
+			'path',
+			'target_note',
+			'proposal_path',
+			'request_path',
+			'audit_path',
+			'source_note',
+			'report',
+		];
 		for (const key of candidateKeys) {
-			const value = resultPayload[key];
-			if (typeof value === 'string' && value.trim()) {
-				targets.add(value.trim());
+			addTrimmedTarget(targets, getRecordValue(payload, key));
+		}
+		const sourceNote = getRecordValue(payload, 'source_note');
+		if (isRecord(sourceNote)) {
+			addTrimmedTarget(targets, getRecordValue(sourceNote, 'path'));
+		}
+		const report = getRecordValue(payload, 'report');
+		if (isRecord(report)) {
+			addTrimmedTarget(targets, getRecordValue(report, 'path'));
+		}
+		const touchedNotes = getRecordValue(payload, 'touched_notes');
+		if (Array.isArray(touchedNotes)) {
+			for (const entry of touchedNotes) {
+				addTrimmedTarget(targets, entry);
 			}
 		}
-		if (isRecord(resultPayload.source_note)) {
-			const sourcePath = resultPayload.source_note.path;
-			if (typeof sourcePath === 'string' && sourcePath.trim()) {
-				targets.add(sourcePath.trim());
-			}
-		}
-		if (isRecord(resultPayload.report)) {
-			const reportPath = resultPayload.report.path;
-			if (typeof reportPath === 'string' && reportPath.trim()) {
-				targets.add(reportPath.trim());
-			}
-		}
-		if (Array.isArray(resultPayload.touched_notes)) {
-			for (const entry of resultPayload.touched_notes) {
-				if (typeof entry === 'string' && entry.trim()) {
-					targets.add(entry.trim());
-				}
-			}
-		}
-		if (Array.isArray(resultPayload.proposals)) {
-			for (const proposal of resultPayload.proposals) {
+		const proposals = getRecordValue(payload, 'proposals');
+		if (Array.isArray(proposals)) {
+			for (const proposal of proposals) {
 				if (isRecord(proposal)) {
-					const pathValue = proposal.path;
-					if (typeof pathValue === 'string' && pathValue.trim()) {
-						targets.add(pathValue.trim());
-					}
+					addTrimmedTarget(targets, getRecordValue(proposal, 'path'));
 				}
 			}
 		}
-		if (Array.isArray(resultPayload.steps)) {
-			for (const step of resultPayload.steps) {
-				if (typeof step === 'string' && step.trim()) {
-					targets.add(step.trim());
-				}
+		const steps = getRecordValue(payload, 'steps');
+		if (Array.isArray(steps)) {
+			for (const step of steps) {
+				addTrimmedTarget(targets, step);
 			}
 		}
 	}
 	return normalizeAuditTargets(Array.from(targets).filter(Boolean));
+}
+
+function toSourceRequestRow(note: ScannedNote) {
+	return {
+		noteType: readFrontmatterString(note.frontmatter, ['type']),
+		source: readFrontmatterString(note.frontmatter, ['source']) || '',
+		sourceKind:
+			readFrontmatterString(note.frontmatter, ['source_kind', 'sourceKind', 'sourcekind', 'source-kind']) || '',
+		purpose: readFrontmatterString(note.frontmatter, ['purpose']) || '',
+		relatedProject:
+			readFrontmatterString(note.frontmatter, ['related_project', 'relatedProject']) || '',
+		analysisMode:
+			readFrontmatterString(note.frontmatter, ['analysis_mode', 'analysisMode']) || 'default',
+		status: readFrontmatterString(note.frontmatter, ['status']) || 'pending',
+	};
+}
+
+function assertUnreachable(value: never): never {
+	throw new ToolInputError(`Unhandled tool case: ${String(value)}`);
 }
 
 function getToolRiskLevel(toolName: string): string {
@@ -2287,7 +2322,7 @@ export function callTool(
 				toolResult = toolResultWithError(handleProposeMemory(args, context));
 				break;
 			default:
-				toolResult = toolError(`Unknown tool: ${requestName}`);
+				assertUnreachable(requestName);
 		}
 		status = isToolResultFailure(toolResult) ? 'failed' : 'success';
 	} catch (error) {
@@ -2447,21 +2482,22 @@ function handleListSourceRequests(rawArgs: ListSourceRequestsArgs, context: Tool
 	const requests = scan.notes
 		.filter((note) => note.relativePath.startsWith(`${SOURCE_REQUESTS_DIR}/`))
 		.filter((note) => {
-			const noteType = typeof note.frontmatter.type === 'string' ? note.frontmatter.type.toLowerCase() : '';
+			const noteType = toSourceRequestRow(note).noteType.toLowerCase();
 			return noteType.includes('agent-request');
 		})
-		.map((note) => ({
-			path: note.relativePath,
-			source: String(note.frontmatter.source || ''),
-			sourceKind: String(note.frontmatter.source_kind || note.frontmatter.sourceKind || note.frontmatter.sourcekind || ''),
-			purpose: String(note.frontmatter.purpose || ''),
-			relatedProject: String(
-				note.frontmatter.related_project || note.frontmatter.relatedProject || ''
-			),
-			analysisMode: String(note.frontmatter.analysis_mode || note.frontmatter.analysisMode || 'default'),
-			status: String(note.frontmatter.status || 'pending'),
-			modifiedAt: note.modifiedAt,
-		}))
+		.map((note) => {
+			const row = toSourceRequestRow(note);
+			return {
+				path: note.relativePath,
+				source: row.source,
+				sourceKind: row.sourceKind,
+				purpose: row.purpose,
+				relatedProject: row.relatedProject,
+				analysisMode: row.analysisMode,
+				status: row.status,
+				modifiedAt: note.modifiedAt,
+			};
+		})
 		.filter((request) => sourceKindFilter === '' || request.sourceKind.toLowerCase() === sourceKindFilter)
 		.filter((request) => {
 			if (!normalizedStatus || normalizedStatus === 'pending') {
@@ -2557,7 +2593,7 @@ function buildSourceNoteContent(
 	request: SourceRequestRecord,
 	mode: 'external_reference' | 'local_copy' | 'extracted_snapshot',
 	sourceText: string,
-	analysis: ReturnType<typeof analyzeSourceText>,
+	analysis: SourceAnalysisResult,
 	resolvedSourcePath?: string,
 ): string {
 	const section = ['## Source note', `- request_path: ${request.path}`, `- mode: ${mode}`, `- source_kind: ${request.sourceKind || 'unknown'}`];
@@ -2615,10 +2651,10 @@ function buildReportContent(
 	section.push(`\n${analysis.excerpt}\n`);
 	section.push('');
 	section.push('## Evidence scaffold');
-	section.push(...analysis.evidenceScaffolds.map((entry: string) => `- ${entry}`));
+	section.push(...analysis.evidenceScaffolds.map((entry) => `- ${entry}`));
 	section.push('');
 	section.push('## Claim scaffold');
-	section.push(...analysis.claimScaffolds.map((entry: string) => `- ${entry}`));
+	section.push(...analysis.claimScaffolds.map((entry) => `- ${entry}`));
 	section.push('');
 	section.push(sourceContent);
 	return section.join('\n');
@@ -2712,8 +2748,8 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 			{ target_type: 'source_analysis_report', request_path: request.path }
 		);
 
-		const proposalPaths = analysis.proposalDrafts.map((entry: { title?: string; proposalKind: string; riskLevel?: string; evidence: string; content: string }) => {
-			const proposalNote = buildAndWriteNote(
+	const proposalPaths = analysis.proposalDrafts.map((entry: SourceProposalDraft) => {
+		const proposalNote = buildAndWriteNote(
 				vaultRoot,
 				'tracekeeper.analyze_source_request',
 				MEMORY_PROPOSAL_DIR,
@@ -2822,8 +2858,8 @@ function handleReviewQueue(rawArgs: ListReviewQueueArgs, context: ToolContext) {
 			title: note.title,
 			modifiedAt: note.modifiedAt,
 			status: readProposalApprovalStatus(note.frontmatter),
-			proposal_kind: note.frontmatter.proposal_kind || null,
-			risk_level: note.frontmatter.risk_level || null,
+			proposal_kind: readFrontmatterString(note.frontmatter, ['proposal_kind', 'proposalKind']) || null,
+			risk_level: readFrontmatterString(note.frontmatter, ['risk_level', 'riskLevel']) || null,
 		}));
 
 	return {

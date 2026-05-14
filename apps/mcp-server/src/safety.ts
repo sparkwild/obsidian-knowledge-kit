@@ -16,16 +16,40 @@ export class ToolInputError extends Error {
 	}
 }
 
-export function toSafeVaultRoot(vaultRoot?: unknown): string {
-	if (typeof vaultRoot !== 'string' || vaultRoot.trim() === '') {
-		throw new ToolInputError('vaultRoot is required and must be a non-empty string.');
-	}
+type RelativePath = string;
 
-	return resolveVaultRoot(vaultRoot);
+function toSafeText(value: unknown, field: string): string {
+	const text = typeof value === 'string' ? value.trim() : '';
+	if (!text) {
+		throw new ToolInputError(`${field} is required and must be a non-empty string.`);
+	}
+	return text;
+}
+
+function toPosix(value: string): string {
+	return value.replace(/\\/g, '/').trim();
+}
+
+function relativePosixFromVaultRoot(vaultRoot: string, absolutePath: string): RelativePath {
+	const rawRelative = path.relative(vaultRoot, absolutePath);
+	if (
+		rawRelative === '..' ||
+		rawRelative.startsWith(`..${path.sep}`) ||
+		rawRelative.startsWith('../') ||
+		path.isAbsolute(rawRelative)
+	) {
+		throw new VaultPathError('Path is outside vault root.');
+	}
+	return toPosix(rawRelative);
+}
+
+export function toSafeVaultRoot(vaultRoot?: unknown): string {
+	const safeVaultRoot = toSafeText(vaultRoot, 'vaultRoot');
+	return resolveVaultRoot(safeVaultRoot);
 }
 
 function normalizeConfigDir(configDir?: string): string {
-	const normalizedInput = (configDir || '').replace(/\\/g, '/').trim();
+	const normalizedInput = toPosix(configDir || '');
 	if (!normalizedInput || path.posix.isAbsolute(normalizedInput)) {
 		return '';
 	}
@@ -48,11 +72,9 @@ function assertNotVaultConfigPath(relativePath: string, action: 'Reading' | 'Wri
 }
 
 export function normalizeNotePath(rawPath: string, options: VaultPathSafetyOptions = {}): string {
-	if (typeof rawPath !== 'string' || rawPath.trim() === '') {
-		throw new ToolInputError('path is required and must be a non-empty string.');
-	}
+	const safeRawPath = toSafeText(rawPath, 'path');
 
-	const normalizedInput = rawPath.replace(/\\/g, '/').trim();
+	const normalizedInput = toPosix(safeRawPath);
 	if (path.posix.isAbsolute(normalizedInput)) {
 		throw new ToolInputError('Absolute paths are not allowed. Use vault-relative paths.');
 	}
@@ -95,8 +117,8 @@ function resolveCandidatePath(vaultRoot: string, candidate: string): string {
 }
 
 export function assertNoSymlinkSegments(vaultRoot: string, absolutePath: string): void {
-	const relative = path.relative(vaultRoot, absolutePath);
-	const segments = relative.split(path.sep).filter(Boolean);
+	const relative = relativePosixFromVaultRoot(vaultRoot, absolutePath);
+	const segments = relative.split('/').filter(Boolean);
 	let cursor = vaultRoot;
 
 	for (const segment of segments) {
@@ -157,7 +179,7 @@ export function resolveSafeWritableNotePath(
 	const withMarkdown = hasMarkdownExtension(candidate) ? candidate : `${candidate}.md`;
 	const absolute = path.resolve(vaultRoot, withMarkdown);
 	const resolved = ensureInsideVaultRoot(vaultRoot, absolute);
-	const relative = path.relative(vaultRoot, resolved).replace(/\\/g, '/');
+	const relative = relativePosixFromVaultRoot(vaultRoot, resolved);
 
 	if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
 		throw new VaultPathError('Path is outside vault root.');
@@ -185,10 +207,10 @@ export function resolveSafeWritableNotePath(
 
 	return {
 		absolutePath: resolved,
-		relativePath: path.relative(vaultRoot, resolved).replace(/\\/g, '/'),
+		relativePath: relative,
 	};
 }
 
 export function relativeFromAbsolute(vaultRoot: string, absolutePath: string): string {
-	return path.relative(vaultRoot, absolutePath).replace(/\\/g, '/');
+	return relativePosixFromVaultRoot(vaultRoot, absolutePath);
 }

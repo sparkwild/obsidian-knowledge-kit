@@ -34,6 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.StreamableHttpMcpRuntime = void 0;
+const node_buffer_1 = require("node:buffer");
 const node_http_1 = require("node:http");
 const crypto = __importStar(require("node:crypto"));
 const node_url_1 = require("node:url");
@@ -277,9 +278,12 @@ class StreamableHttpMcpRuntime {
     async readBody(request) {
         const chunks = [];
         for await (const chunk of request) {
-            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+            const text = toBodyChunkText(chunk);
+            if (text) {
+                chunks.push(text);
+            }
         }
-        return Buffer.concat(chunks).toString('utf8');
+        return chunks.join('');
     }
     isAllowedOrigin(request) {
         const origin = this.firstHeaderValue(request.headers.origin);
@@ -348,6 +352,18 @@ class StreamableHttpMcpRuntime {
     }
 }
 exports.StreamableHttpMcpRuntime = StreamableHttpMcpRuntime;
+function toBodyChunkText(chunk) {
+    if (typeof chunk === 'string') {
+        return chunk;
+    }
+    if (ArrayBuffer.isView(chunk)) {
+        return node_buffer_1.Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength).toString('utf8');
+    }
+    if (chunk instanceof ArrayBuffer) {
+        return node_buffer_1.Buffer.from(chunk).toString('utf8');
+    }
+    return '';
+}
 function toErrorMessage(error, fallback) {
     if (error instanceof Error) {
         return error.message || fallback;
