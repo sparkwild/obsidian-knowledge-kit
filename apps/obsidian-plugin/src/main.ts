@@ -481,49 +481,63 @@ export default class TracekeeperPlugin extends Plugin {
 		);
 
 		this.addRibbonIcon('brain-circuit', ui(`打开${PLUGIN_DISPLAY_NAME_ZH}面板`, `Open ${PLUGIN_DISPLAY_NAME_EN} panel`), () => {
-			this.openPluginView(TRACEKEEPER_ACTIVITY_VIEW);
+			void this.openPluginView(TRACEKEEPER_ACTIVITY_VIEW);
 		});
 
 		this.addCommand({
 			id: 'open-agent-activity',
 			name: ui('打开 AI 助手活动', 'Open AI assistant activity'),
-			callback: () => this.openPluginView(TRACEKEEPER_ACTIVITY_VIEW),
+			callback: () => {
+				void this.openPluginView(TRACEKEEPER_ACTIVITY_VIEW);
+			},
 		});
 
 		this.addCommand({
 			id: 'open-review-queue',
 			name: ui('打开审核队列', 'Open review queue'),
-			callback: () => this.openPluginView(TRACEKEEPER_REVIEW_QUEUE_VIEW),
+			callback: () => {
+				void this.openPluginView(TRACEKEEPER_REVIEW_QUEUE_VIEW);
+			},
 		});
 
 		this.addCommand({
 			id: 'open-memory-inspector',
 			name: ui('打开记忆查看', 'Open memory view'),
-			callback: () => this.openPluginView(TRACEKEEPER_MEMORY_INSPECTOR_VIEW),
+			callback: () => {
+				void this.openPluginView(TRACEKEEPER_MEMORY_INSPECTOR_VIEW);
+			},
 		});
 
 		this.addCommand({
 			id: 'open-audit-log',
 			name: ui('打开操作记录', 'Open activity log'),
-			callback: () => this.openPluginView(TRACEKEEPER_AUDIT_LOG_VIEW),
+			callback: () => {
+				void this.openPluginView(TRACEKEEPER_AUDIT_LOG_VIEW);
+			},
 		});
 
 		this.addCommand({
 			id: 'open-runtime-status',
 			name: ui('打开连接状态', 'Open connection status'),
-			callback: () => this.openPluginView(TRACEKEEPER_RUNTIME_STATUS_VIEW),
+			callback: () => {
+				void this.openPluginView(TRACEKEEPER_RUNTIME_STATUS_VIEW);
+			},
 		});
 
 		this.addCommand({
 			id: 'open-permission-policy',
 			name: ui('打开权限说明', 'Open permission guide'),
-			callback: () => this.openPluginView(TRACEKEEPER_PERMISSION_POLICY_VIEW),
+			callback: () => {
+				void this.openPluginView(TRACEKEEPER_PERMISSION_POLICY_VIEW);
+			},
 		});
 
 		this.addCommand({
 			id: 'open-agent-connections',
 			name: ui('打开 AI 助手连接', 'Open AI assistant connections'),
-			callback: () => this.openPluginView(TRACEKEEPER_AGENT_CONNECTIONS_VIEW),
+			callback: () => {
+				void this.openPluginView(TRACEKEEPER_AGENT_CONNECTIONS_VIEW);
+			},
 		});
 
 		this.addCommand({
@@ -545,8 +559,8 @@ export default class TracekeeperPlugin extends Plugin {
 		this.addSettingTab(new TracekeeperSettingTab(this.app, this));
 	}
 
-	async onunload(): Promise<void> {
-		await this.stopMcpRuntime();
+	onunload(): void {
+		void this.stopMcpRuntime();
 	}
 
 	private normalizeSettings(raw: unknown): TracekeeperSettings {
@@ -567,7 +581,11 @@ export default class TracekeeperPlugin extends Plugin {
 	}
 
 	private normalizePort(value: unknown): number {
-		const parsed = typeof value === 'number' ? value : Number.parseInt(String(value || ''), 10);
+		const parsed = typeof value === 'number'
+			? value
+			: typeof value === 'string'
+				? Number.parseInt(value.trim(), 10)
+				: Number.NaN;
 		if (!Number.isFinite(parsed) || parsed < 1 || parsed > 65535) {
 			return DEFAULT_MCP_PORT;
 		}
@@ -579,7 +597,7 @@ export default class TracekeeperPlugin extends Plugin {
 			const parsed = new URL(endpoint);
 			const port = Number.parseInt(parsed.port || String(DEFAULT_MCP_PORT), 10);
 			return this.normalizePort(port);
-		} catch (_error) {
+		} catch {
 			return null;
 		}
 	}
@@ -1359,7 +1377,7 @@ export default class TracekeeperPlugin extends Plugin {
 			try {
 				const parsed = JSON.parse(rawValue);
 				return typeof parsed === 'string' ? parsed : null;
-			} catch (_error) {
+			} catch {
 				return rawValue.replace(/^"|"$/g, '');
 			}
 		}
@@ -1506,9 +1524,10 @@ export default class TracekeeperPlugin extends Plugin {
 		return key ? headers[key] : undefined;
 	}
 
-	private parseJsonPayload(text: string): unknown | null {
+	private parseJsonPayload(text: string): Record<string, unknown> | null {
 		try {
-			return text ? JSON.parse(text) : null;
+			const parsed = text ? JSON.parse(text) : null;
+			return parsed && this.isRecord(parsed) ? parsed : null;
 		} catch {
 			return null;
 		}
@@ -1523,7 +1542,7 @@ export default class TracekeeperPlugin extends Plugin {
 			capabilities: {},
 			clientInfo: {
 				name: 'tracekeeper-plugin-ui',
-				version: '0.1.2',
+				version: '0.1.3',
 			},
 		}, false);
 		if (!this.isRecord(result)) {
@@ -2022,7 +2041,7 @@ export default class TracekeeperPlugin extends Plugin {
 
 		const normalizedStatus = this.normalizeProposalStatus(nextStatus);
 		await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-			frontmatter.approval_status = normalizedStatus;
+			(frontmatter as Record<string, unknown>).approval_status = normalizedStatus;
 		});
 		await this.appendProposalStatusAuditEvent(
 			{
@@ -2613,7 +2632,7 @@ export default class TracekeeperPlugin extends Plugin {
 			state: {},
 			active: true,
 		});
-		this.app.workspace.revealLeaf(leaf);
+		await this.app.workspace.revealLeaf(leaf);
 	}
 
 	async saveSettings() {
@@ -2724,7 +2743,7 @@ class InitializeMemoryStructureModal extends Modal {
 	}
 
 	onOpen(): void {
-		super.onOpen();
+		void super.onOpen();
 		this.titleEl.setText(ui('初始化记忆结构', 'Initialize memory structure'));
 
 		const { contentEl } = this;
@@ -3494,7 +3513,7 @@ class ApprovedWritebackApplyModal extends Modal {
 	}
 
 	onOpen(): void {
-		super.onOpen();
+		void super.onOpen();
 		this.titleEl.setText(ui('应用已批准写回', 'Apply approved writeback'));
 		void this.renderPreview();
 	}
@@ -3984,7 +4003,7 @@ class ClientConfigPreviewModal extends Modal {
 						await this.plugin.removeClientConfig(this.config);
 					}
 					this.close();
-				} catch (_error) {
+				} catch {
 					status.setText(this.mode === 'apply' ? ui('写入失败，请检查配置文件权限后重试。', 'Write failed. Check config file permissions and try again.') : ui('移除失败，请检查配置文件权限后重试。', 'Removal failed. Check config file permissions and try again.'));
 					confirm.disabled = false;
 					cancel.disabled = false;

@@ -52,14 +52,32 @@ class ToolInputError extends Error {
     }
 }
 exports.ToolInputError = ToolInputError;
-function toSafeVaultRoot(vaultRoot) {
-    if (typeof vaultRoot !== 'string' || vaultRoot.trim() === '') {
-        throw new ToolInputError('vaultRoot is required and must be a non-empty string.');
+function toSafeText(value, field) {
+    const text = typeof value === 'string' ? value.trim() : '';
+    if (!text) {
+        throw new ToolInputError(`${field} is required and must be a non-empty string.`);
     }
-    return (0, core_1.resolveVaultRoot)(vaultRoot);
+    return text;
+}
+function toPosix(value) {
+    return value.replace(/\\/g, '/').trim();
+}
+function relativePosixFromVaultRoot(vaultRoot, absolutePath) {
+    const rawRelative = path.relative(vaultRoot, absolutePath);
+    if (rawRelative === '..' ||
+        rawRelative.startsWith(`..${path.sep}`) ||
+        rawRelative.startsWith('../') ||
+        path.isAbsolute(rawRelative)) {
+        throw new core_1.VaultPathError('Path is outside vault root.');
+    }
+    return toPosix(rawRelative);
+}
+function toSafeVaultRoot(vaultRoot) {
+    const safeVaultRoot = toSafeText(vaultRoot, 'vaultRoot');
+    return (0, core_1.resolveVaultRoot)(safeVaultRoot);
 }
 function normalizeConfigDir(configDir) {
-    const normalizedInput = (configDir || '').replace(/\\/g, '/').trim();
+    const normalizedInput = toPosix(configDir || '');
     if (!normalizedInput || path.posix.isAbsolute(normalizedInput)) {
         return '';
     }
@@ -79,10 +97,8 @@ function assertNotVaultConfigPath(relativePath, action, options = {}) {
     }
 }
 function normalizeNotePath(rawPath, options = {}) {
-    if (typeof rawPath !== 'string' || rawPath.trim() === '') {
-        throw new ToolInputError('path is required and must be a non-empty string.');
-    }
-    const normalizedInput = rawPath.replace(/\\/g, '/').trim();
+    const safeRawPath = toSafeText(rawPath, 'path');
+    const normalizedInput = toPosix(safeRawPath);
     if (path.posix.isAbsolute(normalizedInput)) {
         throw new ToolInputError('Absolute paths are not allowed. Use vault-relative paths.');
     }
@@ -118,8 +134,8 @@ function resolveCandidatePath(vaultRoot, candidate) {
     return (0, core_1.ensureInsideVaultRoot)(vaultRoot, absoluteCandidate);
 }
 function assertNoSymlinkSegments(vaultRoot, absolutePath) {
-    const relative = path.relative(vaultRoot, absolutePath);
-    const segments = relative.split(path.sep).filter(Boolean);
+    const relative = relativePosixFromVaultRoot(vaultRoot, absolutePath);
+    const segments = relative.split('/').filter(Boolean);
     let cursor = vaultRoot;
     for (const segment of segments) {
         cursor = path.join(cursor, segment);
@@ -160,7 +176,7 @@ function resolveSafeWritableNotePath(vaultRoot, rawPath, allowedDirectory, optio
     const withMarkdown = hasMarkdownExtension(candidate) ? candidate : `${candidate}.md`;
     const absolute = path.resolve(vaultRoot, withMarkdown);
     const resolved = (0, core_1.ensureInsideVaultRoot)(vaultRoot, absolute);
-    const relative = path.relative(vaultRoot, resolved).replace(/\\/g, '/');
+    const relative = relativePosixFromVaultRoot(vaultRoot, resolved);
     if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
         throw new core_1.VaultPathError('Path is outside vault root.');
     }
@@ -182,9 +198,9 @@ function resolveSafeWritableNotePath(vaultRoot, rawPath, allowedDirectory, optio
     }
     return {
         absolutePath: resolved,
-        relativePath: path.relative(vaultRoot, resolved).replace(/\\/g, '/'),
+        relativePath: relative,
     };
 }
 function relativeFromAbsolute(vaultRoot, absolutePath) {
-    return path.relative(vaultRoot, absolutePath).replace(/\\/g, '/');
+    return relativePosixFromVaultRoot(vaultRoot, absolutePath);
 }

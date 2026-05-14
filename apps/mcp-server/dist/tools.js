@@ -113,6 +113,17 @@ const TOOL_NAME_SET = new Set([
 function isToolName(value) {
     return TOOL_NAME_SET.has(value);
 }
+function getRecordValue(record, key) {
+    return (0, protocol_1.isRecord)(record) ? record[key] : undefined;
+}
+function addTrimmedTarget(targets, value) {
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed) {
+            targets.add(trimmed);
+        }
+    }
+}
 function toolResult(payload, isError = false) {
     return {
         content: [
@@ -731,7 +742,7 @@ function isPendingProposal(note) {
     if (!['pending', 'todo', 'open', 'review'].some((token) => status.includes(token))) {
         return false;
     }
-    const proposalKind = note.frontmatter.proposal_kind;
+    const proposalKind = readFrontmatterString(note.frontmatter, ['proposal_kind', 'proposalKind']);
     if (typeof proposalKind === 'string' && proposalKind.toLowerCase().trim() === 'memory') {
         return true;
     }
@@ -1071,61 +1082,70 @@ function collectAuditTargetsFromArgs(toolName, args) {
     const targets = new Set();
     const explicitPathKeys = ['path', 'request_path', 'proposal_path', 'target_note', 'source', 'source_path'];
     for (const key of explicitPathKeys) {
-        const value = args[key];
-        if (typeof value === 'string' && value.trim()) {
-            targets.add(value.trim());
-        }
+        addTrimmedTarget(targets, getRecordValue(args, key));
     }
     return Array.from(targets).filter(Boolean);
 }
 function collectAuditTargetsFromResult(toolName, args, resultPayload) {
     const targets = new Set(collectAuditTargetsFromArgs(toolName, args));
-    if ((0, protocol_1.isRecord)(resultPayload)) {
-        const candidateKeys = ['path', 'target_note', 'proposal_path', 'source_note', 'report', 'audit_path'];
+    const payload = (0, protocol_1.isRecord)(resultPayload) ? resultPayload : null;
+    if (payload) {
+        const candidateKeys = [
+            'path',
+            'target_note',
+            'proposal_path',
+            'request_path',
+            'audit_path',
+            'source_note',
+            'report',
+        ];
         for (const key of candidateKeys) {
-            const value = resultPayload[key];
-            if (typeof value === 'string' && value.trim()) {
-                targets.add(value.trim());
+            addTrimmedTarget(targets, getRecordValue(payload, key));
+        }
+        const sourceNote = getRecordValue(payload, 'source_note');
+        if ((0, protocol_1.isRecord)(sourceNote)) {
+            addTrimmedTarget(targets, getRecordValue(sourceNote, 'path'));
+        }
+        const report = getRecordValue(payload, 'report');
+        if ((0, protocol_1.isRecord)(report)) {
+            addTrimmedTarget(targets, getRecordValue(report, 'path'));
+        }
+        const touchedNotes = getRecordValue(payload, 'touched_notes');
+        if (Array.isArray(touchedNotes)) {
+            for (const entry of touchedNotes) {
+                addTrimmedTarget(targets, entry);
             }
         }
-        if ((0, protocol_1.isRecord)(resultPayload.source_note)) {
-            const sourcePath = resultPayload.source_note.path;
-            if (typeof sourcePath === 'string' && sourcePath.trim()) {
-                targets.add(sourcePath.trim());
-            }
-        }
-        if ((0, protocol_1.isRecord)(resultPayload.report)) {
-            const reportPath = resultPayload.report.path;
-            if (typeof reportPath === 'string' && reportPath.trim()) {
-                targets.add(reportPath.trim());
-            }
-        }
-        if (Array.isArray(resultPayload.touched_notes)) {
-            for (const entry of resultPayload.touched_notes) {
-                if (typeof entry === 'string' && entry.trim()) {
-                    targets.add(entry.trim());
-                }
-            }
-        }
-        if (Array.isArray(resultPayload.proposals)) {
-            for (const proposal of resultPayload.proposals) {
+        const proposals = getRecordValue(payload, 'proposals');
+        if (Array.isArray(proposals)) {
+            for (const proposal of proposals) {
                 if ((0, protocol_1.isRecord)(proposal)) {
-                    const pathValue = proposal.path;
-                    if (typeof pathValue === 'string' && pathValue.trim()) {
-                        targets.add(pathValue.trim());
-                    }
+                    addTrimmedTarget(targets, getRecordValue(proposal, 'path'));
                 }
             }
         }
-        if (Array.isArray(resultPayload.steps)) {
-            for (const step of resultPayload.steps) {
-                if (typeof step === 'string' && step.trim()) {
-                    targets.add(step.trim());
-                }
+        const steps = getRecordValue(payload, 'steps');
+        if (Array.isArray(steps)) {
+            for (const step of steps) {
+                addTrimmedTarget(targets, step);
             }
         }
     }
     return normalizeAuditTargets(Array.from(targets).filter(Boolean));
+}
+function toSourceRequestRow(note) {
+    return {
+        noteType: readFrontmatterString(note.frontmatter, ['type']),
+        source: readFrontmatterString(note.frontmatter, ['source']) || '',
+        sourceKind: readFrontmatterString(note.frontmatter, ['source_kind', 'sourceKind', 'sourcekind', 'source-kind']) || '',
+        purpose: readFrontmatterString(note.frontmatter, ['purpose']) || '',
+        relatedProject: readFrontmatterString(note.frontmatter, ['related_project', 'relatedProject']) || '',
+        analysisMode: readFrontmatterString(note.frontmatter, ['analysis_mode', 'analysisMode']) || 'default',
+        status: readFrontmatterString(note.frontmatter, ['status']) || 'pending',
+    };
+}
+function assertUnreachable(value) {
+    throw new safety_1.ToolInputError(`Unhandled tool case: ${String(value)}`);
 }
 function getToolRiskLevel(toolName) {
     if (REVIEW_GATED_TOOL_NAMES.has(toolName)) {
@@ -1851,7 +1871,7 @@ function callTool(name, rawParams, context = {}) {
                 toolResult = toolResultWithError(handleProposeMemory(args, context));
                 break;
             default:
-                toolResult = toolError(`Unknown tool: ${requestName}`);
+                assertUnreachable(requestName);
         }
         status = isToolResultFailure(toolResult) ? 'failed' : 'success';
     }
@@ -2003,19 +2023,22 @@ function handleListSourceRequests(rawArgs, context) {
     const requests = scan.notes
         .filter((note) => note.relativePath.startsWith(`${SOURCE_REQUESTS_DIR}/`))
         .filter((note) => {
-        const noteType = typeof note.frontmatter.type === 'string' ? note.frontmatter.type.toLowerCase() : '';
+        const noteType = toSourceRequestRow(note).noteType.toLowerCase();
         return noteType.includes('agent-request');
     })
-        .map((note) => ({
-        path: note.relativePath,
-        source: String(note.frontmatter.source || ''),
-        sourceKind: String(note.frontmatter.source_kind || note.frontmatter.sourceKind || note.frontmatter.sourcekind || ''),
-        purpose: String(note.frontmatter.purpose || ''),
-        relatedProject: String(note.frontmatter.related_project || note.frontmatter.relatedProject || ''),
-        analysisMode: String(note.frontmatter.analysis_mode || note.frontmatter.analysisMode || 'default'),
-        status: String(note.frontmatter.status || 'pending'),
-        modifiedAt: note.modifiedAt,
-    }))
+        .map((note) => {
+        const row = toSourceRequestRow(note);
+        return {
+            path: note.relativePath,
+            source: row.source,
+            sourceKind: row.sourceKind,
+            purpose: row.purpose,
+            relatedProject: row.relatedProject,
+            analysisMode: row.analysisMode,
+            status: row.status,
+            modifiedAt: note.modifiedAt,
+        };
+    })
         .filter((request) => sourceKindFilter === '' || request.sourceKind.toLowerCase() === sourceKindFilter)
         .filter((request) => {
         if (!normalizedStatus || normalizedStatus === 'pending') {
@@ -2312,8 +2335,8 @@ function handleReviewQueue(rawArgs, context) {
         title: note.title,
         modifiedAt: note.modifiedAt,
         status: readProposalApprovalStatus(note.frontmatter),
-        proposal_kind: note.frontmatter.proposal_kind || null,
-        risk_level: note.frontmatter.risk_level || null,
+        proposal_kind: readFrontmatterString(note.frontmatter, ['proposal_kind', 'proposalKind']) || null,
+        risk_level: readFrontmatterString(note.frontmatter, ['risk_level', 'riskLevel']) || null,
     }));
     return {
         ok: true,

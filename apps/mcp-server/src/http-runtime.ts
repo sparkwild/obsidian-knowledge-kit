@@ -1,3 +1,4 @@
+import { Buffer } from 'node:buffer';
 import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import * as crypto from 'node:crypto';
@@ -306,11 +307,14 @@ export class StreamableHttpMcpRuntime {
 	}
 
 	private async readBody(request: IncomingMessage): Promise<string> {
-		const chunks: Buffer[] = [];
+		const chunks: string[] = [];
 		for await (const chunk of request) {
-			chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+			const text = toBodyChunkText(chunk);
+			if (text) {
+				chunks.push(text);
+			}
 		}
-		return Buffer.concat(chunks).toString('utf8');
+		return chunks.join('');
 	}
 
 	private isAllowedOrigin(request: IncomingMessage): boolean {
@@ -384,6 +388,19 @@ export class StreamableHttpMcpRuntime {
 		}
 		return { jsonrpc: '2.0', id, error };
 	}
+}
+
+function toBodyChunkText(chunk: unknown): string {
+	if (typeof chunk === 'string') {
+		return chunk;
+	}
+	if (ArrayBuffer.isView(chunk)) {
+		return Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength).toString('utf8');
+	}
+	if (chunk instanceof ArrayBuffer) {
+		return Buffer.from(chunk).toString('utf8');
+	}
+	return '';
 }
 
 function toErrorMessage(error: unknown, fallback: string): string {
