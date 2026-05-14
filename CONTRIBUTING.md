@@ -1,10 +1,10 @@
 # Contributing
 
-Thanks for contributing to Wiki Weaver.
+Thanks for contributing to Tracekeeper.
 
 ## Scope
 
-This repository contains the Obsidian-native Wiki Weaver monorepo:
+This repository contains the Obsidian-native Tracekeeper monorepo:
 
 - `apps/obsidian-plugin/` for the Obsidian review and connection plugin.
 - `apps/mcp-server/` for the Agent-facing MCP server.

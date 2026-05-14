@@ -1,7 +1,7 @@
 {
-	"name": "wiki-weaver-mcp-server",
+	"name": "tracekeeper-mcp-server",
 	"version": "0.1.0",
-	"description": "Agent-first MCP server for Wiki Weaver: read-only default, bounded writes, and review-gated apply.",
+	"description": "Agent-first MCP server for Tracekeeper: read-only default, bounded writes, and review-gated apply.",
 	"private": true,
 	"type": "commonjs",
 	"main": "dist/server.js",
@@ -14,7 +14,7 @@
 		"start": "node dist/server.js"
 	},
 	"dependencies": {
-		"@wiki-weaver/core": "file:../../packages/core"
+		"@tracekeeper/core": "file:../../packages/core"
 	},
 	"devDependencies": {
 		"@types/node": "^22.14.0",

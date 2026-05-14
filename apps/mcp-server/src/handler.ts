@@ -27,35 +27,35 @@ interface ResourcesResource {
 
 const RESOURCES: ResourcesResource[] = [
 	{
-		uri: 'wiki-weaver://system',
+		uri: 'tracekeeper://system',
 		name: 'system',
 		title: 'System note',
 		description: 'Core system note path if present.',
 		mimeType: 'text/markdown',
 	},
 	{
-		uri: 'wiki-weaver://active-context',
+		uri: 'tracekeeper://active-context',
 		name: 'active-context',
 		title: 'Active context',
 		description: 'Active-context note for current memory state.',
 		mimeType: 'text/markdown',
 	},
 	{
-		uri: 'wiki-weaver://review-queue',
+		uri: 'tracekeeper://review-queue',
 		name: 'review-queue',
 		title: 'Review queue',
 		description: 'Pending proposal queue snapshots.',
 		mimeType: 'text/markdown',
 	},
 	{
-		uri: 'wiki-weaver://agent-activity',
+		uri: 'tracekeeper://agent-activity',
 		name: 'agent-activity',
 		title: 'Agent activity',
 		description: 'Recent agent-task and review traces.',
 		mimeType: 'text/markdown',
 	},
 	{
-		uri: 'wiki-weaver://audit/recent',
+		uri: 'tracekeeper://audit/recent',
 		name: 'audit-recent',
 		title: 'Recent audit',
 		description: 'Recent audit log entries.',
@@ -141,8 +141,8 @@ export class McpJsonRpcHandler {
 						prompts: { listChanged: false },
 					},
 					serverInfo: {
-						name: 'wiki-weaver-mcp-server',
-						title: 'Wiki Weaver MCP Server (read-only default + controlled write + review-gated apply)',
+						name: 'tracekeeper-mcp-server',
+						title: 'Tracekeeper MCP Server (read-only default + controlled write + review-gated apply)',
 						version: this.runtimeVersion,
 					},
 					instructions:

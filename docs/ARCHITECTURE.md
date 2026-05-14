@@ -1,6 +1,6 @@
 # Architecture
 
-Wiki Weaver turns an Obsidian vault into a local memory and knowledge layer for AI assistants.
+Tracekeeper turns an Obsidian vault into a local memory and knowledge layer for AI assistants.
 
 ```text
 AI assistant
@@ -25,8 +25,8 @@ AI assistant
 
 - The Obsidian plugin is not a source submission UI.
 - The plugin does not run maintenance actions such as Analyze URL, Analyze File, Capture Source, Build Context Pack, Run Lint, or Run Distill.
-- Wiki Weaver does not require a hosted backend.
-- Wiki Weaver ships with a default loopback Runtime port, but does not assume a fixed repository checkout path.
+- Tracekeeper does not require a hosted backend.
+- Tracekeeper ships with a default loopback Runtime port, but does not assume a fixed repository checkout path.
 
 ## Vault Scope
 

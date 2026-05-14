@@ -1,22 +1,22 @@
-.wiki-weaver-view-root {
+.tracekeeper-view-root {
 	padding: 12px 16px 24px;
 	font-size: 13px;
 	line-height: 1.5;
 	color: var(--text-normal);
 }
 
-.wiki-weaver-view__title {
+.tracekeeper-view__title {
 	margin: 0 0 4px;
 	font-size: 18px;
 	line-height: 1.3;
 }
 
-.wiki-weaver-view__description {
+.tracekeeper-view__description {
 	margin: 0 0 8px;
 	color: var(--text-muted);
 }
 
-.wiki-weaver-shell-header {
+.tracekeeper-shell-header {
 	display: flex;
 	align-items: flex-start;
 	justify-content: space-between;
@@ -26,43 +26,43 @@
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.wiki-weaver-status-bar,
-.wiki-weaver-metric-grid,
-.wiki-weaver-config-grid,
-.wiki-weaver-detail-grid {
+.tracekeeper-status-bar,
+.tracekeeper-metric-grid,
+.tracekeeper-config-grid,
+.tracekeeper-detail-grid {
 	display: grid;
 	gap: 8px;
 	margin: 10px 0;
 }
 
-.wiki-weaver-status-bar {
+.tracekeeper-status-bar {
 	grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
-.wiki-weaver-metric-grid {
+.tracekeeper-metric-grid {
 	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
-.wiki-weaver-config-grid {
+.tracekeeper-config-grid {
 	display: grid;
 	gap: 8px;
 	margin: 10px 0;
 }
 
-.wiki-weaver-detail-grid {
+.tracekeeper-detail-grid {
 	grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
-.wiki-weaver-status-pill,
-.wiki-weaver-metric-card,
-.wiki-weaver-card,
-.wiki-weaver-empty-state {
+.tracekeeper-status-pill,
+.tracekeeper-metric-card,
+.tracekeeper-card,
+.tracekeeper-empty-state {
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 6px;
 	background: var(--background-secondary);
 }
 
-.wiki-weaver-status-pill {
+.tracekeeper-status-pill {
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
@@ -70,71 +70,71 @@
 	min-width: 0;
 }
 
-.wiki-weaver-status-pill span,
-.wiki-weaver-metric-card__label,
-.wiki-weaver-detail span {
+.tracekeeper-status-pill span,
+.tracekeeper-metric-card__label,
+.tracekeeper-detail span {
 	color: var(--text-muted);
 	font-size: 12px;
 }
 
-.wiki-weaver-status-pill strong,
-.wiki-weaver-detail strong {
+.tracekeeper-status-pill strong,
+.tracekeeper-detail strong {
 	overflow-wrap: anywhere;
 }
 
-.wiki-weaver-detail--description strong {
+.tracekeeper-detail--description strong {
 	color: var(--text-normal);
 	font-size: 13px;
 	font-weight: 500;
 	line-height: 1.45;
 }
 
-.wiki-weaver-metric-card,
-.wiki-weaver-card {
+.tracekeeper-metric-card,
+.tracekeeper-card {
 	padding: 10px;
 }
 
-.wiki-weaver-metric-card__value {
+.tracekeeper-metric-card__value {
 	display: block;
 	margin: 2px 0;
 	font-size: 20px;
 	line-height: 1.2;
 }
 
-.wiki-weaver-card {
+.tracekeeper-card {
 	margin-top: 12px;
 }
 
-.wiki-weaver-connection-panel {
+.tracekeeper-connection-panel {
 	display: grid;
 	gap: 12px;
 }
 
-.wiki-weaver-connection-panel > h3,
-.wiki-weaver-connection-check h4,
-.wiki-weaver-connection-section h4 {
+.tracekeeper-connection-panel > h3,
+.tracekeeper-connection-check h4,
+.tracekeeper-connection-section h4 {
 	margin: 0;
 }
 
-.wiki-weaver-connection-check {
+.tracekeeper-connection-check {
 	padding-bottom: 12px;
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.wiki-weaver-connection-detail-grid {
+.tracekeeper-connection-detail-grid {
 	margin-bottom: 0;
 }
 
-.wiki-weaver-connection-section {
+.tracekeeper-connection-section {
 	display: grid;
 	gap: 8px;
 }
 
-.wiki-weaver-connection-section .wiki-weaver-config-grid {
+.tracekeeper-connection-section .tracekeeper-config-grid {
 	margin: 0;
 }
 
-.wiki-weaver-config-row {
+.tracekeeper-config-row {
 	display: grid;
 	grid-template-columns: minmax(120px, 1fr) auto;
 	gap: 10px;
@@ -146,45 +146,45 @@
 	background: var(--background-primary);
 }
 
-.wiki-weaver-config-row__client {
+.tracekeeper-config-row__client {
 	min-width: 0;
 }
 
-.wiki-weaver-config-row__title {
+.tracekeeper-config-row__title {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 6px;
 }
 
-.wiki-weaver-config-row__client strong {
+.tracekeeper-config-row__client strong {
 	overflow-wrap: anywhere;
 }
 
-.wiki-weaver-config-row__client small {
+.tracekeeper-config-row__client small {
 	display: block;
 	margin-top: 3px;
 	color: var(--text-muted);
 	overflow-wrap: anywhere;
 }
 
-.wiki-weaver-config-row__actions {
+.tracekeeper-config-row__actions {
 	justify-content: flex-end;
 	min-width: fit-content;
 }
 
-.wiki-weaver-detail__value-row {
+.tracekeeper-detail__value-row {
 	display: flex;
 	align-items: center;
 	gap: 6px;
 	min-width: 0;
 }
 
-.wiki-weaver-detail__value-row strong {
+.tracekeeper-detail__value-row strong {
 	min-width: 0;
 }
 
-.wiki-weaver-copy-icon-button {
+.tracekeeper-copy-icon-button {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -195,7 +195,7 @@
 	border-radius: 6px;
 }
 
-.wiki-weaver-card__header {
+.tracekeeper-card__header {
 	display: flex;
 	align-items: flex-start;
 	justify-content: space-between;
@@ -203,15 +203,15 @@
 	margin-bottom: 8px;
 }
 
-.wiki-weaver-badge-row,
-.wiki-weaver-action-row,
-.wiki-weaver-filter-tabs {
+.tracekeeper-badge-row,
+.tracekeeper-action-row,
+.tracekeeper-filter-tabs {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 6px;
 }
 
-.wiki-weaver-badge {
+.tracekeeper-badge {
 	display: inline-flex;
 	align-items: center;
 	width: fit-content;
@@ -225,80 +225,80 @@
 	overflow-wrap: anywhere;
 }
 
-.wiki-weaver-badge--risk-high,
-.wiki-weaver-badge--risk-critical {
+.tracekeeper-badge--risk-high,
+.tracekeeper-badge--risk-critical {
 	border-color: var(--text-error);
 	color: var(--text-error);
 }
 
-.wiki-weaver-badge--risk-medium {
+.tracekeeper-badge--risk-medium {
 	border-color: var(--text-warning);
 	color: var(--text-warning);
 }
 
-.wiki-weaver-badge--success {
+.tracekeeper-badge--success {
 	border-color: var(--text-success, var(--color-green));
 	color: var(--text-success, var(--color-green));
 }
 
-.wiki-weaver-badge--warning {
+.tracekeeper-badge--warning {
 	border-color: var(--text-warning);
 	color: var(--text-warning);
 }
 
-.wiki-weaver-badge--muted {
+.tracekeeper-badge--muted {
 	border-color: var(--background-modifier-border);
 	color: var(--text-muted);
 }
 
-.wiki-weaver-filter-tabs {
+.tracekeeper-filter-tabs {
 	margin: 10px 0;
 }
 
-.wiki-weaver-filter-tabs button.is-active {
+.tracekeeper-filter-tabs button.is-active {
 	background: var(--interactive-accent);
 	color: var(--text-on-accent);
 }
 
-.wiki-weaver-proposal-grid {
+.tracekeeper-proposal-grid {
 	display: grid;
 	gap: 10px;
 }
 
-.wiki-weaver-proposal-card {
+.tracekeeper-proposal-card {
 	margin-top: 0;
 }
 
-.wiki-weaver-detail {
+.tracekeeper-detail {
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
 	min-width: 0;
 }
 
-.wiki-weaver-detail-panel {
+.tracekeeper-detail-panel {
 	margin-top: 8px;
 	padding: 8px;
 	border-left: 3px solid var(--interactive-accent);
 	background: var(--background-primary);
 }
 
-.wiki-weaver-empty-state {
+.tracekeeper-empty-state {
 	padding: 12px;
 	color: var(--text-muted);
 }
 
-.wiki-weaver-empty-state p {
+.tracekeeper-empty-state p {
 	margin: 4px 0 0;
 }
 
-.wiki-weaver-timeline {
+.tracekeeper-timeline {
 	display: grid;
 	gap: 8px;
 	margin-top: 8px;
 }
 
-.wiki-weaver-timeline__item {
+.tracekeeper-timeline__item {
 	display: grid;
 	grid-template-columns: auto minmax(0, 1fr);
 	gap: 8px;
@@ -307,21 +307,21 @@
 	border-top: 1px solid var(--background-modifier-border);
 }
 
-.wiki-weaver-timeline__item:first-child {
+.tracekeeper-timeline__item:first-child {
 	border-top: 0;
 }
 
-.wiki-weaver-timeline__body {
+.tracekeeper-timeline__body {
 	min-width: 0;
 }
 
-.wiki-weaver-table-list {
+.tracekeeper-table-list {
 	display: grid;
 	gap: 8px;
 	margin-top: 8px;
 }
 
-.wiki-weaver-table-row {
+.tracekeeper-table-row {
 	display: grid;
 	grid-template-columns: minmax(120px, 1.2fr) minmax(80px, 0.6fr) minmax(140px, 1fr) minmax(140px, 1fr);
 	gap: 8px;
@@ -332,12 +332,12 @@
 	background: var(--background-primary);
 }
 
-.wiki-weaver-table-row small {
+.tracekeeper-table-row small {
 	grid-column: 1 / -1;
 	color: var(--text-muted);
 }
 
-.wiki-weaver-code-block {
+.tracekeeper-code-block {
 	display: block;
 	width: 100%;
 	box-sizing: border-box;
@@ -352,7 +352,7 @@
 	overflow-wrap: anywhere;
 }
 
-.wiki-weaver-view__section {
+.tracekeeper-view__section {
 	margin-top: 12px;
 	padding: 10px;
 	border: 1px solid var(--background-modifier-border);
@@ -360,20 +360,20 @@
 	background: var(--background-secondary);
 }
 
-.wiki-weaver-view__list {
+.tracekeeper-view__list {
 	margin: 8px 0 0 0;
 	padding-left: 18px;
 }
 
-.wiki-weaver-view__item {
+.tracekeeper-view__item {
 	margin: 6px 0;
 }
 
-.wiki-weaver-advanced-details {
+.tracekeeper-advanced-details {
 	margin-top: 8px;
 }
 
-.wiki-weaver-advanced-summary {
+.tracekeeper-advanced-summary {
 	display: inline-flex;
 	align-items: center;
 	cursor: pointer;
@@ -381,13 +381,13 @@
 	font-size: 12px;
 }
 
-.wiki-weaver-advanced-list {
+.tracekeeper-advanced-list {
 	display: grid;
 	gap: 8px;
 	margin-top: 8px;
 }
 
-.wiki-weaver-advanced-config-row {
+.tracekeeper-advanced-config-row {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto;
 	gap: 8px;
@@ -398,46 +398,46 @@
 	background: var(--background-primary);
 }
 
-.wiki-weaver-advanced-config-row__info {
+.tracekeeper-advanced-config-row__info {
 	display: flex;
 	flex-direction: column;
 	min-width: 0;
 }
 
-.wiki-weaver-advanced-config-row__info strong {
+.tracekeeper-advanced-config-row__info strong {
 	display: block;
 	overflow-wrap: anywhere;
 }
 
-.wiki-weaver-advanced-config-row__info small {
+.tracekeeper-advanced-config-row__info small {
 	color: var(--text-muted);
 	font-size: 12px;
 }
 
 @media (max-width: 520px) {
-	.wiki-weaver-shell-header,
-	.wiki-weaver-card__header {
+	.tracekeeper-shell-header,
+	.tracekeeper-card__header {
 		flex-direction: column;
 	}
 
-	.wiki-weaver-config-row {
+	.tracekeeper-config-row {
 		grid-template-columns: 1fr;
 		align-items: start;
 	}
 
-	.wiki-weaver-config-row__actions {
+	.tracekeeper-config-row__actions {
 		justify-content: flex-start;
 	}
 
-	.wiki-weaver-table-row {
+	.tracekeeper-table-row {
 		grid-template-columns: 1fr;
 	}
 
-	.wiki-weaver-advanced-config-row {
+	.tracekeeper-advanced-config-row {
 		grid-template-columns: 1fr;
 	}
 
-	.wiki-weaver-advanced-config-row__info {
+	.tracekeeper-advanced-config-row__info {
 		min-width: 0;
 	}
 }

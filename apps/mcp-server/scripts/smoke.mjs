@@ -66,7 +66,7 @@ function assertContainsNoSensitiveText(log, values) {
 class McpTestClient {
 	constructor(vaultRoot) {
 		this.vaultRoot = vaultRoot;
-		this.token = 'wiki-weaver-smoke-token';
+		this.token = 'tracekeeper-smoke-token';
 		this.nextId = 1;
 		this.sessionId = '';
 	}
@@ -193,7 +193,7 @@ function ensureToolNames(result, names) {
 }
 
 async function main() {
-	const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'wiki-weaver-mcp-smoke-'));
+	const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'tracekeeper-mcp-smoke-'));
 	const vaultRoot = path.join(tempRoot, 'vault');
 	const fixturePath = path.join(vaultRoot, '01_inbox', 'agent_requests', 'local-source-request.md');
 	const lintFixturePath = path.join(vaultRoot, '04_projects', 'demo', 'smoke-lint-fixture.md');
@@ -256,7 +256,7 @@ async function main() {
 			protocolVersion: '2025-06-18',
 			capabilities: {},
 			clientInfo: {
-				name: 'wiki-weaver-smoke',
+				name: 'tracekeeper-smoke',
 				version: '0.1.0',
 			},
 		});
@@ -273,23 +273,23 @@ async function main() {
 
 		const tools = await client.call('tools/list');
 		ensureToolNames(tools, [
-			'wiki_weaver.status',
-			'wiki_weaver.start_task',
-			'wiki_weaver.recall',
-			'wiki_weaver.read_note',
-			'wiki_weaver.list_review_queue',
-			'wiki_weaver.list_approved_writebacks',
-			'wiki_weaver.audit_recent',
-			'wiki_weaver.write_context_pack',
-			'wiki_weaver.build_context_pack',
-			'wiki_weaver.lint',
-			'wiki_weaver.finish_task',
-			'wiki_weaver.distill_session',
-			'wiki_weaver.write_session_note',
-			'wiki_weaver.capture_source',
-			'wiki_weaver.propose_memory',
-			'wiki_weaver.analyze_source_request',
-			'wiki_weaver.apply_approved_writeback',
+			'tracekeeper.status',
+			'tracekeeper.start_task',
+			'tracekeeper.recall',
+			'tracekeeper.read_note',
+			'tracekeeper.list_review_queue',
+			'tracekeeper.list_approved_writebacks',
+			'tracekeeper.audit_recent',
+			'tracekeeper.write_context_pack',
+			'tracekeeper.build_context_pack',
+			'tracekeeper.lint',
+			'tracekeeper.finish_task',
+			'tracekeeper.distill_session',
+			'tracekeeper.write_session_note',
+			'tracekeeper.capture_source',
+			'tracekeeper.propose_memory',
+			'tracekeeper.analyze_source_request',
+			'tracekeeper.apply_approved_writeback',
 		]);
 
 		const resources = await client.call('resources/list');
@@ -299,24 +299,24 @@ async function main() {
 		assert.ok((buildStructured(prompts).prompts || []).length > 0, 'prompts/list should return prompts');
 
 		const status = buildStructured(await client.call('tools/call', {
-			name: 'wiki_weaver.status',
+			name: 'tracekeeper.status',
 			arguments: {},
 		}));
 		assert.equal(status.ok, true);
 		assert.equal(typeof status.counts.notes === 'number', true);
 
 		const readNote = buildStructured(await client.call('tools/call', {
-			name: 'wiki_weaver.read_note',
+			name: 'tracekeeper.read_note',
 			arguments: { path: '00_control/system.md' },
 		}));
 		assert.equal(readNote.ok, true);
 		assert.equal(readNote.path, '00_control/system.md');
 		const afterReadAudit = readAuditLog(vaultRoot);
-		assertToolCallEvent(afterReadAudit, 'wiki_weaver.read_note', 'success');
+		assertToolCallEvent(afterReadAudit, 'tracekeeper.read_note', 'success');
 
 		const sensitiveText = 'SENSITIVE_TOKEN_123ABC456DEF';
 		const startTask = buildStructured(await client.call('tools/call', {
-			name: 'wiki_weaver.start_task',
+			name: 'tracekeeper.start_task',
 			arguments: {
 				goal: 'Smoke sensitive summary',
 				client: 'agent-smoke',
@@ -339,11 +339,11 @@ async function main() {
 		assert.ok(activeTaskText.includes(`task_id: "${taskId}"`));
 
 		const afterSensitiveAudit = readAuditLog(vaultRoot);
-		assertToolCallEvent(afterSensitiveAudit, 'wiki_weaver.start_task', 'success');
+		assertToolCallEvent(afterSensitiveAudit, 'tracekeeper.start_task', 'success');
 		assert.ok(
-			hasToolCallSection(afterSensitiveAudit, 'wiki_weaver.start_task', 'success', [
+			hasToolCallSection(afterSensitiveAudit, 'tracekeeper.start_task', 'success', [
 				'- session_id:',
-				'- client_name: "wiki-weaver-smoke"',
+				'- client_name: "tracekeeper-smoke"',
 				'- transport: "streamable-http"',
 			]),
 			'start_task audit should include session/client/transport'
@@ -356,12 +356,12 @@ async function main() {
 			`token_${sensitiveText}`,
 		]);
 		assert.ok(
-			hasToolCallSection(afterSensitiveAudit, 'wiki_weaver.start_task', 'success', ['- args_summary:']),
+			hasToolCallSection(afterSensitiveAudit, 'tracekeeper.start_task', 'success', ['- args_summary:']),
 			'tool-call should include args summary field'
 		);
 
 		const writeContext = buildStructured(await client.call('tools/call', {
-			name: 'wiki_weaver.write_context_pack',
+			name: 'tracekeeper.write_context_pack',
 			arguments: {
 				filename: 'smoke-context-pack',
 				content: '# Context Pack\n\nSmoke content',
@@ -373,7 +373,7 @@ async function main() {
 		assert.ok(fs.existsSync(path.join(vaultRoot, writeContext.path)));
 
 		const buildContextRead = buildStructured(await client.call('tools/call', {
-			name: 'wiki_weaver.build_context_pack',
+			name: 'tracekeeper.build_context_pack',
 			arguments: {
 				query: 'smoke',
 				candidate_limit: 5,
@@ -387,7 +387,7 @@ async function main() {
 		assert.equal(Array.isArray(buildContextRead.context_pack.relevantNotes), true);
 
 		const buildContextWrite = buildStructured(await client.call('tools/call', {
-			name: 'wiki_weaver.build_context_pack',
+			name: 'tracekeeper.build_context_pack',
 			arguments: {
 				query: 'smoke',
 				write: true,
@@ -406,7 +406,7 @@ async function main() {
 		assert.ok(taskText.includes(buildContextWrite.artifact.path), 'task should reference generated context pack');
 
 		const lintResult = buildStructured(await client.call('tools/call', {
-			name: 'wiki_weaver.lint',
+			name: 'tracekeeper.lint',
 			arguments: {
 				max_items: 20,
 			},
@@ -418,7 +418,7 @@ async function main() {
 		assert.ok(Array.isArray(lintResult.fix_plan_summary));
 
 		const finishTask = buildStructured(await client.call('tools/call', {
-			name: 'wiki_weaver.finish_task',
+			name: 'tracekeeper.finish_task',
 			arguments: {
 				task_id: taskId,
 				summary: 'Smoke task finish session.',
@@ -434,7 +434,7 @@ async function main() {
 		assert.ok(taskText.includes(finishTask.path));
 
 		const distillSession = buildStructured(await client.call('tools/call', {
-			name: 'wiki_weaver.distill_session',
+			name: 'tracekeeper.distill_session',
 			arguments: {
 				task_id: taskId,
 				summary: 'Smoke distill session.',
@@ -458,7 +458,7 @@ async function main() {
 		}
 
 		const writeSession = buildStructured(await client.call('tools/call', {
-			name: 'wiki_weaver.write_session_note',
+			name: 'tracekeeper.write_session_note',
 			arguments: {
 				filename: 'smoke-session',
 				content: '# Session\n\nSmoke session note',
@@ -469,7 +469,7 @@ async function main() {
 		assert.ok(fs.existsSync(path.join(vaultRoot, writeSession.path)));
 
 		const proposedMemory = buildStructured(await client.call('tools/call', {
-			name: 'wiki_weaver.propose_memory',
+			name: 'tracekeeper.propose_memory',
 			arguments: {
 				proposal_kind: 'smoke_memory',
 				content: 'Smoke proposal content.',
@@ -483,7 +483,7 @@ async function main() {
 		assert.ok(fs.existsSync(path.join(vaultRoot, proposedMemory.path)));
 
 		const captureSource = buildStructured(await client.call('tools/call', {
-			name: 'wiki_weaver.capture_source',
+			name: 'tracekeeper.capture_source',
 			arguments: {
 				source: '03_sources/local-source.md',
 				mode: 'local_copy',
@@ -500,7 +500,7 @@ async function main() {
 		await assert.rejects(
 			() =>
 				client.call('tools/call', {
-					name: 'wiki_weaver.write_context_pack',
+					name: 'tracekeeper.write_context_pack',
 					arguments: {
 						filename: '../outside',
 						content: '# Reject',
@@ -510,10 +510,10 @@ async function main() {
 			'should reject writes outside vault'
 		);
 		const afterFailureAudit = readAuditLog(vaultRoot);
-		assertToolCallEvent(afterFailureAudit, 'wiki_weaver.write_context_pack', 'failed');
+		assertToolCallEvent(afterFailureAudit, 'tracekeeper.write_context_pack', 'failed');
 
 		const analyze = buildStructured(await client.call('tools/call', {
-			name: 'wiki_weaver.analyze_source_request',
+			name: 'tracekeeper.analyze_source_request',
 			arguments: {
 				request_path: '01_inbox/agent_requests/local-source-request.md',
 				task_id: taskId,
@@ -531,7 +531,7 @@ async function main() {
 		assert.ok(taskText.includes(analyze.report.path), 'task should reference analyzed source report');
 
 		const approvedWritebacks = buildStructured(await client.call('tools/call', {
-			name: 'wiki_weaver.list_approved_writebacks',
+			name: 'tracekeeper.list_approved_writebacks',
 			arguments: {},
 		}));
 		assert.equal(approvedWritebacks.ok, true);
@@ -539,7 +539,7 @@ async function main() {
 		assert.equal(approvedWritebacks.entries[0].ready_to_apply, true);
 
 		const dryRunApply = buildStructured(await client.call('tools/call', {
-			name: 'wiki_weaver.apply_approved_writeback',
+			name: 'tracekeeper.apply_approved_writeback',
 			arguments: {
 				proposal_id: 'prop_smoke_apply',
 				dry_run: true,
@@ -551,7 +551,7 @@ async function main() {
 		assert.equal(dryRunApply.target_note, '04_projects/demo/project_overview.md');
 
 		const applied = buildStructured(await client.call('tools/call', {
-			name: 'wiki_weaver.apply_approved_writeback',
+			name: 'tracekeeper.apply_approved_writeback',
 			arguments: {
 				proposal_id: 'prop_smoke_apply',
 				task_id: taskId,
@@ -588,7 +588,7 @@ async function main() {
 		await assert.rejects(
 			() =>
 				client.call('tools/call', {
-					name: 'wiki_weaver.apply_approved_writeback',
+					name: 'tracekeeper.apply_approved_writeback',
 					arguments: {
 						proposal_id: 'prop_secret_apply',
 					},

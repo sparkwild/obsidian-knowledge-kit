@@ -10,7 +10,7 @@ import {
 	parseMarkdown,
 	recallNotes,
 	scanVault,
-} from '@wiki-weaver/core';
+} from '@tracekeeper/core';
 import {
 	McpToolDefinition,
 	McpStructuredToolResult,
@@ -79,28 +79,28 @@ interface ToolCallAuditEventInput {
 }
 
 const READ_ONLY_TOOL_NAMES = new Set([
-	'wiki_weaver.status',
-	'wiki_weaver.recall',
-	'wiki_weaver.read_note',
-	'wiki_weaver.list_review_queue',
-	'wiki_weaver.list_source_requests',
-	'wiki_weaver.list_approved_writebacks',
-	'wiki_weaver.audit_recent',
-	'wiki_weaver.lint',
+	'tracekeeper.status',
+	'tracekeeper.recall',
+	'tracekeeper.read_note',
+	'tracekeeper.list_review_queue',
+	'tracekeeper.list_source_requests',
+	'tracekeeper.list_approved_writebacks',
+	'tracekeeper.audit_recent',
+	'tracekeeper.lint',
 ]);
 
-const REVIEW_GATED_TOOL_NAMES = new Set(['wiki_weaver.apply_approved_writeback']);
+const REVIEW_GATED_TOOL_NAMES = new Set(['tracekeeper.apply_approved_writeback']);
 
 const LOW_RISK_TOOL_NAMES = new Set([
-	'wiki_weaver.start_task',
-	'wiki_weaver.analyze_source_request',
-	'wiki_weaver.write_context_pack',
-	'wiki_weaver.build_context_pack',
-	'wiki_weaver.finish_task',
-	'wiki_weaver.distill_session',
-	'wiki_weaver.write_session_note',
-	'wiki_weaver.capture_source',
-	'wiki_weaver.propose_memory',
+	'tracekeeper.start_task',
+	'tracekeeper.analyze_source_request',
+	'tracekeeper.write_context_pack',
+	'tracekeeper.build_context_pack',
+	'tracekeeper.finish_task',
+	'tracekeeper.distill_session',
+	'tracekeeper.write_session_note',
+	'tracekeeper.capture_source',
+	'tracekeeper.propose_memory',
 ]);
 
 const SENSITIVE_KEY_PATTERNS = [
@@ -1180,11 +1180,11 @@ function createAgentTaskRecord(
 
 	return buildAndWriteNote(
 		vaultRoot,
-		'wiki_weaver.start_task',
+		'tracekeeper.start_task',
 		AGENT_TASK_DIR,
 		buildTaskNotePath(input.taskId).slice(`${AGENT_TASK_DIR}/`.length),
 		{
-			tool: 'wiki_weaver.start_task',
+			tool: 'tracekeeper.start_task',
 			type: 'agent-task',
 			title: `Task ${input.taskId}`,
 			task_id: input.taskId,
@@ -1555,8 +1555,8 @@ function buildFixPlanSummary(issues: Array<{ kind: string; severity: string }>):
 export function toolDefinitions(): McpToolDefinition[] {
 	return [
 		{
-			name: 'wiki_weaver.status',
-			title: 'wiki_weaver.status',
+			name: 'tracekeeper.status',
+			title: 'tracekeeper.status',
 			description: '[read-only] Scan vault and return summary counts.',
 			inputSchema: {
 				type: 'object',
@@ -1570,8 +1570,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'wiki_weaver.start_task',
-			title: 'wiki_weaver.start_task',
+			name: 'tracekeeper.start_task',
+			title: 'tracekeeper.start_task',
 			description: '[low-risk write] Create an active task record and return a context summary.',
 			inputSchema: {
 				type: 'object',
@@ -1595,8 +1595,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'wiki_weaver.recall',
-			title: 'wiki_weaver.recall',
+			name: 'tracekeeper.recall',
+			title: 'tracekeeper.recall',
 			description: '[read-only] Scan vault and return matching notes for a recall query.',
 			inputSchema: {
 				type: 'object',
@@ -1622,8 +1622,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'wiki_weaver.read_note',
-			title: 'wiki_weaver.read_note',
+			name: 'tracekeeper.read_note',
+			title: 'tracekeeper.read_note',
 			description: '[read-only] Read markdown/text content of one note in vault.',
 			inputSchema: {
 				type: 'object',
@@ -1645,8 +1645,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'wiki_weaver.list_review_queue',
-			title: 'wiki_weaver.list_review_queue',
+			name: 'tracekeeper.list_review_queue',
+			title: 'tracekeeper.list_review_queue',
 			description: '[read-only] Read pending memory proposal notes under 01_inbox/review_queue.',
 			inputSchema: {
 				type: 'object',
@@ -1664,8 +1664,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'wiki_weaver.list_source_requests',
-			title: 'wiki_weaver.list_source_requests',
+			name: 'tracekeeper.list_source_requests',
+			title: 'tracekeeper.list_source_requests',
 			description: '[read-only] Read pending source-analysis agent requests under 01_inbox/agent_requests.',
 			inputSchema: {
 				type: 'object',
@@ -1691,8 +1691,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'wiki_weaver.list_approved_writebacks',
-			title: 'wiki_weaver.list_approved_writebacks',
+			name: 'tracekeeper.list_approved_writebacks',
+			title: 'tracekeeper.list_approved_writebacks',
 			description: '[read-only] Read approved Review Queue proposals that are candidates for runtime writeback.',
 			inputSchema: {
 				type: 'object',
@@ -1721,8 +1721,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'wiki_weaver.audit_recent',
-			title: 'wiki_weaver.audit_recent',
+			name: 'tracekeeper.audit_recent',
+			title: 'tracekeeper.audit_recent',
 			description: '[read-only] Read parsed sections from 00_control/audit_log.md.',
 			inputSchema: {
 				type: 'object',
@@ -1743,8 +1743,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'wiki_weaver.analyze_source_request',
-			title: 'wiki_weaver.analyze_source_request',
+			name: 'tracekeeper.analyze_source_request',
+			title: 'tracekeeper.analyze_source_request',
 			description:
 				'[low-risk write] Analyze one pending source request and write source note, report, review proposals, request status, and audit entry.',
 			inputSchema: {
@@ -1782,8 +1782,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'wiki_weaver.apply_approved_writeback',
-			title: 'wiki_weaver.apply_approved_writeback',
+			name: 'tracekeeper.apply_approved_writeback',
+			title: 'tracekeeper.apply_approved_writeback',
 			description:
 				'[review-gated apply] Apply an approved Review Queue proposal by appending explicit writeback content to its target note.',
 			inputSchema: {
@@ -1821,8 +1821,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'wiki_weaver.build_context_pack',
-			title: 'wiki_weaver.build_context_pack',
+			name: 'tracekeeper.build_context_pack',
+			title: 'tracekeeper.build_context_pack',
 			description:
 				'[read-only | optional write] Build context pack from vault and optionally write a markdown artifact.',
 			inputSchema: {
@@ -1866,8 +1866,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'wiki_weaver.lint',
-			title: 'wiki_weaver.lint',
+			name: 'tracekeeper.lint',
+			title: 'tracekeeper.lint',
 			description: '[read-only] Run lint checks across vault notes.',
 			inputSchema: {
 				type: 'object',
@@ -1888,8 +1888,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'wiki_weaver.finish_task',
-			title: 'wiki_weaver.finish_task',
+			name: 'tracekeeper.finish_task',
+			title: 'tracekeeper.finish_task',
 			description: '[low-risk write] Create a task session summary note under 02_timeline/sessions.',
 			inputSchema: {
 				type: 'object',
@@ -1935,8 +1935,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'wiki_weaver.distill_session',
-			title: 'wiki_weaver.distill_session',
+			name: 'tracekeeper.distill_session',
+			title: 'tracekeeper.distill_session',
 			description: '[low-risk write] Create a task session note and memory proposals from decisions/preferences.',
 			inputSchema: {
 				type: 'object',
@@ -1986,8 +1986,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'wiki_weaver.write_context_pack',
-			title: 'wiki_weaver.write_context_pack',
+			name: 'tracekeeper.write_context_pack',
+			title: 'tracekeeper.write_context_pack',
 			description: '[low-risk write] Create a new context-pack note under 06_outputs/context_packs.',
 			inputSchema: {
 				type: 'object',
@@ -2009,8 +2009,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'wiki_weaver.write_session_note',
-			title: 'wiki_weaver.write_session_note',
+			name: 'tracekeeper.write_session_note',
+			title: 'tracekeeper.write_session_note',
 			description: '[low-risk write] Create a new session note under 02_timeline/sessions.',
 			inputSchema: {
 				type: 'object',
@@ -2031,8 +2031,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'wiki_weaver.capture_source',
-			title: 'wiki_weaver.capture_source',
+			name: 'tracekeeper.capture_source',
+			title: 'tracekeeper.capture_source',
 			description: '[low-risk write] Capture source metadata/content under 03_sources with mode control.',
 			inputSchema: {
 				type: 'object',
@@ -2064,8 +2064,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 			},
 		},
 		{
-			name: 'wiki_weaver.propose_memory',
-			title: 'wiki_weaver.propose_memory',
+			name: 'tracekeeper.propose_memory',
+			title: 'tracekeeper.propose_memory',
 			description: '[low-risk write] Create a memory proposal note under 01_inbox/review_queue.',
 			inputSchema: {
 				type: 'object',
@@ -2095,8 +2095,8 @@ export function toolDefinitions(): McpToolDefinition[] {
 
 export function toolPrompts(): McpPrompt[] {
 	return [
-		{ name: 'wiki-weaver Start Task', title: 'wiki-weaver Start Task', description: 'Start a task with a read-only context summary.' },
-		{ name: 'wiki-weaver Recall Memory', title: 'wiki-weaver Recall Memory', description: 'Generate matching notes for fast recall.' },
+		{ name: 'Tracekeeper Start Task', title: 'Tracekeeper Start Task', description: 'Start a task with a read-only context summary.' },
+		{ name: 'Tracekeeper Recall Memory', title: 'Tracekeeper Recall Memory', description: 'Generate matching notes for fast recall.' },
 	];
 }
 
@@ -2127,58 +2127,58 @@ export function callTool(
 
 	try {
 		switch (requestName) {
-			case 'wiki_weaver.status':
+			case 'tracekeeper.status':
 				toolResult = toolResultWithError(handleStatus(args as StatusArgs, context));
 				break;
-			case 'wiki_weaver.start_task':
+			case 'tracekeeper.start_task':
 				toolResult = toolResultWithError(handleStartTask(args as StartTaskArgs, context));
 				break;
-			case 'wiki_weaver.recall':
+			case 'tracekeeper.recall':
 				toolResult = toolResultWithError(handleRecall(args as RecallArgs, context));
 				break;
-			case 'wiki_weaver.read_note':
+			case 'tracekeeper.read_note':
 				toolResult = toolResultWithError(handleReadNote(args as ReadNoteArgs, context));
 				break;
-			case 'wiki_weaver.list_review_queue':
+			case 'tracekeeper.list_review_queue':
 				toolResult = toolResultWithError(handleReviewQueue(args as ListReviewQueueArgs, context));
 				break;
-			case 'wiki_weaver.list_source_requests':
+			case 'tracekeeper.list_source_requests':
 				toolResult = toolResultWithError(handleListSourceRequests(args as ListSourceRequestsArgs, context));
 				break;
-			case 'wiki_weaver.list_approved_writebacks':
+			case 'tracekeeper.list_approved_writebacks':
 				toolResult = toolResultWithError(handleListApprovedWritebacks(args as ListApprovedWritebacksArgs, context));
 				break;
-			case 'wiki_weaver.audit_recent':
+			case 'tracekeeper.audit_recent':
 				toolResult = toolResultWithError(handleAuditRecent(args as AuditRecentArgs, context));
 				break;
-			case 'wiki_weaver.analyze_source_request':
+			case 'tracekeeper.analyze_source_request':
 				toolResult = toolResultWithError(handleAnalyzeSourceRequest(args as AnalyzeSourceRequestArgs, context));
 				break;
-			case 'wiki_weaver.apply_approved_writeback':
+			case 'tracekeeper.apply_approved_writeback':
 				toolResult = toolResultWithError(handleApplyApprovedWriteback(args as ApplyApprovedWritebackArgs, context));
 				break;
-			case 'wiki_weaver.build_context_pack':
+			case 'tracekeeper.build_context_pack':
 				toolResult = toolResultWithError(handleBuildContextPack(args as BuildContextPackArgs, context));
 				break;
-			case 'wiki_weaver.lint':
+			case 'tracekeeper.lint':
 				toolResult = toolResultWithError(handleLint(args as LintArgs, context));
 				break;
-			case 'wiki_weaver.finish_task':
+			case 'tracekeeper.finish_task':
 				toolResult = toolResultWithError(handleFinishTask(args as FinishTaskArgs, context));
 				break;
-			case 'wiki_weaver.distill_session':
+			case 'tracekeeper.distill_session':
 				toolResult = toolResultWithError(handleDistillSession(args as DistillSessionArgs, context));
 				break;
-			case 'wiki_weaver.write_context_pack':
+			case 'tracekeeper.write_context_pack':
 				toolResult = toolResultWithError(handleWriteContextPack(args as WriteContextPackArgs, context));
 				break;
-			case 'wiki_weaver.write_session_note':
+			case 'tracekeeper.write_session_note':
 				toolResult = toolResultWithError(handleWriteSessionNote(args as WriteSessionNoteArgs, context));
 				break;
-			case 'wiki_weaver.capture_source':
+			case 'tracekeeper.capture_source':
 				toolResult = toolResultWithError(handleCaptureSource(args as CaptureSourceArgs, context));
 				break;
-			case 'wiki_weaver.propose_memory':
+			case 'tracekeeper.propose_memory':
 				toolResult = toolResultWithError(handleProposeMemory(args as ProposeMemoryArgs, context));
 				break;
 			default:
@@ -2286,7 +2286,7 @@ function handleStartTask(rawArgs: StartTaskArgs, context: ToolInvocationContext)
 		related_projects: relatedProjects,
 		recent_sessions: buildRecentSessions(scan.notes),
 		user_preferences: buildUserPreferences(scan),
-		recommended_next_tool: 'wiki_weaver.recall',
+		recommended_next_tool: 'tracekeeper.recall',
 	};
 }
 
@@ -2558,11 +2558,11 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 		const sourceFilename = buildSafeFilename(`${runToken}-source`, 'source');
 		const sourceNote = buildAndWriteNote(
 			vaultRoot,
-			'wiki_weaver.analyze_source_request',
+			'tracekeeper.analyze_source_request',
 			SOURCES_DIR,
 			sourceFilename,
 			{
-				tool: 'wiki_weaver.analyze_source_request',
+				tool: 'tracekeeper.analyze_source_request',
 				type: 'source_analysis_source',
 				title: `source_analysis_source_${runToken}`,
 				source: request.source,
@@ -2581,11 +2581,11 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 		const reportFilename = buildSafeFilename(`${runToken}-report`, 'source-report');
 		const report = buildAndWriteNote(
 			vaultRoot,
-			'wiki_weaver.analyze_source_request',
+			'tracekeeper.analyze_source_request',
 			SOURCE_ANALYSIS_REPORT_DIR,
 			reportFilename,
 			{
-				tool: 'wiki_weaver.analyze_source_request',
+				tool: 'tracekeeper.analyze_source_request',
 				type: 'source_analysis_report',
 				title: `source_analysis_report_${runToken}`,
 				source: request.source,
@@ -2604,11 +2604,11 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 		const proposalPaths = analysis.proposalDrafts.map((entry: { title?: string; proposalKind: string; riskLevel?: string; evidence: string; content: string }) => {
 			const proposalNote = buildAndWriteNote(
 				vaultRoot,
-				'wiki_weaver.analyze_source_request',
+				'tracekeeper.analyze_source_request',
 				MEMORY_PROPOSAL_DIR,
 				buildSafeFilename(`proposal-${runToken}-${entry.proposalKind}`, entry.proposalKind),
 				{
-					tool: 'wiki_weaver.analyze_source_request',
+					tool: 'tracekeeper.analyze_source_request',
 					type: 'memory_proposal',
 					title: entry.title || `source_proposal_${runToken}`,
 					proposal_kind: entry.proposalKind,
@@ -2636,7 +2636,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 		if (updateStatus) {
 			updateRequestStatus(vaultRoot, request.path, 'completed');
 			auditPathForReturn = appendAuditEvent(vaultRoot, {
-				tool: 'wiki_weaver.analyze_source_request',
+				tool: 'tracekeeper.analyze_source_request',
 				targetPath: request.path,
 				status: 'written',
 				taskId,
@@ -2656,7 +2656,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 		return {
 			ok: true,
 			read_only: false,
-			tool: 'wiki_weaver.analyze_source_request',
+			tool: 'tracekeeper.analyze_source_request',
 			status: 'completed',
 			vault_root: vaultRoot,
 			request_path: request.path,
@@ -2679,7 +2679,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 			try {
 				updateRequestStatus(vaultRoot, requestPathAlias, 'failed');
 				appendAuditEvent(vaultRoot, {
-					tool: 'wiki_weaver.analyze_source_request',
+					tool: 'tracekeeper.analyze_source_request',
 					targetPath: requestPathAlias,
 					status: 'failed',
 					taskId: coerceOptionalString(rawArgs.task_id) || null,
@@ -2828,7 +2828,7 @@ function handleApplyApprovedWriteback(rawArgs: ApplyApprovedWritebackArgs, conte
 	fs.writeFileSync(proposal.absolutePath, updatedProposal, 'utf8');
 
 	const audit = appendAuditEvent(vaultRoot, {
-		tool: 'wiki_weaver.apply_approved_writeback',
+		tool: 'tracekeeper.apply_approved_writeback',
 		targetPath: targetRelative,
 		status: 'written',
 		taskId,
@@ -2899,11 +2899,11 @@ function handleWriteContextPack(rawArgs: WriteContextPackArgs, context: ToolCont
 
 	const note = buildAndWriteNote(
 		vaultRoot,
-		'wiki_weaver.write_context_pack',
+		'tracekeeper.write_context_pack',
 		CONTEXT_PACK_DIR,
 		filename,
 		{
-			tool: 'wiki_weaver.write_context_pack',
+			tool: 'tracekeeper.write_context_pack',
 			type: 'context_pack',
 			title: title || `context_pack_${now}`,
 			created_at: now,
@@ -2911,7 +2911,7 @@ function handleWriteContextPack(rawArgs: WriteContextPackArgs, context: ToolCont
 		},
 		content,
 		taskId,
-		{ target_type: 'context_pack', tool: 'wiki_weaver.write_context_pack' }
+		{ target_type: 'context_pack', tool: 'tracekeeper.write_context_pack' }
 	);
 	updateAgentTaskRecord(vaultRoot, taskId, {
 		context_pack: note.path,
@@ -2919,7 +2919,7 @@ function handleWriteContextPack(rawArgs: WriteContextPackArgs, context: ToolCont
 		context_packs: [note.path],
 	});
 
-	return makeToolResultForWrite('wiki_weaver.write_context_pack', note);
+	return makeToolResultForWrite('tracekeeper.write_context_pack', note);
 }
 
 function handleWriteSessionNote(rawArgs: WriteSessionNoteArgs, context: ToolContext) {
@@ -2934,24 +2934,24 @@ function handleWriteSessionNote(rawArgs: WriteSessionNoteArgs, context: ToolCont
 
 	const note = buildAndWriteNote(
 		vaultRoot,
-		'wiki_weaver.write_session_note',
+		'tracekeeper.write_session_note',
 		SESSION_NOTE_DIR,
 		filename,
 		{
-			tool: 'wiki_weaver.write_session_note',
+			tool: 'tracekeeper.write_session_note',
 			type: 'session_note',
 			created_at: now,
 			task_id: taskId || null,
 		},
 		content,
 		taskId,
-		{ target_type: 'session_note', tool: 'wiki_weaver.write_session_note' }
+		{ target_type: 'session_note', tool: 'tracekeeper.write_session_note' }
 	);
 	updateAgentTaskRecord(vaultRoot, taskId, {}, {
 		memory_writes: [note.path],
 	});
 
-	return makeToolResultForWrite('wiki_weaver.write_session_note', note);
+	return makeToolResultForWrite('tracekeeper.write_session_note', note);
 }
 
 function handleCaptureSource(rawArgs: CaptureSourceArgs, context: ToolContext) {
@@ -3000,11 +3000,11 @@ function handleCaptureSource(rawArgs: CaptureSourceArgs, context: ToolContext) {
 
 	const note = buildAndWriteNote(
 		vaultRoot,
-		'wiki_weaver.capture_source',
+		'tracekeeper.capture_source',
 		SOURCES_DIR,
 		filename,
 		{
-			tool: 'wiki_weaver.capture_source',
+			tool: 'tracekeeper.capture_source',
 			type: 'source_capture',
 			title: title || `source_${mode}_${now}`,
 			source,
@@ -3025,7 +3025,7 @@ function handleCaptureSource(rawArgs: CaptureSourceArgs, context: ToolContext) {
 
 	return {
 		ok: true,
-		tool: 'wiki_weaver.capture_source',
+		tool: 'tracekeeper.capture_source',
 		status: note.status,
 		path: note.path,
 		audit_path: note.audit_path,
@@ -3068,11 +3068,11 @@ function handleProposeMemory(rawArgs: ProposeMemoryArgs, context: ToolContext) {
 
 	const note = buildAndWriteNote(
 		vaultRoot,
-		'wiki_weaver.propose_memory',
+		'tracekeeper.propose_memory',
 		MEMORY_PROPOSAL_DIR,
 		filename,
 		{
-			tool: 'wiki_weaver.propose_memory',
+			tool: 'tracekeeper.propose_memory',
 			type: 'memory_proposal',
 			title: title || `proposal_${proposalKind}_${now}`,
 			proposal_kind: proposalKind,
@@ -3094,7 +3094,7 @@ function handleProposeMemory(rawArgs: ProposeMemoryArgs, context: ToolContext) {
 		proposals: [note.path],
 	});
 
-	return makeToolResultForWrite('wiki_weaver.propose_memory', note);
+	return makeToolResultForWrite('tracekeeper.propose_memory', note);
 }
 
 function handleBuildContextPack(rawArgs: BuildContextPackArgs, context: ToolContext) {
@@ -3165,11 +3165,11 @@ function handleBuildContextPack(rawArgs: BuildContextPackArgs, context: ToolCont
 
 	const note = buildAndWriteNote(
 		vaultRoot,
-		'wiki_weaver.build_context_pack',
+		'tracekeeper.build_context_pack',
 		CONTEXT_PACK_DIR,
 		filename,
 		{
-			tool: 'wiki_weaver.build_context_pack',
+			tool: 'tracekeeper.build_context_pack',
 			type: 'context_pack',
 			title: title || `context_pack_${now}`,
 			query,
@@ -3286,11 +3286,11 @@ function createDistillProposal(
 	const filenameToken = `${proposalKind}-${taskId}-${now.replace(/[:.]/g, '-')}-${crypto.randomUUID().slice(0, 8)}`;
 	const proposal = buildAndWriteNote(
 		vaultRoot,
-		'wiki_weaver.distill_session',
+		'tracekeeper.distill_session',
 		MEMORY_PROPOSAL_DIR,
 		buildSafeFilename(filenameToken, proposalKind),
 		{
-			tool: 'wiki_weaver.distill_session',
+			tool: 'tracekeeper.distill_session',
 			type: 'memory_proposal',
 			title: `${kindLabel} ${taskId}`,
 			proposal_kind: proposalKind,
@@ -3331,11 +3331,11 @@ function handleFinishTask(rawArgs: FinishTaskArgs, context: ToolContext) {
 
 	const note = buildAndWriteNote(
 		vaultRoot,
-		'wiki_weaver.finish_task',
+		'tracekeeper.finish_task',
 		SESSION_NOTE_DIR,
 		filename,
 		{
-			tool: 'wiki_weaver.finish_task',
+			tool: 'tracekeeper.finish_task',
 			type: 'session_note',
 			title: `Task ${taskId} finish note`,
 			task_id: taskId,
@@ -3412,11 +3412,11 @@ function handleDistillSession(rawArgs: DistillSessionArgs, context: ToolContext)
 	const body = buildSessionNoteBodyWithDistill(summary, outcomes, nextActions, decisions, possiblePreferences);
 	const note = buildAndWriteNote(
 		vaultRoot,
-		'wiki_weaver.distill_session',
+		'tracekeeper.distill_session',
 		SESSION_NOTE_DIR,
 		filename,
 		{
-			tool: 'wiki_weaver.distill_session',
+			tool: 'tracekeeper.distill_session',
 			type: 'session_note',
 			title: `Task ${taskId} distill note`,
 			task_id: taskId,

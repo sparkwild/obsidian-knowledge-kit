@@ -1,6 +1,6 @@
 # Client Auto-Configuration
 
-The Agent Connections view helps users connect AI tools to Wiki Weaver without exposing repository checkout paths or developer machine details.
+The Agent Connections view helps users connect AI tools to Tracekeeper without exposing repository checkout paths or developer machine details.
 
 ## Principles
 
@@ -24,18 +24,18 @@ The Agent Connections view helps users connect AI tools to Wiki Weaver without e
 ## Safe Write Flow
 
 1. Detect whether a supported client config file exists.
-2. Generate only the `wiki-weaver` MCP server block.
+2. Generate only the `tracekeeper` MCP server block.
 3. Show target file and config preview.
 4. Wait for user confirmation.
 5. Create a backup.
-6. Merge or replace only the `wiki-weaver` block.
+6. Merge or replace only the `tracekeeper` block.
 7. Leave all other MCP servers untouched.
 8. Record an audit event.
 
 ## Removal Flow
 
-Removal uses the same confirmation and backup flow. It deletes only the `wiki-weaver` MCP server block and never deletes the whole client config file.
+Removal uses the same confirmation and backup flow. It deletes only the `tracekeeper` MCP server block and never deletes the whole client config file.
 
 ## Runtime Dependency
 
-Client configuration only works while desktop Obsidian is open and the Wiki Weaver plugin is enabled, because the MCP Runtime is hosted by Obsidian.
+Client configuration only works while desktop Obsidian is open and the Tracekeeper plugin is enabled, because the MCP Runtime is hosted by Obsidian.

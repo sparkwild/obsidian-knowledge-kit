@@ -1,7 +1,7 @@
 {
-	"name": "@wiki-weaver/core",
+	"name": "@tracekeeper/core",
 	"version": "0.1.0",
-	"description": "Shared local wiki compilation runtime for Wiki Weaver.",
+	"description": "Shared local wiki compilation runtime for Tracekeeper.",
 	"private": true,
 	"type": "commonjs",
 	"main": "dist/index.js",

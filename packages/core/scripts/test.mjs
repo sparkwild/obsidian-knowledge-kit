@@ -22,7 +22,7 @@ function createFixture(rootPath) {
 }
 
 function run() {
-	const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'wiki-weaver-core-test-'));
+	const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'tracekeeper-core-test-'));
 	let symlinkSupported = false;
 
 	try {

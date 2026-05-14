@@ -1,5 +1,5 @@
 {
-	"name": "obsidian-wiki-weaver",
+	"name": "obsidian-tracekeeper",
 	"version": "0.1.0",
 	"description": "Build and review an AI-assisted wiki from your vault.",
 	"private": true,

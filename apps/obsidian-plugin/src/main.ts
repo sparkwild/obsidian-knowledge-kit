@@ -20,18 +20,18 @@ import {
 	type RuntimeState,
 } from '../../mcp-server/src/http-runtime';
 
-const WIKI_WEAVER_ACTIVITY_VIEW = 'wiki-weaver-activity';
-const WIKI_WEAVER_SOURCE_STATUS_VIEW = 'wiki-weaver-source-status';
-const WIKI_WEAVER_REVIEW_QUEUE_VIEW = 'wiki-weaver-review-queue';
-const WIKI_WEAVER_MEMORY_INSPECTOR_VIEW = 'wiki-weaver-memory-inspector';
-const WIKI_WEAVER_AUDIT_LOG_VIEW = 'wiki-weaver-audit-log';
-const WIKI_WEAVER_RUNTIME_STATUS_VIEW = 'wiki-weaver-runtime-status';
-const WIKI_WEAVER_PERMISSION_POLICY_VIEW = 'wiki-weaver-permission-policy';
-const WIKI_WEAVER_AGENT_CONNECTIONS_VIEW = 'wiki-weaver-agent-connections';
+const TRACEKEEPER_ACTIVITY_VIEW = 'tracekeeper-activity';
+const TRACEKEEPER_SOURCE_STATUS_VIEW = 'tracekeeper-source-status';
+const TRACEKEEPER_REVIEW_QUEUE_VIEW = 'tracekeeper-review-queue';
+const TRACEKEEPER_MEMORY_INSPECTOR_VIEW = 'tracekeeper-memory-inspector';
+const TRACEKEEPER_AUDIT_LOG_VIEW = 'tracekeeper-audit-log';
+const TRACEKEEPER_RUNTIME_STATUS_VIEW = 'tracekeeper-runtime-status';
+const TRACEKEEPER_PERMISSION_POLICY_VIEW = 'tracekeeper-permission-policy';
+const TRACEKEEPER_AGENT_CONNECTIONS_VIEW = 'tracekeeper-agent-connections';
 const CONTROL_FILES: Array<{ path: string; content: string }> = [
 	{
 		path: '00_control/system.md',
-		content: '# System Control\n\nObsidian-native memory system control defaults for Wiki Weaver.\n',
+		content: '# System Control\n\nObsidian-native memory system control defaults for Tracekeeper.\n',
 	},
 	{
 		path: '00_control/memory_policy.md',
@@ -64,14 +64,14 @@ const MAX_ACTIVITY_PROPOSAL_ROWS = 5;
 const MAX_AGENT_CONNECTION_ROWS = 8;
 const MAX_AGENT_TOOL_CALL_ROWS = 12;
 const PLUGIN_DISPLAY_NAME_ZH = '知识库';
-const PLUGIN_DISPLAY_NAME_EN = 'Wiki Weaver';
+const PLUGIN_DISPLAY_NAME_EN = 'Tracekeeper';
 const DEFAULT_MCP_PORT = 58437;
 const DEFAULT_MCP_HOST = '127.0.0.1';
 const DEFAULT_MCP_PATH = '/mcp';
 const DEFAULT_MCP_HTTP_ENDPOINT = `http://${DEFAULT_MCP_HOST}:${DEFAULT_MCP_PORT}${DEFAULT_MCP_PATH}`;
 const LEGACY_DEFAULT_MCP_HTTP_ENDPOINTS = ['http://127.0.0.1:37241/mcp'];
 const DEFAULT_STATUS_MESSAGE_ZH = '欢迎使用知识库。';
-const DEFAULT_STATUS_MESSAGE_EN = 'Welcome to Wiki Weaver.';
+const DEFAULT_STATUS_MESSAGE_EN = 'Welcome to Tracekeeper.';
 const isChineseLanguage = (language: string): boolean => {
 	const normalized = language.toLowerCase();
 	return normalized === 'zh' || normalized.startsWith('zh-') || normalized.startsWith('zh_');
@@ -120,7 +120,7 @@ interface MemoryInitializationPlan {
 
 type StructureState = 'initialized' | 'partial' | 'missing';
 
-interface WikiWeaverStructureStatus {
+interface TracekeeperStructureStatus {
 	state: StructureState;
 	label: string;
 	detail: string;
@@ -276,7 +276,7 @@ interface MemoryReviewQueueSnapshot {
 
 interface AgentActivitySnapshot {
 	runtimeStatus: RuntimeViewStatus;
-	structureStatus: WikiWeaverStructureStatus;
+	structureStatus: TracekeeperStructureStatus;
 	currentTask: AgentTaskRecord | null;
 	recentTasks: AgentTaskRecord[];
 	recentContextPacks: ContextPackRecord[];
@@ -397,7 +397,7 @@ interface AgentConnectionsSnapshot {
 	updatedAt: string;
 }
 
-interface WikiWeaverSettings {
+interface TracekeeperSettings {
 	showWelcomeMessage: boolean;
 	defaultAgentScope: string;
 	statusMessage: string;
@@ -405,7 +405,7 @@ interface WikiWeaverSettings {
 	runtimeToken: string;
 }
 
-const DEFAULT_SETTINGS: WikiWeaverSettings = {
+const DEFAULT_SETTINGS: TracekeeperSettings = {
 	showWelcomeMessage: true,
 	defaultAgentScope: 'vault',
 	statusMessage: '',
@@ -413,8 +413,8 @@ const DEFAULT_SETTINGS: WikiWeaverSettings = {
 	runtimeToken: '',
 };
 
-export default class WikiWeaverPlugin extends Plugin {
-	settings: WikiWeaverSettings = DEFAULT_SETTINGS;
+export default class TracekeeperPlugin extends Plugin {
+	settings: TracekeeperSettings = DEFAULT_SETTINGS;
 	private mcpRuntime: StreamableHttpMcpRuntime | null = null;
 	private uiMcpSessionId = '';
 	private uiMcpRequestId = 1;
@@ -438,7 +438,7 @@ export default class WikiWeaverPlugin extends Plugin {
 		const isSavedDefaultMessage =
 			savedStatusMessage === DEFAULT_STATUS_MESSAGE_ZH ||
 			savedStatusMessage === DEFAULT_STATUS_MESSAGE_EN ||
-			['wiki-weaver', 'Agent', 'Activity'].every((part) => savedStatusMessage.includes(part));
+			['tracekeeper', 'Agent', 'Activity'].every((part) => savedStatusMessage.includes(part));
 		if (isSavedDefaultMessage) {
 			this.settings.statusMessage = '';
 			await this.saveSettings();
@@ -447,82 +447,82 @@ export default class WikiWeaverPlugin extends Plugin {
 		await this.startMcpRuntime();
 
 		this.registerView(
-			WIKI_WEAVER_SOURCE_STATUS_VIEW,
-			(leaf) => new WikiWeaverSourceStatusView(leaf, this)
+			TRACEKEEPER_SOURCE_STATUS_VIEW,
+			(leaf) => new TracekeeperSourceStatusView(leaf, this)
 		);
 		this.registerView(
-			WIKI_WEAVER_ACTIVITY_VIEW,
-			(leaf) => new WikiWeaverActivityView(leaf, this)
+			TRACEKEEPER_ACTIVITY_VIEW,
+			(leaf) => new TracekeeperActivityView(leaf, this)
 		);
 		this.registerView(
-			WIKI_WEAVER_REVIEW_QUEUE_VIEW,
-			(leaf) => new WikiWeaverReviewQueueView(leaf, this)
+			TRACEKEEPER_REVIEW_QUEUE_VIEW,
+			(leaf) => new TracekeeperReviewQueueView(leaf, this)
 		);
 		this.registerView(
-			WIKI_WEAVER_MEMORY_INSPECTOR_VIEW,
-			(leaf) => new WikiWeaverMemoryInspectorView(leaf)
+			TRACEKEEPER_MEMORY_INSPECTOR_VIEW,
+			(leaf) => new TracekeeperMemoryInspectorView(leaf)
 		);
 		this.registerView(
-			WIKI_WEAVER_AUDIT_LOG_VIEW,
-			(leaf) => new WikiWeaverAuditLogView(leaf, this)
+			TRACEKEEPER_AUDIT_LOG_VIEW,
+			(leaf) => new TracekeeperAuditLogView(leaf, this)
 		);
 		this.registerView(
-			WIKI_WEAVER_RUNTIME_STATUS_VIEW,
-			(leaf) => new WikiWeaverRuntimeStatusView(leaf, this)
+			TRACEKEEPER_RUNTIME_STATUS_VIEW,
+			(leaf) => new TracekeeperRuntimeStatusView(leaf, this)
 		);
 		this.registerView(
-			WIKI_WEAVER_PERMISSION_POLICY_VIEW,
-			(leaf) => new WikiWeaverPermissionPolicyView(leaf)
+			TRACEKEEPER_PERMISSION_POLICY_VIEW,
+			(leaf) => new TracekeeperPermissionPolicyView(leaf)
 		);
 		this.registerView(
-			WIKI_WEAVER_AGENT_CONNECTIONS_VIEW,
-			(leaf) => new WikiWeaverAgentConnectionsView(leaf, this)
+			TRACEKEEPER_AGENT_CONNECTIONS_VIEW,
+			(leaf) => new TracekeeperAgentConnectionsView(leaf, this)
 		);
 
 		this.addRibbonIcon('brain-circuit', ui(`打开${PLUGIN_DISPLAY_NAME_ZH}面板`, `Open ${PLUGIN_DISPLAY_NAME_EN} panel`), () => {
-			this.openPluginView(WIKI_WEAVER_ACTIVITY_VIEW);
+			this.openPluginView(TRACEKEEPER_ACTIVITY_VIEW);
 		});
 
 		this.addCommand({
 			id: 'open-agent-activity',
 			name: ui('打开 AI 助手活动', 'Open AI assistant activity'),
-			callback: () => this.openPluginView(WIKI_WEAVER_ACTIVITY_VIEW),
+			callback: () => this.openPluginView(TRACEKEEPER_ACTIVITY_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-review-queue',
 			name: ui('打开审核队列', 'Open review queue'),
-			callback: () => this.openPluginView(WIKI_WEAVER_REVIEW_QUEUE_VIEW),
+			callback: () => this.openPluginView(TRACEKEEPER_REVIEW_QUEUE_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-memory-inspector',
 			name: ui('打开记忆查看', 'Open memory view'),
-			callback: () => this.openPluginView(WIKI_WEAVER_MEMORY_INSPECTOR_VIEW),
+			callback: () => this.openPluginView(TRACEKEEPER_MEMORY_INSPECTOR_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-audit-log',
 			name: ui('打开操作记录', 'Open activity log'),
-			callback: () => this.openPluginView(WIKI_WEAVER_AUDIT_LOG_VIEW),
+			callback: () => this.openPluginView(TRACEKEEPER_AUDIT_LOG_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-runtime-status',
 			name: ui('打开连接状态', 'Open connection status'),
-			callback: () => this.openPluginView(WIKI_WEAVER_RUNTIME_STATUS_VIEW),
+			callback: () => this.openPluginView(TRACEKEEPER_RUNTIME_STATUS_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-permission-policy',
 			name: ui('打开权限说明', 'Open permission guide'),
-			callback: () => this.openPluginView(WIKI_WEAVER_PERMISSION_POLICY_VIEW),
+			callback: () => this.openPluginView(TRACEKEEPER_PERMISSION_POLICY_VIEW),
 		});
 
 		this.addCommand({
 			id: 'open-agent-connections',
 			name: ui('打开 AI 助手连接', 'Open AI assistant connections'),
-			callback: () => this.openPluginView(WIKI_WEAVER_AGENT_CONNECTIONS_VIEW),
+			callback: () => this.openPluginView(TRACEKEEPER_AGENT_CONNECTIONS_VIEW),
 		});
 
 		this.addCommand({
@@ -541,16 +541,16 @@ export default class WikiWeaverPlugin extends Plugin {
 			},
 		});
 
-		this.addSettingTab(new WikiWeaverSettingTab(this.app, this));
+		this.addSettingTab(new TracekeeperSettingTab(this.app, this));
 	}
 
 	async onunload(): Promise<void> {
 		await this.stopMcpRuntime();
 	}
 
-	private normalizeSettings(raw: unknown): WikiWeaverSettings {
-		const saved = raw && typeof raw === 'object' ? raw as Partial<WikiWeaverSettings> & Record<string, unknown> : {};
-		const next: WikiWeaverSettings = Object.assign({}, DEFAULT_SETTINGS, saved);
+	private normalizeSettings(raw: unknown): TracekeeperSettings {
+		const saved = raw && typeof raw === 'object' ? raw as Partial<TracekeeperSettings> & Record<string, unknown> : {};
+		const next: TracekeeperSettings = Object.assign({}, DEFAULT_SETTINGS, saved);
 		const legacyEndpoint = typeof saved.mcpHttpEndpoint === 'string' ? saved.mcpHttpEndpoint.trim() : '';
 		if (legacyEndpoint && !LEGACY_DEFAULT_MCP_HTTP_ENDPOINTS.includes(legacyEndpoint)) {
 			const legacyPort = this.portFromEndpoint(legacyEndpoint);
@@ -616,7 +616,7 @@ export default class WikiWeaverPlugin extends Plugin {
 		} catch (error) {
 			this.runtimeStatus = runtime.getStatus();
 			const message = error instanceof Error ? error.message : 'Unknown MCP Runtime error.';
-			console.error('wiki-weaver failed to start MCP Runtime', error);
+			console.error('tracekeeper failed to start MCP Runtime', error);
 			new Notice(ui(`MCP Runtime 启动失败：${message}`, `MCP Runtime failed to start: ${message}`));
 		}
 	}
@@ -676,7 +676,7 @@ export default class WikiWeaverPlugin extends Plugin {
 		};
 	}
 
-	getStructureStatus(): WikiWeaverStructureStatus {
+	getStructureStatus(): TracekeeperStructureStatus {
 		const plan = this.buildInitializationPlan();
 		const totalFolders = this.getNormalizedFolderPlan().length;
 		const expectedFiles = new Set(CONTROL_FILES.map((file) => file.path));
@@ -694,7 +694,7 @@ export default class WikiWeaverPlugin extends Plugin {
 			return {
 				state,
 				label: ui('已初始化', 'Initialized'),
-				detail: ui('Wiki Weaver 管理结构完整。', 'The Wiki Weaver management structure is complete.'),
+				detail: ui('Tracekeeper 管理结构完整。', 'The Tracekeeper management structure is complete.'),
 				missingFolders: [],
 				missingFiles: [],
 				missingCount,
@@ -810,11 +810,11 @@ export default class WikiWeaverPlugin extends Plugin {
 			}
 
 			await this.appendAuditEvent(plan);
-			new Notice(ui('知识库结构已初始化。', 'Wiki Weaver memory structure initialized.'));
+			new Notice(ui('知识库结构已初始化。', 'Tracekeeper memory structure initialized.'));
 			await this.refreshGovernanceViews();
 		} catch (error) {
-			console.error('wiki-weaver failed to initialize memory structure', error);
-			new Notice(ui('知识库结构初始化失败。', 'Wiki Weaver failed to initialize memory structure.'));
+			console.error('tracekeeper failed to initialize memory structure', error);
+			new Notice(ui('知识库结构初始化失败。', 'Tracekeeper failed to initialize memory structure.'));
 		}
 	}
 
@@ -885,40 +885,40 @@ export default class WikiWeaverPlugin extends Plugin {
 	}
 
 	private async refreshActivityViews(): Promise<void> {
-		const activityLeaves = this.app.workspace.getLeavesOfType(WIKI_WEAVER_ACTIVITY_VIEW);
+		const activityLeaves = this.app.workspace.getLeavesOfType(TRACEKEEPER_ACTIVITY_VIEW);
 		for (const leaf of activityLeaves) {
 			const view = leaf.view;
-			if (view instanceof WikiWeaverActivityView) {
+			if (view instanceof TracekeeperActivityView) {
 				await view.refresh();
 			}
 		}
 	}
 
 	private async refreshReviewQueueViews(): Promise<void> {
-		const reviewQueueLeaves = this.app.workspace.getLeavesOfType(WIKI_WEAVER_REVIEW_QUEUE_VIEW);
+		const reviewQueueLeaves = this.app.workspace.getLeavesOfType(TRACEKEEPER_REVIEW_QUEUE_VIEW);
 		for (const leaf of reviewQueueLeaves) {
 			const view = leaf.view;
-			if (view instanceof WikiWeaverReviewQueueView) {
+			if (view instanceof TracekeeperReviewQueueView) {
 				await view.refresh();
 			}
 		}
 	}
 
 	private async refreshSourceStatusViews(): Promise<void> {
-		const sourceStatusLeaves = this.app.workspace.getLeavesOfType(WIKI_WEAVER_SOURCE_STATUS_VIEW);
+		const sourceStatusLeaves = this.app.workspace.getLeavesOfType(TRACEKEEPER_SOURCE_STATUS_VIEW);
 		for (const leaf of sourceStatusLeaves) {
 			const view = leaf.view;
-			if (view instanceof WikiWeaverSourceStatusView) {
+			if (view instanceof TracekeeperSourceStatusView) {
 				await view.refresh();
 			}
 		}
 	}
 
 	private async refreshAgentConnectionViews(): Promise<void> {
-		const connectionLeaves = this.app.workspace.getLeavesOfType(WIKI_WEAVER_AGENT_CONNECTIONS_VIEW);
+		const connectionLeaves = this.app.workspace.getLeavesOfType(TRACEKEEPER_AGENT_CONNECTIONS_VIEW);
 		for (const leaf of connectionLeaves) {
 			const view = leaf.view;
-			if (view instanceof WikiWeaverAgentConnectionsView) {
+			if (view instanceof TracekeeperAgentConnectionsView) {
 				await view.refresh();
 			}
 		}
@@ -976,7 +976,7 @@ export default class WikiWeaverPlugin extends Plugin {
 		try {
 			content = await this.app.vault.cachedRead(file);
 		} catch (error) {
-			console.error(`wiki-weaver failed to read source request: ${file.path}`, error);
+			console.error(`tracekeeper failed to read source request: ${file.path}`, error);
 			content = '';
 		}
 
@@ -1131,7 +1131,7 @@ export default class WikiWeaverPlugin extends Plugin {
 			return {
 				state: 'not_configured',
 				label: ui('未配置', 'Not configured'),
-				detail: ui('尚未写入 Wiki Weaver 连接。', 'The Wiki Weaver connection has not been written yet.'),
+				detail: ui('尚未写入 Tracekeeper 连接。', 'The Tracekeeper connection has not been written yet.'),
 			};
 		}
 
@@ -1139,7 +1139,7 @@ export default class WikiWeaverPlugin extends Plugin {
 			const content = api.fs.readFileSync(profile.targetPath, 'utf8');
 			return this.detectClientConfigStatus(profile, content);
 		} catch (error) {
-			console.error('wiki-weaver failed to read client config status', error);
+			console.error('tracekeeper failed to read client config status', error);
 			return {
 				state: 'unavailable',
 				label: ui('未配置', 'Not configured'),
@@ -1165,7 +1165,7 @@ export default class WikiWeaverPlugin extends Plugin {
 			{
 				id: 'claude-code',
 				displayName: 'Claude Code',
-				description: ui('在终端执行下面命令，为 Claude Code 添加知识库连接。', 'Run this command in a terminal to add the Wiki Weaver connection to Claude Code.'),
+				description: ui('在终端执行下面命令，为 Claude Code 添加知识库连接。', 'Run this command in a terminal to add the Tracekeeper connection to Claude Code.'),
 				preferredTransport: 'streamable-http',
 				supportsAutoConfigure: false,
 				restartRequired: false,
@@ -1206,18 +1206,18 @@ export default class WikiWeaverPlugin extends Plugin {
 		const connectionUrl = this.getMcpConnectionUrl();
 		if (profile.id === 'codex') {
 			return [
-				'[mcp_servers.wiki-weaver]',
+				'[mcp_servers.tracekeeper]',
 				`url = ${JSON.stringify(connectionUrl)}`,
 			].join('\n');
 		}
 
 		if (profile.id === 'claude-code') {
-			return `claude mcp add --transport http wiki-weaver ${connectionUrl} --scope user`;
+			return `claude mcp add --transport http tracekeeper ${connectionUrl} --scope user`;
 		}
 
 		const config = {
 			mcpServers: {
-				'wiki-weaver': {
+				'tracekeeper': {
 					url: connectionUrl,
 				},
 			},
@@ -1228,12 +1228,12 @@ export default class WikiWeaverPlugin extends Plugin {
 
 	private detectClientConfigStatus(profile: ClientProfile, content: string): { state: ClientConfigState; label: string; detail: string } {
 		if (profile.configFormat === 'codex-toml') {
-			const block = this.extractCodexTomlWikiWeaverBlock(content);
+			const block = this.extractCodexTomlTracekeeperBlock(content);
 			if (block.length === 0) {
 				return {
 					state: 'not_configured',
 					label: ui('未配置', 'Not configured'),
-					detail: ui('配置文件中还没有 Wiki Weaver 连接。', 'The config file does not include the Wiki Weaver connection yet.'),
+					detail: ui('配置文件中还没有 Tracekeeper 连接。', 'The config file does not include the Tracekeeper connection yet.'),
 				};
 			}
 			const configuredUrl = this.readTomlStringValue(block.join('\n'), 'url');
@@ -1249,7 +1249,7 @@ export default class WikiWeaverPlugin extends Plugin {
 				return {
 					state: 'needs_update',
 					label: ui('需更新', 'Needs update'),
-					detail: ui('已存在 Wiki Weaver 配置，但缺少连接地址。', 'Wiki Weaver config exists but has no connection URL.'),
+					detail: ui('已存在 Tracekeeper 配置，但缺少连接地址。', 'Tracekeeper config exists but has no connection URL.'),
 				};
 			}
 			if (configuredUrl !== this.getMcpConnectionUrl()) {
@@ -1269,12 +1269,12 @@ export default class WikiWeaverPlugin extends Plugin {
 		if (profile.configFormat === 'mcp-json') {
 			try {
 				const parsed = this.parseMcpJsonConfig(content);
-				const server = parsed.mcpServers['wiki-weaver'];
+				const server = parsed.mcpServers['tracekeeper'];
 				if (!server || typeof server !== 'object' || Array.isArray(server)) {
 					return {
 						state: 'not_configured',
 						label: ui('未配置', 'Not configured'),
-						detail: ui('配置文件中还没有 Wiki Weaver 连接。', 'The config file does not include the Wiki Weaver connection yet.'),
+						detail: ui('配置文件中还没有 Tracekeeper 连接。', 'The config file does not include the Tracekeeper connection yet.'),
 					};
 				}
 				const url = (server as { url?: unknown }).url;
@@ -1290,7 +1290,7 @@ export default class WikiWeaverPlugin extends Plugin {
 					return {
 						state: 'needs_update',
 						label: ui('需更新', 'Needs update'),
-						detail: ui('已存在 Wiki Weaver 配置，但缺少连接地址。', 'Wiki Weaver config exists but has no connection URL.'),
+						detail: ui('已存在 Tracekeeper 配置，但缺少连接地址。', 'Tracekeeper config exists but has no connection URL.'),
 					};
 				}
 				if (url.trim() !== this.getMcpConnectionUrl()) {
@@ -1306,11 +1306,11 @@ export default class WikiWeaverPlugin extends Plugin {
 					detail: ui('连接配置已写入，保持 Obsidian 开启后即可使用。', 'Connection config is written. Keep Obsidian open to use it.'),
 				};
 			} catch (error) {
-				console.error('wiki-weaver failed to parse client config status', error);
+				console.error('tracekeeper failed to parse client config status', error);
 				return {
 					state: 'not_configured',
 					label: ui('未配置', 'Not configured'),
-					detail: ui('配置文件无法解析，可以自动配置覆盖 Wiki Weaver 连接。', 'The config file could not be parsed. Auto setup can rewrite the Wiki Weaver connection.'),
+					detail: ui('配置文件无法解析，可以自动配置覆盖 Tracekeeper 连接。', 'The config file could not be parsed. Auto setup can rewrite the Tracekeeper connection.'),
 				};
 			}
 		}
@@ -1322,12 +1322,12 @@ export default class WikiWeaverPlugin extends Plugin {
 		};
 	}
 
-	private extractCodexTomlWikiWeaverBlock(content: string): string[] {
+	private extractCodexTomlTracekeeperBlock(content: string): string[] {
 		const lines = content.split(/\r?\n/);
 		const block: string[] = [];
 		let collecting = false;
 		for (const line of lines) {
-			if (this.isWikiWeaverCodexTomlHeader(line)) {
+			if (this.isTracekeeperCodexTomlHeader(line)) {
 				collecting = true;
 				block.push(line);
 				continue;
@@ -1431,7 +1431,7 @@ export default class WikiWeaverPlugin extends Plugin {
 			protocolVersion: '2025-06-18',
 			capabilities: {},
 			clientInfo: {
-				name: 'wiki-weaver-plugin-ui',
+				name: 'tracekeeper-plugin-ui',
 				version: '0.1.0',
 			},
 		}, false);
@@ -1516,7 +1516,7 @@ export default class WikiWeaverPlugin extends Plugin {
 		if (request.taskId) {
 			args.task_id = request.taskId;
 		}
-		await this.callLocalMcpTool('wiki_weaver.analyze_source_request', args);
+		await this.callLocalMcpTool('tracekeeper.analyze_source_request', args);
 		await this.refreshGovernanceViews();
 	}
 
@@ -1528,7 +1528,7 @@ export default class WikiWeaverPlugin extends Plugin {
 		if (proposal.taskId) {
 			args.task_id = proposal.taskId;
 		}
-		const result = await this.callLocalMcpTool('wiki_weaver.apply_approved_writeback', args);
+		const result = await this.callLocalMcpTool('tracekeeper.apply_approved_writeback', args);
 		return result as unknown as ApprovedWritebackPreview;
 	}
 
@@ -1537,7 +1537,7 @@ export default class WikiWeaverPlugin extends Plugin {
 		if (proposal.taskId) {
 			args.task_id = proposal.taskId;
 		}
-		await this.callLocalMcpTool('wiki_weaver.apply_approved_writeback', args);
+		await this.callLocalMcpTool('tracekeeper.apply_approved_writeback', args);
 		await this.refreshGovernanceViews();
 	}
 
@@ -1545,10 +1545,10 @@ export default class WikiWeaverPlugin extends Plugin {
 		try {
 			const result = this.writeClientConfig(config);
 			this.queueClientConfigAuditEvent('client_config_applied', config, 'success', result.backupPath);
-			new Notice(ui('已写入知识库连接配置，请重启对应 AI 工具。', 'Wiki Weaver connection config written. Restart the AI tool.'));
+			new Notice(ui('已写入知识库连接配置，请重启对应 AI 工具。', 'Tracekeeper connection config written. Restart the AI tool.'));
 			this.queueAgentConnectionViewRefresh();
 		} catch (error) {
-			console.error('wiki-weaver failed to apply client config', error);
+			console.error('tracekeeper failed to apply client config', error);
 			this.queueClientConfigAuditEvent('client_config_failed', config, 'failed');
 			new Notice(ui('写入连接配置失败。', 'Failed to write connection config.'));
 			throw error;
@@ -1562,7 +1562,7 @@ export default class WikiWeaverPlugin extends Plugin {
 			new Notice(ui('已移除配置，请重启对应 AI 工具。', 'Config removed. Restart the AI tool.'));
 			this.queueAgentConnectionViewRefresh();
 		} catch (error) {
-			console.error('wiki-weaver failed to remove client config', error);
+			console.error('tracekeeper failed to remove client config', error);
 			this.queueClientConfigAuditEvent('client_config_failed', config, 'failed');
 			new Notice(ui('移除配置失败。', 'Failed to remove config.'));
 			throw error;
@@ -1613,8 +1613,8 @@ export default class WikiWeaverPlugin extends Plugin {
 		const directory = api.path.dirname(targetPath);
 		api.fs.mkdirSync(directory, { recursive: true });
 		const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-		const backupPath = `${targetPath}.wiki-weaver-backup-${stamp}`;
-		const tmpPath = `${targetPath}.wiki-weaver-tmp-${stamp}`;
+		const backupPath = `${targetPath}.tracekeeper-backup-${stamp}`;
+		const tmpPath = `${targetPath}.tracekeeper-tmp-${stamp}`;
 		api.fs.writeFileSync(backupPath, original, 'utf8');
 		api.fs.writeFileSync(tmpPath, nextContent, 'utf8');
 		api.fs.renameSync(tmpPath, targetPath);
@@ -1623,11 +1623,11 @@ export default class WikiWeaverPlugin extends Plugin {
 
 	private mergeClientConfigContent(config: GeneratedClientConfig, original: string): string {
 		if (config.configFormat === 'codex-toml') {
-			return this.trimLeadingWhitespace(`${this.trimTrailingWhitespace(this.removeCodexTomlWikiWeaverBlock(original))}\n\n${config.configText}\n`);
+			return this.trimLeadingWhitespace(`${this.trimTrailingWhitespace(this.removeCodexTomlTracekeeperBlock(original))}\n\n${config.configText}\n`);
 		}
 		if (config.configFormat === 'mcp-json') {
 			const parsed = this.parseMcpJsonConfig(original);
-			parsed.mcpServers['wiki-weaver'] = {
+			parsed.mcpServers['tracekeeper'] = {
 				url: this.getMcpConnectionUrl(),
 			};
 			return `${JSON.stringify(parsed, null, 2)}\n`;
@@ -1637,11 +1637,11 @@ export default class WikiWeaverPlugin extends Plugin {
 
 	private removeClientConfigContent(config: GeneratedClientConfig, original: string): string {
 		if (config.configFormat === 'codex-toml') {
-			return `${this.trimTrailingWhitespace(this.removeCodexTomlWikiWeaverBlock(original))}\n`;
+			return `${this.trimTrailingWhitespace(this.removeCodexTomlTracekeeperBlock(original))}\n`;
 		}
 		if (config.configFormat === 'mcp-json') {
 			const parsed = this.parseMcpJsonConfig(original);
-			delete parsed.mcpServers['wiki-weaver'];
+			delete parsed.mcpServers['tracekeeper'];
 			return `${JSON.stringify(parsed, null, 2)}\n`;
 		}
 		throw new Error(`Unsupported config format: ${config.configFormat}`);
@@ -1668,12 +1668,12 @@ export default class WikiWeaverPlugin extends Plugin {
 		return result as { mcpServers: Record<string, unknown>; [key: string]: unknown };
 	}
 
-	private removeCodexTomlWikiWeaverBlock(content: string): string {
+	private removeCodexTomlTracekeeperBlock(content: string): string {
 		const lines = content.split(/\r?\n/);
 		const nextLines: string[] = [];
 		let skipping = false;
 		for (const line of lines) {
-			if (this.isWikiWeaverCodexTomlHeader(line)) {
+			if (this.isTracekeeperCodexTomlHeader(line)) {
 				skipping = true;
 				continue;
 			}
@@ -1687,8 +1687,8 @@ export default class WikiWeaverPlugin extends Plugin {
 		return nextLines.join('\n');
 	}
 
-	private isWikiWeaverCodexTomlHeader(line: string): boolean {
-		return /^\s*\[mcp_servers\.(?:"wiki-weaver"|'wiki-weaver'|wiki-weaver)\]\s*$/.test(line);
+	private isTracekeeperCodexTomlHeader(line: string): boolean {
+		return /^\s*\[mcp_servers\.(?:"tracekeeper"|'tracekeeper'|tracekeeper)\]\s*$/.test(line);
 	}
 
 	private isTomlHeader(line: string): boolean {
@@ -1723,13 +1723,13 @@ export default class WikiWeaverPlugin extends Plugin {
 		backupPath?: string
 	): void {
 		void this.appendClientConfigAuditEvent(action, config, result, backupPath).catch((error) => {
-			console.error('wiki-weaver failed to record client config audit event', error);
+			console.error('tracekeeper failed to record client config audit event', error);
 		});
 	}
 
 	private queueAgentConnectionViewRefresh(): void {
 		void this.refreshAgentConnectionViews().catch((error) => {
-			console.error('wiki-weaver failed to refresh agent connection views', error);
+			console.error('tracekeeper failed to refresh agent connection views', error);
 		});
 	}
 
@@ -1866,7 +1866,7 @@ export default class WikiWeaverPlugin extends Plugin {
 		try {
 			content = await this.app.vault.cachedRead(file);
 		} catch (error) {
-			console.error(`wiki-weaver failed to read memory proposal: ${file.path}`, error);
+			console.error(`tracekeeper failed to read memory proposal: ${file.path}`, error);
 			content = '';
 		}
 
@@ -1998,7 +1998,7 @@ export default class WikiWeaverPlugin extends Plugin {
 		try {
 			content = await this.app.vault.cachedRead(file);
 		} catch (error) {
-			console.error(`wiki-weaver failed to read context pack: ${file.path}`, error);
+			console.error(`tracekeeper failed to read context pack: ${file.path}`, error);
 			return null;
 		}
 
@@ -2036,7 +2036,7 @@ export default class WikiWeaverPlugin extends Plugin {
 		try {
 			content = await this.app.vault.cachedRead(file);
 		} catch (error) {
-			console.error(`wiki-weaver failed to read source capture: ${file.path}`, error);
+			console.error(`tracekeeper failed to read source capture: ${file.path}`, error);
 			return null;
 		}
 
@@ -2101,7 +2101,7 @@ export default class WikiWeaverPlugin extends Plugin {
 		try {
 			content = await this.app.vault.cachedRead(file);
 		} catch (error) {
-			console.error(`wiki-weaver failed to read agent task: ${file.path}`, error);
+			console.error(`tracekeeper failed to read agent task: ${file.path}`, error);
 			content = '';
 		}
 		const parsed = this.readFrontmatter(content);
@@ -2153,7 +2153,7 @@ export default class WikiWeaverPlugin extends Plugin {
 		try {
 			content = await this.app.vault.cachedRead(file);
 		} catch (error) {
-			console.error('wiki-weaver failed to read audit log', error);
+			console.error('tracekeeper failed to read audit log', error);
 			return [];
 		}
 
@@ -2180,7 +2180,7 @@ export default class WikiWeaverPlugin extends Plugin {
 		try {
 			content = await this.app.vault.cachedRead(file);
 		} catch (error) {
-			console.error(`wiki-weaver failed to read audit file: ${file.path}`, error);
+			console.error(`tracekeeper failed to read audit file: ${file.path}`, error);
 			return [];
 		}
 
@@ -2527,7 +2527,7 @@ export default class WikiWeaverPlugin extends Plugin {
 	}
 
 	formatToolDisplayName(toolName: string): string {
-		const normalized = toolName.replace(/^wiki_weaver[._]/, '').trim();
+		const normalized = toolName.replace(/^tracekeeper[._]/, '').trim();
 		const labels: Record<string, string> = {
 			status: ui('查看状态', 'Check status'),
 			start_task: ui('开始任务记录', 'Start task record'),
@@ -2564,8 +2564,8 @@ export default class WikiWeaverPlugin extends Plugin {
 		if (normalized.includes('cursor')) {
 			return 'Cursor';
 		}
-		if (normalized.includes('wiki-weaver')) {
-			return 'Wiki Weaver';
+		if (normalized.includes('tracekeeper')) {
+			return 'Tracekeeper';
 		}
 		if (raw.length <= 28) {
 			return raw;
@@ -2630,7 +2630,7 @@ class InitializeMemoryStructureModal extends Modal {
 		contentEl.createEl('p', {
 			text: ui(
 				'将为当前知识库创建以下缺失的文件结构。',
-				'The following Wiki Weaver structure will be created if missing in this vault.'
+				'The following Tracekeeper structure will be created if missing in this vault.'
 			),
 		});
 
@@ -2672,16 +2672,16 @@ class InitializeMemoryStructureModal extends Modal {
 	}
 }
 
-class WikiWeaverSourceStatusView extends ItemView {
+class TracekeeperSourceStatusView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
-		private plugin: WikiWeaverPlugin
+		private plugin: TracekeeperPlugin
 	) {
 		super(leaf);
 	}
 
 	getViewType() {
-		return WIKI_WEAVER_SOURCE_STATUS_VIEW;
+		return TRACEKEEPER_SOURCE_STATUS_VIEW;
 	}
 
 	getDisplayText() {
@@ -2708,16 +2708,16 @@ class WikiWeaverSourceStatusView extends ItemView {
 	private async render(snapshot: SourceAnalysisSnapshot): Promise<void> {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass('wiki-weaver-view-root');
+		contentEl.addClass('tracekeeper-view-root');
 
-		contentEl.createEl('h2', { text: ui('来源状态', 'Source status'), cls: 'wiki-weaver-view__title' });
+		contentEl.createEl('h2', { text: ui('来源状态', 'Source status'), cls: 'tracekeeper-view__title' });
 
-		const header = contentEl.createDiv({ cls: 'wiki-weaver-view__section' });
+		const header = contentEl.createDiv({ cls: 'tracekeeper-view__section' });
 		header.createEl('div', {
 			text: `${ui('最后刷新', 'Last refreshed')}: ${this.plugin.formatDisplayTime(
 				Date.parse(snapshot.updatedAt)
 			)}`,
-			cls: 'wiki-weaver-view__description',
+			cls: 'tracekeeper-view__description',
 		});
 		const actions = header.createDiv();
 		const refreshButton = actions.createEl('button', {
@@ -2731,7 +2731,7 @@ class WikiWeaverSourceStatusView extends ItemView {
 				await this.refresh();
 				new Notice(ui('来源状态已刷新。', 'Source status refreshed.'));
 			} catch (error) {
-				console.error('wiki-weaver failed to refresh source status view', error);
+				console.error('tracekeeper failed to refresh source status view', error);
 				refreshButton.disabled = false;
 				refreshButton.setText(ui('刷新', 'Refresh'));
 				new Notice(ui('刷新来源状态失败。', 'Failed to refresh source status.'));
@@ -2742,9 +2742,9 @@ class WikiWeaverSourceStatusView extends ItemView {
 			contentEl.createEl('p', {
 				text: ui(
 					'还没有来源请求记录。初始化知识库后，AI 助手提交的资料处理请求会显示在这里。',
-					'No source request records yet. After Wiki Weaver is initialized, material processing requests from your AI assistant will appear here.'
+					'No source request records yet. After Tracekeeper is initialized, material processing requests from your AI assistant will appear here.'
 				),
-				cls: 'wiki-weaver-view__description',
+				cls: 'tracekeeper-view__description',
 			});
 			return;
 		}
@@ -2755,14 +2755,14 @@ class WikiWeaverSourceStatusView extends ItemView {
 					'当前没有资料请求。',
 					'No material requests yet.'
 				),
-				cls: 'wiki-weaver-view__description',
+				cls: 'tracekeeper-view__description',
 			});
 			return;
 		}
 
-		const list = contentEl.createEl('ul', { cls: 'wiki-weaver-view__list' });
+		const list = contentEl.createEl('ul', { cls: 'tracekeeper-view__list' });
 		for (const request of snapshot.requests) {
-			const item = list.createEl('li', { cls: 'wiki-weaver-view__item' });
+			const item = list.createEl('li', { cls: 'tracekeeper-view__item' });
 			item.createEl('div', {
 				text: `${this.plugin.formatDisplayTime(request.sortTimestamp)} • ${request.sourceKind} • ${request.status}`,
 			});
@@ -2783,7 +2783,7 @@ class WikiWeaverSourceStatusView extends ItemView {
 			}
 			item.createEl('small', { text: `${ui('文件', 'File')}: ${request.path}` });
 			if (this.isPendingRequest(request.status)) {
-				const actionRow = item.createDiv({ cls: 'wiki-weaver-action-row' });
+				const actionRow = item.createDiv({ cls: 'tracekeeper-action-row' });
 				const processButton = actionRow.createEl('button', {
 					text: ui('处理资料请求', 'Process request'),
 					cls: 'mod-cta',
@@ -2796,7 +2796,7 @@ class WikiWeaverSourceStatusView extends ItemView {
 						new Notice(ui('资料请求已处理。', 'Source request processed.'));
 						await this.refresh();
 					} catch (error) {
-						console.error('wiki-weaver failed to process source request', error);
+						console.error('tracekeeper failed to process source request', error);
 						new Notice(ui('处理资料请求失败。', 'Failed to process source request.'));
 					} finally {
 						processButton.disabled = false;
@@ -2818,16 +2818,16 @@ class WikiWeaverSourceStatusView extends ItemView {
 	}
 }
 
-class WikiWeaverActivityView extends ItemView {
+class TracekeeperActivityView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
-		private plugin: WikiWeaverPlugin
+		private plugin: TracekeeperPlugin
 	) {
 		super(leaf);
 	}
 
 	getViewType() {
-		return WIKI_WEAVER_ACTIVITY_VIEW;
+		return TRACEKEEPER_ACTIVITY_VIEW;
 	}
 
 	getDisplayText() {
@@ -2854,11 +2854,11 @@ class WikiWeaverActivityView extends ItemView {
 	private async render(snapshot: AgentActivitySnapshot): Promise<void> {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass('wiki-weaver-view-root');
+		contentEl.addClass('tracekeeper-view-root');
 
-		const header = contentEl.createDiv({ cls: 'wiki-weaver-shell-header' });
+		const header = contentEl.createDiv({ cls: 'tracekeeper-shell-header' });
 		const heading = header.createDiv();
-		heading.createEl('h2', { text: ui('AI 助手活动', 'AI assistant activity'), cls: 'wiki-weaver-view__title' });
+		heading.createEl('h2', { text: ui('AI 助手活动', 'AI assistant activity'), cls: 'tracekeeper-view__title' });
 		heading.createEl('p', {
 			text: this.plugin.settings.showWelcomeMessage
 				? this.plugin.getStatusMessage()
@@ -2866,9 +2866,9 @@ class WikiWeaverActivityView extends ItemView {
 					'欢迎信息已关闭。活动数据以只读模式显示。',
 					'Welcome message is disabled. Activity data is shown in read-only mode.'
 				),
-			cls: 'wiki-weaver-view__description',
+			cls: 'tracekeeper-view__description',
 		});
-		const actions = header.createDiv({ cls: 'wiki-weaver-action-row' });
+		const actions = header.createDiv({ cls: 'tracekeeper-action-row' });
 		const refreshButton = actions.createEl('button', {
 			text: ui('刷新', 'Refresh'),
 			cls: 'mod-cta',
@@ -2880,7 +2880,7 @@ class WikiWeaverActivityView extends ItemView {
 				await this.refresh();
 				new Notice(ui('活动记录已刷新。', 'Activity refreshed.'));
 			} catch (error) {
-				console.error('wiki-weaver failed to refresh activity view', error);
+				console.error('tracekeeper failed to refresh activity view', error);
 				refreshButton.disabled = false;
 				refreshButton.setText(ui('刷新', 'Refresh'));
 				new Notice(ui('刷新活动记录失败。', 'Failed to refresh activity.'));
@@ -2898,32 +2898,32 @@ class WikiWeaverActivityView extends ItemView {
 			text: ui('打开审核列表', 'Open review list'),
 		});
 		reviewButton.addEventListener('click', () => {
-			void this.plugin.openPluginView(WIKI_WEAVER_REVIEW_QUEUE_VIEW);
+			void this.plugin.openPluginView(TRACEKEEPER_REVIEW_QUEUE_VIEW);
 		});
 		const connectionsButton = actions.createEl('button', {
 			text: ui('打开 AI 助手连接', 'Open AI assistant connections'),
 		});
 		connectionsButton.addEventListener('click', () => {
-			void this.plugin.openPluginView(WIKI_WEAVER_AGENT_CONNECTIONS_VIEW);
+			void this.plugin.openPluginView(TRACEKEEPER_AGENT_CONNECTIONS_VIEW);
 		});
 
-		const statusBar = contentEl.createDiv({ cls: 'wiki-weaver-status-bar' });
+		const statusBar = contentEl.createDiv({ cls: 'tracekeeper-status-bar' });
 		this.renderStatusItem(statusBar, 'MCP Runtime', snapshot.runtimeStatus.label);
 		this.renderStatusItem(statusBar, ui('记录', 'Records'), snapshot.structureStatus.state === 'initialized' ? ui('可读取', 'Readable') : snapshot.structureStatus.label);
 		this.renderStatusItem(statusBar, ui('知识库', 'Knowledge base'), snapshot.structureStatus.label);
 		this.renderStatusItem(statusBar, ui('权限', 'Permission'), ui('先审核再写入', 'Review before writing'));
 		this.renderStatusItem(statusBar, ui('刷新', 'Refresh'), this.plugin.formatDisplayTime(Date.parse(snapshot.updatedAt)));
 
-		const metrics = contentEl.createDiv({ cls: 'wiki-weaver-metric-grid' });
+		const metrics = contentEl.createDiv({ cls: 'tracekeeper-metric-grid' });
 		this.renderMetricCard(metrics, ui('当前任务', 'Active task'), snapshot.currentTask ? snapshot.currentTask.status : ui('无', 'None'), snapshot.currentTask?.taskId || ui('等待 AI 助手开始记录任务', 'Waiting for the AI assistant to start a task'));
 		this.renderMetricCard(metrics, ui('待审核', 'Pending review'), String(snapshot.recentProposals.filter((proposal) => proposal.approvalStatus === 'pending').length), ui('需要你确认的记忆更新', 'Memory updates waiting for your review'));
 		this.renderMetricCard(metrics, ui('来源请求', 'Source requests'), String(snapshot.recentSourceRequests.filter((request) => this.isSourceRequestPending(request.status)).length), ui('待处理资料请求', 'Pending material requests'));
 		this.renderMetricCard(metrics, ui('工具使用', 'Tool usage'), String(snapshot.recentAuditEvents.filter((event) => event.toolName).length), ui('最近连接操作记录', 'Recent connection activity'));
 
 		if (snapshot.structureStatus.state !== 'initialized') {
-			const structurePanel = contentEl.createDiv({ cls: 'wiki-weaver-card' });
-			structurePanel.createEl('h3', { text: ui('知识库结构', 'Wiki Weaver structure') });
-			structurePanel.createEl('p', { text: snapshot.structureStatus.detail, cls: 'wiki-weaver-view__description' });
+			const structurePanel = contentEl.createDiv({ cls: 'tracekeeper-card' });
+			structurePanel.createEl('h3', { text: ui('知识库结构', 'Tracekeeper structure') });
+			structurePanel.createEl('p', { text: snapshot.structureStatus.detail, cls: 'tracekeeper-view__description' });
 			if (snapshot.structureStatus.missingCount > 0) {
 				structurePanel.createEl('small', {
 					text: ui(
@@ -2934,7 +2934,7 @@ class WikiWeaverActivityView extends ItemView {
 			}
 		}
 
-		const currentSection = contentEl.createDiv({ cls: 'wiki-weaver-card' });
+		const currentSection = contentEl.createDiv({ cls: 'tracekeeper-card' });
 		currentSection.createEl('h3', { text: ui('当前任务', 'Current task') });
 		if (!snapshot.currentTask) {
 			this.renderEmptyState(
@@ -2943,7 +2943,7 @@ class WikiWeaverActivityView extends ItemView {
 					? ui('还没有任务记录。', 'No task records yet.')
 					: ui('还没有 AI 助手活动。', 'No AI assistant activity yet.'),
 				snapshot.structureStatus.state !== 'initialized'
-					? ui('请先初始化知识库文件结构，之后 AI 助手的任务记录会显示在这里。', 'Initialize the Wiki Weaver file structure first; task records will appear here afterward.')
+					? ui('请先初始化知识库文件结构，之后 AI 助手的任务记录会显示在这里。', 'Initialize the Tracekeeper file structure first; task records will appear here afterward.')
 					: ui('从 AI 助手开始一次任务后，这里会显示目标、来源和最近动作。', 'Start a task from your AI assistant to show goals, sources, and recent actions here.')
 			);
 		} else {
@@ -3017,7 +3017,7 @@ class WikiWeaverActivityView extends ItemView {
 			}),
 		].sort((a, b) => b.time - a.time).slice(0, 18);
 
-		const timeline = contentEl.createDiv({ cls: 'wiki-weaver-card' });
+		const timeline = contentEl.createDiv({ cls: 'tracekeeper-card' });
 		timeline.createEl('h3', { text: ui('活动时间线', 'Activity timeline') });
 		if (timelineItems.length === 0) {
 			this.renderEmptyState(
@@ -3026,14 +3026,14 @@ class WikiWeaverActivityView extends ItemView {
 				ui('从 AI 助手开始一次任务后，这里会按时间显示任务、来源、审核和写回记录。', 'Start a task from your AI assistant to show task, source, review, and writeback records here over time.')
 			);
 		} else {
-			const list = timeline.createDiv({ cls: 'wiki-weaver-timeline' });
+			const list = timeline.createDiv({ cls: 'tracekeeper-timeline' });
 			for (const item of timelineItems) {
-				const row = list.createDiv({ cls: 'wiki-weaver-timeline__item' });
-				row.createEl('div', { text: item.type, cls: 'wiki-weaver-badge' });
-				const body = row.createDiv({ cls: 'wiki-weaver-timeline__body' });
+				const row = list.createDiv({ cls: 'tracekeeper-timeline__item' });
+				row.createEl('div', { text: item.type, cls: 'tracekeeper-badge' });
+				const body = row.createDiv({ cls: 'tracekeeper-timeline__body' });
 				body.createEl('strong', { text: `${item.title || ui('未命名', 'Untitled')} • ${this.plugin.formatDisplayTime(item.time)}` });
 				if (item.meta) {
-					body.createEl('div', { text: item.meta, cls: 'wiki-weaver-view__description' });
+					body.createEl('div', { text: item.meta, cls: 'tracekeeper-view__description' });
 				}
 				if (item.body) {
 					body.createEl('div', { text: this.plugin.trimText(item.body, 160) });
@@ -3046,26 +3046,26 @@ class WikiWeaverActivityView extends ItemView {
 	}
 
 	private renderStatusItem(container: HTMLElement, label: string, value: string): void {
-		const item = container.createDiv({ cls: 'wiki-weaver-status-pill' });
+		const item = container.createDiv({ cls: 'tracekeeper-status-pill' });
 		item.createEl('span', { text: label });
 		item.createEl('strong', { text: value });
 	}
 
 	private renderMetricCard(container: HTMLElement, label: string, value: string, detail: string): void {
-		const card = container.createDiv({ cls: 'wiki-weaver-metric-card' });
-		card.createEl('div', { text: label, cls: 'wiki-weaver-metric-card__label' });
-		card.createEl('strong', { text: value, cls: 'wiki-weaver-metric-card__value' });
-		card.createEl('div', { text: detail, cls: 'wiki-weaver-view__description' });
+		const card = container.createDiv({ cls: 'tracekeeper-metric-card' });
+		card.createEl('div', { text: label, cls: 'tracekeeper-metric-card__label' });
+		card.createEl('strong', { text: value, cls: 'tracekeeper-metric-card__value' });
+		card.createEl('div', { text: detail, cls: 'tracekeeper-view__description' });
 	}
 
 	private renderEmptyState(container: HTMLElement, title: string, detail: string): void {
-		const empty = container.createDiv({ cls: 'wiki-weaver-empty-state' });
+		const empty = container.createDiv({ cls: 'tracekeeper-empty-state' });
 		empty.createEl('strong', { text: title });
 		empty.createEl('p', { text: detail });
 	}
 
 	private renderTaskEntry(container: HTMLElement, task: AgentTaskRecord, expanded: boolean): void {
-		const item = container.createDiv({ cls: 'wiki-weaver-view__item' });
+		const item = container.createDiv({ cls: 'tracekeeper-view__item' });
 		item.createEl('div', {
 			text: `${this.plugin.formatDisplayTime(task.sortTimestamp)} • ${task.taskId} • ${task.agent} • ${task.status}`,
 		});
@@ -3104,7 +3104,7 @@ class WikiWeaverActivityView extends ItemView {
 	private renderTaskSummary(container: HTMLElement, task: AgentTaskRecord): void {
 		const compact = container.createEl('div', {
 			text: `${task.taskId} • ${this.plugin.formatDisplayTime(task.sortTimestamp)} • ${task.status}`,
-			cls: 'wiki-weaver-view__item',
+			cls: 'tracekeeper-view__item',
 		});
 		if (task.objective) {
 			compact.createEl('div', { text: task.objective });
@@ -3117,18 +3117,18 @@ class WikiWeaverActivityView extends ItemView {
 	}
 }
 
-class WikiWeaverReviewQueueView extends ItemView {
+class TracekeeperReviewQueueView extends ItemView {
 	private activeFilter: MemoryProposalStatus | 'all' = 'pending';
 
 	constructor(
 		leaf: WorkspaceLeaf,
-		private plugin: WikiWeaverPlugin
+		private plugin: TracekeeperPlugin
 	) {
 		super(leaf);
 	}
 
 	getViewType() {
-		return WIKI_WEAVER_REVIEW_QUEUE_VIEW;
+		return TRACEKEEPER_REVIEW_QUEUE_VIEW;
 	}
 
 	getDisplayText() {
@@ -3155,17 +3155,17 @@ class WikiWeaverReviewQueueView extends ItemView {
 	private async render(snapshot: MemoryReviewQueueSnapshot): Promise<void> {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass('wiki-weaver-view-root');
+		contentEl.addClass('tracekeeper-view-root');
 
-		const header = contentEl.createDiv({ cls: 'wiki-weaver-shell-header' });
+		const header = contentEl.createDiv({ cls: 'tracekeeper-shell-header' });
 		const heading = header.createDiv();
-		heading.createEl('h2', { text: ui('审核队列', 'Review queue'), cls: 'wiki-weaver-view__title' });
+		heading.createEl('h2', { text: ui('审核队列', 'Review queue'), cls: 'tracekeeper-view__title' });
 		heading.createEl('p', {
 			text: `${ui('最后刷新', 'Last refreshed')}: ${this.plugin.formatDisplayTime(Date.parse(snapshot.updatedAt))}`,
-			cls: 'wiki-weaver-view__description',
+			cls: 'tracekeeper-view__description',
 		});
 
-		const actions = header.createDiv({ cls: 'wiki-weaver-action-row' });
+		const actions = header.createDiv({ cls: 'tracekeeper-action-row' });
 		const refreshButton = actions.createEl('button', {
 			text: ui('刷新', 'Refresh'),
 			cls: 'mod-cta',
@@ -3177,7 +3177,7 @@ class WikiWeaverReviewQueueView extends ItemView {
 				await this.refresh();
 				new Notice(ui('审核队列已刷新。', 'Review queue refreshed.'));
 			} catch (error) {
-				console.error('wiki-weaver failed to refresh review queue view', error);
+				console.error('tracekeeper failed to refresh review queue view', error);
 				refreshButton.disabled = false;
 				refreshButton.setText(ui('刷新', 'Refresh'));
 				new Notice(ui('刷新审核队列失败。', 'Failed to refresh review queue.'));
@@ -3188,9 +3188,9 @@ class WikiWeaverReviewQueueView extends ItemView {
 			contentEl.createEl('p', {
 				text: ui(
 					'还没有审核队列。请先初始化知识库文件结构，之后 AI 助手提出的记忆更新会出现在这里。',
-					'No review queue yet. Initialize the Wiki Weaver file structure first; proposed memory updates will appear here afterward.'
+					'No review queue yet. Initialize the Tracekeeper file structure first; proposed memory updates will appear here afterward.'
 				),
-				cls: 'wiki-weaver-view__description',
+				cls: 'tracekeeper-view__description',
 			});
 			return;
 		}
@@ -3205,7 +3205,7 @@ class WikiWeaverReviewQueueView extends ItemView {
 		}
 
 		const counts = this.countByStatus(snapshot.proposals);
-		const tabs = contentEl.createDiv({ cls: 'wiki-weaver-filter-tabs' });
+		const tabs = contentEl.createDiv({ cls: 'tracekeeper-filter-tabs' });
 		for (const filter of REVIEW_QUEUE_FILTERS) {
 			const label = filter === 'all' ? ui('全部', 'All') : memoryProposalStatusLabel(filter);
 			const count = filter === 'all' ? snapshot.proposals.length : counts[filter] || 0;
@@ -3222,7 +3222,7 @@ class WikiWeaverReviewQueueView extends ItemView {
 		const visibleProposals = snapshot.proposals.filter((proposal) =>
 			this.activeFilter === 'all' ? true : proposal.approvalStatus === this.activeFilter
 		);
-		const grid = contentEl.createDiv({ cls: 'wiki-weaver-proposal-grid' });
+		const grid = contentEl.createDiv({ cls: 'tracekeeper-proposal-grid' });
 		if (visibleProposals.length === 0) {
 			this.renderEmptyState(
 				grid,
@@ -3270,27 +3270,27 @@ class WikiWeaverReviewQueueView extends ItemView {
 	}
 
 	private renderProposalCard(container: HTMLElement, proposal: MemoryProposalRecord): void {
-		const card = container.createDiv({ cls: 'wiki-weaver-card wiki-weaver-proposal-card' });
-		const header = card.createDiv({ cls: 'wiki-weaver-card__header' });
+		const card = container.createDiv({ cls: 'tracekeeper-card tracekeeper-proposal-card' });
+		const header = card.createDiv({ cls: 'tracekeeper-card__header' });
 		header.createEl('strong', { text: proposal.proposalId || ui('未命名记忆更新', 'Untitled memory update') });
-		const badges = header.createDiv({ cls: 'wiki-weaver-badge-row' });
-		badges.createEl('span', { text: proposal.proposalKind, cls: 'wiki-weaver-badge' });
-		badges.createEl('span', { text: this.plugin.formatRiskLabel(proposal.riskLevel), cls: `wiki-weaver-badge wiki-weaver-badge--risk-${proposal.riskLevel.toLowerCase()}` });
-		badges.createEl('span', { text: memoryProposalStatusLabel(proposal.approvalStatus), cls: 'wiki-weaver-badge' });
+		const badges = header.createDiv({ cls: 'tracekeeper-badge-row' });
+		badges.createEl('span', { text: proposal.proposalKind, cls: 'tracekeeper-badge' });
+		badges.createEl('span', { text: this.plugin.formatRiskLabel(proposal.riskLevel), cls: `tracekeeper-badge tracekeeper-badge--risk-${proposal.riskLevel.toLowerCase()}` });
+		badges.createEl('span', { text: memoryProposalStatusLabel(proposal.approvalStatus), cls: 'tracekeeper-badge' });
 
-		const facts = card.createDiv({ cls: 'wiki-weaver-detail-grid' });
+		const facts = card.createDiv({ cls: 'tracekeeper-detail-grid' });
 		this.renderDetail(facts, ui('目标笔记', 'Target note'), proposal.targetNote || ui('未指定', 'Not specified'));
 		this.renderDetail(facts, ui('证据数量', 'Evidence count'), String(proposal.evidence.length));
 		this.renderDetail(facts, ui('任务', 'Task'), proposal.taskId || ui('无', 'None'));
 		this.renderDetail(facts, ui('创建时间', 'Created'), proposal.created || ui('未知', 'Unknown'));
 		this.renderDetail(facts, ui('提出来源', 'Proposed by'), proposal.proposedBy || 'unknown');
 		if (proposal.snippet) {
-			card.createEl('p', { text: this.plugin.trimText(proposal.snippet, 180), cls: 'wiki-weaver-view__description' });
+			card.createEl('p', { text: this.plugin.trimText(proposal.snippet, 180), cls: 'tracekeeper-view__description' });
 		}
 		card.createEl('small', { text: `${ui('文件', 'File')}: ${proposal.path}` });
 
 		if (proposal.evidence.length > 0) {
-			const detailPanel = card.createDiv({ cls: 'wiki-weaver-detail-panel' });
+			const detailPanel = card.createDiv({ cls: 'tracekeeper-detail-panel' });
 			detailPanel.createEl('strong', { text: ui('证据引用', 'Evidence refs') });
 			detailPanel.createEl('div', { text: proposal.evidence.join(', ') });
 		}
@@ -3299,14 +3299,14 @@ class WikiWeaverReviewQueueView extends ItemView {
 	}
 
 	private renderDetail(container: HTMLElement, label: string, value: string): void {
-		const item = container.createDiv({ cls: 'wiki-weaver-detail' });
+		const item = container.createDiv({ cls: 'tracekeeper-detail' });
 		item.createEl('span', { text: label });
 		item.createEl('strong', { text: value });
 	}
 
 	private renderProposalActions(card: HTMLElement, proposal: MemoryProposalRecord): void {
 		if (proposal.approvalStatus === 'pending') {
-			const actionRow = card.createDiv({ cls: 'wiki-weaver-action-row' });
+			const actionRow = card.createDiv({ cls: 'tracekeeper-action-row' });
 			const approve = actionRow.createEl('button', {
 				text: ui('批准', 'Approve'),
 				cls: 'mod-cta',
@@ -3335,7 +3335,7 @@ class WikiWeaverReviewQueueView extends ItemView {
 					));
 					await this.refresh();
 				} catch (error) {
-					console.error('wiki-weaver failed to update proposal status', error);
+					console.error('tracekeeper failed to update proposal status', error);
 					new Notice(ui('更新审核状态失败。', 'Failed to update review status.'));
 				} finally {
 					for (const button of actionButtons) {
@@ -3349,7 +3349,7 @@ class WikiWeaverReviewQueueView extends ItemView {
 			defer.addEventListener('click', () => void updateStatus('deferred'));
 			requestRevision.addEventListener('click', () => void updateStatus('revision_requested'));
 		} else if (proposal.approvalStatus === 'approved') {
-			const actionRow = card.createDiv({ cls: 'wiki-weaver-action-row' });
+			const actionRow = card.createDiv({ cls: 'tracekeeper-action-row' });
 			const apply = actionRow.createEl('button', {
 				text: ui('应用已批准写回', 'Apply approved writeback'),
 				cls: 'mod-cta',
@@ -3363,7 +3363,7 @@ class WikiWeaverReviewQueueView extends ItemView {
 	}
 
 	private renderEmptyState(container: HTMLElement, title: string, detail: string): void {
-		const empty = container.createDiv({ cls: 'wiki-weaver-empty-state' });
+		const empty = container.createDiv({ cls: 'tracekeeper-empty-state' });
 		empty.createEl('strong', { text: title });
 		empty.createEl('p', { text: detail });
 	}
@@ -3372,7 +3372,7 @@ class WikiWeaverReviewQueueView extends ItemView {
 class ApprovedWritebackApplyModal extends Modal {
 	constructor(
 		app: App,
-		private plugin: WikiWeaverPlugin,
+		private plugin: TracekeeperPlugin,
 		private proposal: MemoryProposalRecord,
 		private onApplied: () => void
 	) {
@@ -3395,7 +3395,7 @@ class ApprovedWritebackApplyModal extends Modal {
 			const preview = await this.plugin.previewApprovedWriteback(this.proposal);
 			this.renderReady(preview);
 		} catch (error) {
-			console.error('wiki-weaver failed to preview approved writeback', error);
+			console.error('tracekeeper failed to preview approved writeback', error);
 			contentEl.empty();
 			contentEl.createEl('p', {
 				text: ui('生成写回预览失败，请检查该提案是否仍处于已批准状态。', 'Failed to generate writeback preview. Check whether this proposal is still approved.'),
@@ -3411,7 +3411,7 @@ class ApprovedWritebackApplyModal extends Modal {
 		contentEl.createEl('p', {
 			text: ui('请确认以下内容将写入目标笔记。', 'Confirm the content that will be written to the target note.'),
 		});
-		const facts = contentEl.createDiv({ cls: 'wiki-weaver-detail-grid' });
+		const facts = contentEl.createDiv({ cls: 'tracekeeper-detail-grid' });
 		this.renderDetail(facts, ui('提案', 'Proposal'), preview.proposal_id || this.proposal.proposalId);
 		this.renderDetail(facts, ui('目标笔记', 'Target note'), preview.target_note || this.proposal.targetNote);
 		this.renderDetail(facts, ui('涉及文件', 'Touched notes'), (preview.touched_notes || []).join(', '));
@@ -3431,7 +3431,7 @@ class ApprovedWritebackApplyModal extends Modal {
 				this.onApplied();
 				this.close();
 			} catch (error) {
-				console.error('wiki-weaver failed to apply approved writeback', error);
+				console.error('tracekeeper failed to apply approved writeback', error);
 				new Notice(ui('应用写回失败。', 'Failed to apply writeback.'));
 				confirm.disabled = false;
 				confirm.setText(ui('确认写回', 'Apply writeback'));
@@ -3440,22 +3440,22 @@ class ApprovedWritebackApplyModal extends Modal {
 	}
 
 	private renderDetail(container: HTMLElement, label: string, value: string): void {
-		const item = container.createDiv({ cls: 'wiki-weaver-detail' });
+		const item = container.createDiv({ cls: 'tracekeeper-detail' });
 		item.createEl('span', { text: label });
 		item.createEl('strong', { text: value || ui('未指定', 'Not specified') });
 	}
 }
 
-class WikiWeaverAgentConnectionsView extends ItemView {
+class TracekeeperAgentConnectionsView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
-		private plugin: WikiWeaverPlugin
+		private plugin: TracekeeperPlugin
 	) {
 		super(leaf);
 	}
 
 	getViewType() {
-		return WIKI_WEAVER_AGENT_CONNECTIONS_VIEW;
+		return TRACEKEEPER_AGENT_CONNECTIONS_VIEW;
 	}
 
 	getDisplayText() {
@@ -3487,44 +3487,44 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 	private async render(snapshot: AgentConnectionsSnapshot): Promise<void> {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass('wiki-weaver-view-root');
+		contentEl.addClass('tracekeeper-view-root');
 
-		const header = contentEl.createDiv({ cls: 'wiki-weaver-shell-header' });
+		const header = contentEl.createDiv({ cls: 'tracekeeper-shell-header' });
 		const heading = header.createDiv();
-		heading.createEl('h2', { text: ui('AI 助手连接', 'AI Assistant Connections'), cls: 'wiki-weaver-view__title' });
+		heading.createEl('h2', { text: ui('AI 助手连接', 'AI Assistant Connections'), cls: 'tracekeeper-view__title' });
 		heading.createEl('p', {
 			text: ui(
 				'复制常用 AI 工具的连接信息，并查看最近的连接和使用记录。',
 				'Copy connection details for common AI tools and review recent connection activity.'
 			),
-			cls: 'wiki-weaver-view__description',
+			cls: 'tracekeeper-view__description',
 		});
-		const actions = header.createDiv({ cls: 'wiki-weaver-action-row' });
+		const actions = header.createDiv({ cls: 'tracekeeper-action-row' });
 		const refreshButton = actions.createEl('button', { text: ui('刷新', 'Refresh'), cls: 'mod-cta' });
 		refreshButton.addEventListener('click', () => {
 			void this.handleRefreshClick(refreshButton);
 		});
 
-		const statusBar = contentEl.createDiv({ cls: 'wiki-weaver-status-bar' });
+		const statusBar = contentEl.createDiv({ cls: 'tracekeeper-status-bar' });
 		this.renderStatusItem(statusBar, 'MCP Runtime', snapshot.runtimeStatus.label);
 		this.renderStatusItem(statusBar, ui('绑定范围', 'Binding'), '127.0.0.1');
 		this.renderStatusItem(statusBar, ui('当前知识库', 'Current knowledge base'), snapshot.vaultRoot);
 		this.renderStatusItem(statusBar, ui('最近连接', 'Recent connections'), String(snapshot.recentAgents.length));
 		this.renderStatusItem(statusBar, ui('使用记录', 'Usage records'), String(snapshot.recentToolCalls.length));
 
-		const connectionPanel = contentEl.createDiv({ cls: 'wiki-weaver-card wiki-weaver-connection-panel' });
+		const connectionPanel = contentEl.createDiv({ cls: 'tracekeeper-card tracekeeper-connection-panel' });
 		connectionPanel.createEl('h3', { text: ui('AI 工具连接', 'AI tool connections') });
 
-		const connectionCheck = connectionPanel.createDiv({ cls: 'wiki-weaver-connection-check' });
+		const connectionCheck = connectionPanel.createDiv({ cls: 'tracekeeper-connection-check' });
 		connectionCheck.createEl('h4', { text: 'MCP Runtime' });
 		connectionCheck.createEl('p', {
 			text: ui(
 				'MCP Runtime 随 Obsidian 启动和关闭；保持 Obsidian 开启时，AI 工具可以连接本机地址。',
 				'The MCP Runtime starts and stops with Obsidian; AI tools can connect to the local URL while Obsidian is open.'
 			),
-			cls: 'wiki-weaver-view__description',
+			cls: 'tracekeeper-view__description',
 		});
-		const endpointGrid = connectionCheck.createDiv({ cls: 'wiki-weaver-detail-grid wiki-weaver-connection-detail-grid' });
+		const endpointGrid = connectionCheck.createDiv({ cls: 'tracekeeper-detail-grid tracekeeper-connection-detail-grid' });
 		this.renderDetail(endpointGrid, ui('运行状态', 'Runtime status'), snapshot.runtimeStatus.label);
 		this.renderDetail(endpointGrid, ui('状态说明', 'Status detail'), snapshot.runtimeStatus.detail, 'description');
 		this.renderCopyableDetail(
@@ -3550,41 +3550,41 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 		const coreClientConfigs = snapshot.clientConfigs.filter((config) => coreClientIds.has(config.clientId));
 		const advancedClientConfigs = snapshot.clientConfigs.filter((config) => !coreClientIds.has(config.clientId));
 
-		const commonConnections = connectionPanel.createDiv({ cls: 'wiki-weaver-connection-section' });
+		const commonConnections = connectionPanel.createDiv({ cls: 'tracekeeper-connection-section' });
 		commonConnections.createEl('h4', { text: ui('客户端配置', 'Client configuration') });
-		const configGrid = commonConnections.createDiv({ cls: 'wiki-weaver-config-grid' });
+		const configGrid = commonConnections.createDiv({ cls: 'tracekeeper-config-grid' });
 		for (const clientConfig of coreClientConfigs) {
 			this.renderConfigCard(configGrid, clientConfig);
 		}
 		if (advancedClientConfigs.length > 0) {
-			const advanced = connectionPanel.createDiv({ cls: 'wiki-weaver-connection-section wiki-weaver-advanced-config' });
+			const advanced = connectionPanel.createDiv({ cls: 'tracekeeper-connection-section tracekeeper-advanced-config' });
 			advanced.createEl('h4', { text: ui('更多连接方式', 'More connection methods') });
 			advanced.createEl('p', {
 				text: ui(
 					'上方列表没有你的 AI 工具时再使用；当前只提供 Streamable HTTP 连接地址。',
-					'Use this only when your AI tool is not listed above; Wiki Weaver now exposes only a Streamable HTTP URL.'
+					'Use this only when your AI tool is not listed above; Tracekeeper now exposes only a Streamable HTTP URL.'
 				),
-				cls: 'wiki-weaver-view__description',
+				cls: 'tracekeeper-view__description',
 			});
-			const advancedDetails = advanced.createEl('details', { cls: 'wiki-weaver-advanced-details' });
+			const advancedDetails = advanced.createEl('details', { cls: 'tracekeeper-advanced-details' });
 			const summary = advancedDetails.createEl('summary', { text: ui('查看手动方式', 'Show manual methods') });
-			const advancedList = advancedDetails.createDiv({ cls: 'wiki-weaver-advanced-list' });
+			const advancedList = advancedDetails.createDiv({ cls: 'tracekeeper-advanced-list' });
 			for (const clientConfig of advancedClientConfigs) {
 				this.renderAdvancedConfigRow(advancedList, clientConfig);
 			}
-			summary.addClass('wiki-weaver-advanced-summary');
+			summary.addClass('tracekeeper-advanced-summary');
 		}
 
-		const exposedTools = contentEl.createDiv({ cls: 'wiki-weaver-card' });
+		const exposedTools = contentEl.createDiv({ cls: 'tracekeeper-card' });
 		exposedTools.createEl('h3', { text: ui('可用能力', 'Available capabilities') });
 		exposedTools.createEl('p', {
 			text: ui(
 				'连接成功后，AI 助手可以使用这些能力。需要写入长期记忆的内容仍会先进入审核。',
 				'After connecting, your AI assistant can use these capabilities. Anything that updates long-term memory still goes through review first.'
 			),
-			cls: 'wiki-weaver-view__description',
+			cls: 'tracekeeper-view__description',
 		});
-		const toolGrid = exposedTools.createDiv({ cls: 'wiki-weaver-detail-grid' });
+		const toolGrid = exposedTools.createDiv({ cls: 'tracekeeper-detail-grid' });
 		this.renderToolset(toolGrid, ui('只读', 'Read-only'), [
 			ui('查看连接和资料状态', 'Check connection and knowledge base status'),
 			ui('查找相关笔记', 'Find related notes'),
@@ -3610,20 +3610,20 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 			ui('批量删除或重写内容', 'Delete or rewrite content in bulk'),
 		]);
 
-		const agents = contentEl.createDiv({ cls: 'wiki-weaver-card' });
+		const agents = contentEl.createDiv({ cls: 'tracekeeper-card' });
 		agents.createEl('h3', { text: ui('最近连接的 AI 工具', 'Recently connected AI tools') });
 		if (snapshot.recentAgents.length === 0) {
 			this.renderEmptyState(
 				agents,
 				ui('还没有连接记录。', 'No connection records yet.'),
 				snapshot.missingAuditSources
-					? ui('还没有记录文件。初始化知识库后，连接和操作记录会显示在这里。', 'No activity file yet. After Wiki Weaver is initialized, connection and usage records will appear here.')
-					: ui('启动知识库服务后，把上方配置复制到你的 AI 工具。', 'Start Wiki Weaver, then copy one of the configs above into your AI tool.')
+					? ui('还没有记录文件。初始化知识库后，连接和操作记录会显示在这里。', 'No activity file yet. After Tracekeeper is initialized, connection and usage records will appear here.')
+					: ui('启动知识库服务后，把上方配置复制到你的 AI 工具。', 'Start Tracekeeper, then copy one of the configs above into your AI tool.')
 			);
 		} else {
-			const list = agents.createDiv({ cls: 'wiki-weaver-table-list' });
+			const list = agents.createDiv({ cls: 'tracekeeper-table-list' });
 			for (const agent of snapshot.recentAgents) {
-				const row = list.createDiv({ cls: 'wiki-weaver-table-row' });
+				const row = list.createDiv({ cls: 'tracekeeper-table-row' });
 				row.createEl('strong', { text: agent.clientName || agent.agentId });
 				row.createEl('span', { text: this.plugin.formatResultLabel(agent.status) });
 				row.createEl('span', { text: `${ui('最后出现', 'Last seen')}: ${this.plugin.formatDisplayTime(agent.sortTimestamp)}` });
@@ -3632,24 +3632,24 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 			}
 		}
 
-		const calls = contentEl.createDiv({ cls: 'wiki-weaver-card' });
+		const calls = contentEl.createDiv({ cls: 'tracekeeper-card' });
 		calls.createEl('h3', { text: ui('最近使用记录', 'Recent usage') });
 		if (snapshot.recentToolCalls.length === 0) {
 			this.renderEmptyState(
 				calls,
 				ui('还没有使用记录。', 'No usage records yet.'),
-				ui('AI 助手使用知识库后，这里会显示使用时间、结果和相关笔记。', 'After your AI assistant uses Wiki Weaver, this panel shows time, result, and related notes.')
+				ui('AI 助手使用知识库后，这里会显示使用时间、结果和相关笔记。', 'After your AI assistant uses Tracekeeper, this panel shows time, result, and related notes.')
 			);
 		} else {
-			const timeline = calls.createDiv({ cls: 'wiki-weaver-timeline' });
+			const timeline = calls.createDiv({ cls: 'tracekeeper-timeline' });
 			for (const call of snapshot.recentToolCalls) {
-				const row = timeline.createDiv({ cls: 'wiki-weaver-timeline__item' });
-				row.createEl('div', { text: this.plugin.formatResultLabel(call.resultStatus), cls: 'wiki-weaver-badge' });
-				const body = row.createDiv({ cls: 'wiki-weaver-timeline__body' });
+				const row = timeline.createDiv({ cls: 'tracekeeper-timeline__item' });
+				row.createEl('div', { text: this.plugin.formatResultLabel(call.resultStatus), cls: 'tracekeeper-badge' });
+				const body = row.createDiv({ cls: 'tracekeeper-timeline__body' });
 				body.createEl('strong', { text: `${this.plugin.formatToolDisplayName(call.toolName)} • ${this.plugin.formatDisplayTime(call.sortTimestamp)}` });
 				body.createEl('div', {
 					text: `${call.clientName || call.agentId} • ${ui('权限', 'Permission')}: ${this.plugin.formatRiskLabel(call.riskLevel)}`,
-					cls: 'wiki-weaver-view__description',
+					cls: 'tracekeeper-view__description',
 				});
 				if (call.targetPaths.length > 0) {
 					body.createEl('small', { text: call.targetPaths.join(', ') });
@@ -3657,15 +3657,15 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 				if (call.argsSummary) {
 					body.createEl('div', {
 						text: ui('本次使用包含输入参数，详细内容已按安全规则记录。', 'This use included input details, recorded under the safety rules.'),
-						cls: 'wiki-weaver-view__description',
+						cls: 'tracekeeper-view__description',
 					});
 				}
 			}
 		}
 
-		const policy = contentEl.createDiv({ cls: 'wiki-weaver-card' });
+		const policy = contentEl.createDiv({ cls: 'tracekeeper-card' });
 		policy.createEl('h3', { text: ui('权限说明', 'Permission guide') });
-		const matrix = policy.createDiv({ cls: 'wiki-weaver-detail-grid' });
+		const matrix = policy.createDiv({ cls: 'tracekeeper-detail-grid' });
 		this.renderDetail(matrix, ui('默认', 'Default'), ui('只读', 'Read-only'));
 		this.renderDetail(matrix, ui('工作记录', 'Working records'), ui('保存前检查', 'Checked before saving'));
 		this.renderDetail(matrix, ui('长期记忆', 'Long-term memory'), ui('先审核再写入', 'Review before writing'));
@@ -3673,16 +3673,16 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 	}
 
 	private renderConfigCard(container: HTMLElement, config: GeneratedClientConfig): void {
-		const row = container.createDiv({ cls: 'wiki-weaver-config-row' });
-		const client = row.createDiv({ cls: 'wiki-weaver-config-row__client' });
-		const title = client.createDiv({ cls: 'wiki-weaver-config-row__title' });
+		const row = container.createDiv({ cls: 'tracekeeper-config-row' });
+		const client = row.createDiv({ cls: 'tracekeeper-config-row__client' });
+		const title = client.createDiv({ cls: 'tracekeeper-config-row__title' });
 		title.createEl('strong', { text: config.displayName });
 		title.createEl('span', {
 			text: config.configStatusLabel,
-			cls: `wiki-weaver-badge ${this.configStatusClass(config.configState)}`,
+			cls: `tracekeeper-badge ${this.configStatusClass(config.configState)}`,
 		});
 		client.createEl('small', { text: config.configStatusDetail });
-		const actions = row.createDiv({ cls: 'wiki-weaver-config-row__actions wiki-weaver-action-row' });
+		const actions = row.createDiv({ cls: 'tracekeeper-config-row__actions tracekeeper-action-row' });
 
 		if (config.configState !== 'configured') {
 			const copy = actions.createEl('button', { text: ui('复制配置', 'Copy config') });
@@ -3731,7 +3731,7 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 			await this.refresh();
 			new Notice(ui('连接状态已刷新。', 'Connection status refreshed.'));
 		} catch (error) {
-			console.error('wiki-weaver failed to refresh agent connections view', error);
+			console.error('tracekeeper failed to refresh agent connections view', error);
 			refreshButton.disabled = false;
 			refreshButton.setText(ui('刷新', 'Refresh'));
 			new Notice(ui('刷新连接状态失败。', 'Failed to refresh connection status.'));
@@ -3741,22 +3741,22 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 	private configStatusClass(state: ClientConfigState): string {
 		switch (state) {
 			case 'configured':
-				return 'wiki-weaver-badge--success';
+				return 'tracekeeper-badge--success';
 			case 'needs_update':
-				return 'wiki-weaver-badge--warning';
+				return 'tracekeeper-badge--warning';
 			case 'not_configured':
 			case 'unavailable':
 			default:
-				return 'wiki-weaver-badge--muted';
+				return 'tracekeeper-badge--muted';
 		}
 	}
 
 	private renderAdvancedConfigRow(container: HTMLElement, config: GeneratedClientConfig): void {
-		const row = container.createDiv({ cls: 'wiki-weaver-advanced-config-row' });
-		const info = row.createDiv({ cls: 'wiki-weaver-advanced-config-row__info' });
+		const row = container.createDiv({ cls: 'tracekeeper-advanced-config-row' });
+		const info = row.createDiv({ cls: 'tracekeeper-advanced-config-row__info' });
 		info.createEl('strong', { text: config.displayName });
 		info.createEl('small', { text: config.description });
-		const actions = row.createDiv({ cls: 'wiki-weaver-action-row' });
+		const actions = row.createDiv({ cls: 'tracekeeper-action-row' });
 		const copy = actions.createEl('button', {
 			text: ui('复制地址配置', 'Copy URL config'),
 		});
@@ -3775,25 +3775,25 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 	}
 
 	private renderStatusItem(container: HTMLElement, label: string, value: string): void {
-		const item = container.createDiv({ cls: 'wiki-weaver-status-pill' });
+		const item = container.createDiv({ cls: 'tracekeeper-status-pill' });
 		item.createEl('span', { text: label });
 		item.createEl('strong', { text: value });
 	}
 
 	private renderDetail(container: HTMLElement, label: string, value: string, variant?: 'description'): void {
 		const item = container.createDiv({
-			cls: variant === 'description' ? 'wiki-weaver-detail wiki-weaver-detail--description' : 'wiki-weaver-detail',
+			cls: variant === 'description' ? 'tracekeeper-detail tracekeeper-detail--description' : 'tracekeeper-detail',
 		});
 		item.createEl('span', { text: label });
 		item.createEl('strong', { text: value });
 	}
 
 	private renderCopyableDetail(container: HTMLElement, label: string, value: string, buttonLabel: string, notice: string, canCopy = true): void {
-		const item = container.createDiv({ cls: 'wiki-weaver-detail wiki-weaver-detail--copyable' });
+		const item = container.createDiv({ cls: 'tracekeeper-detail tracekeeper-detail--copyable' });
 		item.createEl('span', { text: label });
-		const row = item.createDiv({ cls: 'wiki-weaver-detail__value-row' });
+		const row = item.createDiv({ cls: 'tracekeeper-detail__value-row' });
 		row.createEl('strong', { text: value });
-		const copy = row.createEl('button', { cls: 'wiki-weaver-copy-icon-button' });
+		const copy = row.createEl('button', { cls: 'tracekeeper-copy-icon-button' });
 		copy.disabled = !canCopy;
 		setIcon(copy, 'copy');
 		copy.setAttr('aria-label', buttonLabel);
@@ -3804,7 +3804,7 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 	}
 
 	private renderToolset(container: HTMLElement, title: string, tools: string[]): void {
-		const item = container.createDiv({ cls: 'wiki-weaver-detail-panel' });
+		const item = container.createDiv({ cls: 'tracekeeper-detail-panel' });
 		item.createEl('strong', { text: title });
 		const list = item.createEl('ul');
 		for (const tool of tools) {
@@ -3813,7 +3813,7 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 	}
 
 	private renderEmptyState(container: HTMLElement, title: string, detail: string): void {
-		const empty = container.createDiv({ cls: 'wiki-weaver-empty-state' });
+		const empty = container.createDiv({ cls: 'tracekeeper-empty-state' });
 		empty.createEl('strong', { text: title });
 		empty.createEl('p', { text: detail });
 	}
@@ -3822,7 +3822,7 @@ class WikiWeaverAgentConnectionsView extends ItemView {
 class ClientConfigPreviewModal extends Modal {
 	constructor(
 		app: App,
-		private plugin: WikiWeaverPlugin,
+		private plugin: TracekeeperPlugin,
 		private config: GeneratedClientConfig,
 		private mode: 'apply' | 'remove'
 	) {
@@ -3839,18 +3839,18 @@ class ClientConfigPreviewModal extends Modal {
 		});
 		contentEl.createEl('p', {
 			text: this.mode === 'apply'
-				? ui('将只写入知识库连接配置，不会修改其他 MCP server。写入前会创建备份。', 'Only the Wiki Weaver connection will be written. Other MCP servers will not be changed. A backup will be created first.')
-				: ui('将只移除知识库连接配置，不会删除其他 MCP server。移除前会创建备份。', 'Only the Wiki Weaver connection will be removed. Other MCP servers will not be deleted. A backup will be created first.'),
-			cls: 'wiki-weaver-view__description',
+				? ui('将只写入知识库连接配置，不会修改其他 MCP server。写入前会创建备份。', 'Only the Tracekeeper connection will be written. Other MCP servers will not be changed. A backup will be created first.')
+				: ui('将只移除知识库连接配置，不会删除其他 MCP server。移除前会创建备份。', 'Only the Tracekeeper connection will be removed. Other MCP servers will not be deleted. A backup will be created first.'),
+			cls: 'tracekeeper-view__description',
 		});
-		const details = contentEl.createDiv({ cls: 'wiki-weaver-detail-grid' });
+		const details = contentEl.createDiv({ cls: 'tracekeeper-detail-grid' });
 		this.renderDetail(details, ui('AI 工具', 'AI tool'), this.config.displayName);
 		this.renderDetail(details, ui('配置文件', 'Config file'), this.config.targetPath || ui('不可用', 'Unavailable'));
 		this.renderDetail(details, ui('连接方式', 'Connection'), this.transportLabel(this.config.transport));
 		if (this.mode === 'apply') {
-			contentEl.createEl('pre', { text: this.config.configText, cls: 'wiki-weaver-code-block' });
+			contentEl.createEl('pre', { text: this.config.configText, cls: 'tracekeeper-code-block' });
 		}
-		const actions = contentEl.createDiv({ cls: 'wiki-weaver-action-row' });
+		const actions = contentEl.createDiv({ cls: 'tracekeeper-action-row' });
 		const cancel = actions.createEl('button', { text: ui('取消', 'Cancel') });
 		cancel.addEventListener('click', () => this.close());
 		const confirmText = this.mode === 'apply' ? ui('确认写入', 'Write config') : ui('移除配置', 'Remove config');
@@ -3858,7 +3858,7 @@ class ClientConfigPreviewModal extends Modal {
 			text: confirmText,
 			cls: 'mod-cta',
 		});
-		const status = actions.createEl('span', { cls: 'wiki-weaver-view__description' });
+		const status = actions.createEl('span', { cls: 'tracekeeper-view__description' });
 		confirm.addEventListener('click', async () => {
 			confirm.disabled = true;
 			cancel.disabled = true;
@@ -3881,7 +3881,7 @@ class ClientConfigPreviewModal extends Modal {
 	}
 
 	private renderDetail(container: HTMLElement, label: string, value: string): void {
-		const item = container.createDiv({ cls: 'wiki-weaver-detail' });
+		const item = container.createDiv({ cls: 'tracekeeper-detail' });
 		item.createEl('span', { text: label });
 		item.createEl('strong', { text: value });
 	}
@@ -3896,13 +3896,13 @@ class ClientConfigPreviewModal extends Modal {
 	}
 }
 
-class WikiWeaverMemoryInspectorView extends ItemView {
+class TracekeeperMemoryInspectorView extends ItemView {
 	constructor(leaf: WorkspaceLeaf) {
 		super(leaf);
 	}
 
 	getViewType() {
-		return WIKI_WEAVER_MEMORY_INSPECTOR_VIEW;
+		return TRACEKEEPER_MEMORY_INSPECTOR_VIEW;
 	}
 
 	getDisplayText() {
@@ -3929,29 +3929,29 @@ class WikiWeaverMemoryInspectorView extends ItemView {
 	private render() {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass('wiki-weaver-view-root');
+		contentEl.addClass('tracekeeper-view-root');
 
-		contentEl.createEl('h2', { text: ui('记忆查看', 'Memory view'), cls: 'wiki-weaver-view__title' });
+		contentEl.createEl('h2', { text: ui('记忆查看', 'Memory view'), cls: 'tracekeeper-view__title' });
 		contentEl.createEl('p', {
 			text: ui(
 				'这里用于查看已保存的记忆、来源证据和最近使用情况。完成一次审核或记录后，相关内容会逐步出现在这里。',
 				'Use this page to review saved memories, source evidence, and recent usage. Related details appear here after review or recording activity.'
 			),
-			cls: 'wiki-weaver-view__description',
+			cls: 'tracekeeper-view__description',
 		});
 	}
 }
 
-class WikiWeaverAuditLogView extends ItemView {
+class TracekeeperAuditLogView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
-		private plugin: WikiWeaverPlugin
+		private plugin: TracekeeperPlugin
 	) {
 		super(leaf);
 	}
 
 	getViewType() {
-		return WIKI_WEAVER_AUDIT_LOG_VIEW;
+		return TRACEKEEPER_AUDIT_LOG_VIEW;
 	}
 
 	getDisplayText() {
@@ -3978,29 +3978,29 @@ class WikiWeaverAuditLogView extends ItemView {
 	private render() {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass('wiki-weaver-view-root');
+		contentEl.addClass('tracekeeper-view-root');
 
-		contentEl.createEl('h2', { text: ui('操作记录', 'Activity log'), cls: 'wiki-weaver-view__title' });
+		contentEl.createEl('h2', { text: ui('操作记录', 'Activity log'), cls: 'tracekeeper-view__title' });
 		contentEl.createEl('p', {
 			text: ui(
 				'连接、审核和写回操作会形成记录，便于你追溯谁在什么时候改了什么。最近活动也会显示在活动页中。',
 				'Connection, review, and writeback actions are recorded so you can trace what changed and when. Recent activity is also shown on the activity page.'
 			),
-			cls: 'wiki-weaver-view__description',
+			cls: 'tracekeeper-view__description',
 		});
 	}
 }
 
-class WikiWeaverRuntimeStatusView extends ItemView {
+class TracekeeperRuntimeStatusView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
-		private plugin: WikiWeaverPlugin
+		private plugin: TracekeeperPlugin
 	) {
 		super(leaf);
 	}
 
 	getViewType() {
-		return WIKI_WEAVER_RUNTIME_STATUS_VIEW;
+		return TRACEKEEPER_RUNTIME_STATUS_VIEW;
 	}
 
 	getDisplayText() {
@@ -4027,19 +4027,19 @@ class WikiWeaverRuntimeStatusView extends ItemView {
 	private render() {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass('wiki-weaver-view-root');
+		contentEl.addClass('tracekeeper-view-root');
 		const status = this.plugin.getRuntimeViewStatus();
 
-		contentEl.createEl('h2', { text: ui('连接状态', 'Connection status'), cls: 'wiki-weaver-view__title' });
+		contentEl.createEl('h2', { text: ui('连接状态', 'Connection status'), cls: 'tracekeeper-view__title' });
 		contentEl.createEl('p', {
 			text: ui(
 				'MCP Runtime 由 Obsidian 桌面端托管，随 Obsidian 启动和关闭。',
 				'The MCP Runtime is hosted by desktop Obsidian and starts and stops with Obsidian.'
 			),
-			cls: 'wiki-weaver-view__description',
+			cls: 'tracekeeper-view__description',
 		});
 
-		const detailGrid = contentEl.createDiv({ cls: 'wiki-weaver-detail-grid' });
+		const detailGrid = contentEl.createDiv({ cls: 'tracekeeper-detail-grid' });
 		this.renderDetail(detailGrid, 'MCP Runtime', status.label);
 		this.renderDetail(detailGrid, ui('连接地址', 'Connection URL'), this.plugin.getMcpConnectionUrl());
 		this.renderDetail(detailGrid, ui('绑定范围', 'Binding'), ui('仅本机 127.0.0.1', 'Localhost only, 127.0.0.1'));
@@ -4054,19 +4054,19 @@ class WikiWeaverRuntimeStatusView extends ItemView {
 	}
 
 	private renderDetail(container: HTMLElement, label: string, value: string): void {
-		const item = container.createDiv({ cls: 'wiki-weaver-detail' });
+		const item = container.createDiv({ cls: 'tracekeeper-detail' });
 		item.createEl('span', { text: label });
 		item.createEl('strong', { text: value });
 	}
 }
 
-class WikiWeaverPermissionPolicyView extends ItemView {
+class TracekeeperPermissionPolicyView extends ItemView {
 	constructor(leaf: WorkspaceLeaf) {
 		super(leaf);
 	}
 
 	getViewType() {
-		return WIKI_WEAVER_PERMISSION_POLICY_VIEW;
+		return TRACEKEEPER_PERMISSION_POLICY_VIEW;
 	}
 
 	getDisplayText() {
@@ -4093,15 +4093,15 @@ class WikiWeaverPermissionPolicyView extends ItemView {
 	private render() {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass('wiki-weaver-view-root');
+		contentEl.addClass('tracekeeper-view-root');
 
-		contentEl.createEl('h2', { text: ui('权限说明', 'Permission guide'), cls: 'wiki-weaver-view__title' });
+		contentEl.createEl('h2', { text: ui('权限说明', 'Permission guide'), cls: 'tracekeeper-view__title' });
 		contentEl.createEl('p', {
 			text: ui(
 				'知识库默认先读取和整理资料；任何会影响长期记忆的重要写入，都必须先经过你审核。',
-				'Wiki Weaver reads and organizes material by default; important writes that affect long-term memory must be reviewed by you first.'
+				'Tracekeeper reads and organizes material by default; important writes that affect long-term memory must be reviewed by you first.'
 			),
-			cls: 'wiki-weaver-view__description',
+			cls: 'tracekeeper-view__description',
 		});
 
 		const sections = [
@@ -4160,30 +4160,30 @@ class WikiWeaverPermissionPolicyView extends ItemView {
 		];
 
 		for (const policySection of sections) {
-			const section = contentEl.createDiv({ cls: 'wiki-weaver-view__section' });
+			const section = contentEl.createDiv({ cls: 'tracekeeper-view__section' });
 			section.createEl('h3', { text: policySection.title });
-			const list = section.createEl('ul', { cls: 'wiki-weaver-view__list' });
+			const list = section.createEl('ul', { cls: 'tracekeeper-view__list' });
 			for (const item of policySection.items) {
-				list.createEl('li', { text: item, cls: 'wiki-weaver-view__item' });
+				list.createEl('li', { text: item, cls: 'tracekeeper-view__item' });
 			}
 		}
 
-		const source = contentEl.createDiv({ cls: 'wiki-weaver-view__section' });
+		const source = contentEl.createDiv({ cls: 'tracekeeper-view__section' });
 		source.createEl('h3', { text: ui('使用提示', 'Tip') });
 		source.createEl('p', {
 			text: ui(
 				'如果不确定某条记忆是否应该保存，请选择“要求修订”或“暂缓”，不要直接批准。',
 				'If you are unsure whether a memory should be saved, choose request revision or defer instead of approving it.'
 			),
-			cls: 'wiki-weaver-view__description',
+			cls: 'tracekeeper-view__description',
 		});
 	}
 }
 
-class WikiWeaverSettingTab extends PluginSettingTab {
+class TracekeeperSettingTab extends PluginSettingTab {
 	constructor(
 		app: App,
-		private plugin: WikiWeaverPlugin
+		private plugin: TracekeeperPlugin
 	) {
 		super(app, plugin);
 	}

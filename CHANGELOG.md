@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Wiki Weaver will be documented in this file.
+All notable changes to Tracekeeper will be documented in this file.
 
 ## [0.1.0] - Initial Private Build
 
@@ -13,5 +13,5 @@ All notable changes to Wiki Weaver will be documented in this file.
 
 ### Changed
 
-- Product name, plugin display name, MCP config key, and repository name are aligned as Wiki Weaver / `wiki-weaver` / `obsidian-wiki-weaver`.
+- Product name, plugin display name, MCP config key, and repository name are aligned as Tracekeeper / `tracekeeper` / `obsidian-tracekeeper`.
 - User-facing connection settings no longer assume a fixed vault path, repository path, local port, or developer machine path.

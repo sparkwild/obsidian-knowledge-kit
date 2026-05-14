@@ -1,6 +1,6 @@
 # Terms of Use
 
-Wiki Weaver is provided under the MIT License.
+Tracekeeper is provided under the MIT License.
 
 ## Use At Your Own Risk
 

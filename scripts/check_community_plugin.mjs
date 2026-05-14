@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 
-const REPOSITORY = 'sparkwild/obsidian-wiki-weaver';
+const REPOSITORY = 'sparkwild/obsidian-tracekeeper';
 const ROOT_MANIFEST_PATH = 'manifest.json';
 const PLUGIN_MANIFEST_PATH = 'apps/obsidian-plugin/manifest.json';
 const PLUGIN_PACKAGE_PATH = 'apps/obsidian-plugin/package.json';

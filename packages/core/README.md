@@ -1,4 +1,4 @@
-# Wiki Weaver Core Runtime
+# Tracekeeper Core Runtime
 
 This package implements the shared TypeScript runtime for local Obsidian vault processing.
 

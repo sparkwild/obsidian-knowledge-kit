@@ -20,4 +20,4 @@ if git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   git -C "$ROOT" diff --check
 fi
 
-printf '\nWiki Weaver verification finished.\n'
+printf '\nTracekeeper verification finished.\n'

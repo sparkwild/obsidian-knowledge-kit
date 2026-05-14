@@ -2,7 +2,7 @@
 
 ## Current Community-Ready Build
 
-- Prepare Wiki Weaver for the official community plugin directory.
+- Prepare Tracekeeper for the official community plugin directory.
 - Stabilize the Obsidian plugin review and connection surfaces.
 - Keep Agent-first operation boundaries strict.
 - Verify all paths and connection details remain user-configured.
@@ -12,7 +12,7 @@
 1. Improve Agent Connections status states and client detection fixtures.
 2. Add fixture tests for client config merge and removal.
 3. Split large Obsidian plugin UI modules out of `main.ts`.
-4. Add local runtime packaging for `wiki-weaver-mcp`.
+4. Add local runtime packaging for `tracekeeper-mcp`.
 5. Add integration smoke checks for installed local plugin reload.
 
 ## Release Readiness

@@ -1,6 +1,6 @@
-# Wiki Weaver MCP Server
+# Tracekeeper MCP Server
 
-Streamable HTTP MCP Runtime for Wiki Weaver operations. It is read-only by default and exposes controlled write tooling only for low-risk working records.
+Streamable HTTP MCP Runtime for Tracekeeper operations. It is read-only by default and exposes controlled write tooling only for low-risk working records.
 
 ## JSON-RPC methods
 
@@ -14,24 +14,24 @@ Streamable HTTP MCP Runtime for Wiki Weaver operations. It is read-only by defau
 
 `tools/list` returns:
 
-- `wiki_weaver.status`
-- `wiki_weaver.start_task`
-- `wiki_weaver.recall`
-- `wiki_weaver.read_note`
-- `wiki_weaver.list_review_queue`
-- `wiki_weaver.list_source_requests`
-- `wiki_weaver.list_approved_writebacks`
-- `wiki_weaver.audit_recent`
-- `wiki_weaver.write_context_pack`
-- `wiki_weaver.build_context_pack`
-- `wiki_weaver.lint`
-- `wiki_weaver.finish_task`
-- `wiki_weaver.distill_session`
-- `wiki_weaver.write_session_note`
-- `wiki_weaver.capture_source`
-- `wiki_weaver.propose_memory`
-- `wiki_weaver.analyze_source_request`
-- `wiki_weaver.apply_approved_writeback`
+- `tracekeeper.status`
+- `tracekeeper.start_task`
+- `tracekeeper.recall`
+- `tracekeeper.read_note`
+- `tracekeeper.list_review_queue`
+- `tracekeeper.list_source_requests`
+- `tracekeeper.list_approved_writebacks`
+- `tracekeeper.audit_recent`
+- `tracekeeper.write_context_pack`
+- `tracekeeper.build_context_pack`
+- `tracekeeper.lint`
+- `tracekeeper.finish_task`
+- `tracekeeper.distill_session`
+- `tracekeeper.write_session_note`
+- `tracekeeper.capture_source`
+- `tracekeeper.propose_memory`
+- `tracekeeper.analyze_source_request`
+- `tracekeeper.apply_approved_writeback`
 
 Permission policy:
 
@@ -70,7 +70,7 @@ The production Runtime is hosted by the desktop Obsidian plugin. The standalone 
 
 ```bash
 cd <repo>/apps/mcp-server
-npm install --cache /private/tmp/wiki-weaver-npm-cache
+npm install --cache /private/tmp/tracekeeper-npm-cache
 npm run typecheck
 npm run build
 npm run test

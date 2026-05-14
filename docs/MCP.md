@@ -1,6 +1,6 @@
 # MCP And Permissions
 
-Wiki Weaver MCP is read-only by default and exposes controlled writes only for bounded working records. Long-term memory writeback is review-gated.
+Tracekeeper MCP is read-only by default and exposes controlled writes only for bounded working records. Long-term memory writeback is review-gated.
 
 ## Tool Permission Levels
 
@@ -10,30 +10,30 @@ Wiki Weaver MCP is read-only by default and exposes controlled writes only for b
 | `low-risk write` | Writes bounded working records such as context packs, session notes, source records, and proposals. |
 | `optional write` | Reads by default and writes only when the caller explicitly requests an artifact. |
 | `review-gated apply` | Applies a proposal only after user approval in Review Queue. |
-| `forbidden` | Actions outside the Wiki Weaver boundary and not exposed as tools. |
+| `forbidden` | Actions outside the Tracekeeper boundary and not exposed as tools. |
 
 ## Current Tools
 
 | Tool | Permission | Notes |
 | --- | --- | --- |
-| `wiki_weaver.status` | `read-only` | Scans vault summary counts. |
-| `wiki_weaver.start_task` | `read-only` | Creates a deterministic task context summary without writing. |
-| `wiki_weaver.recall` | `read-only` | Returns matching vault notes for a query. |
-| `wiki_weaver.read_note` | `read-only` | Reads one vault-relative note. |
-| `wiki_weaver.list_review_queue` | `read-only` | Reads pending proposals. |
-| `wiki_weaver.list_source_requests` | `read-only` | Reads pending source-analysis requests. |
-| `wiki_weaver.list_approved_writebacks` | `read-only` | Lists approved proposals eligible for writeback. |
-| `wiki_weaver.audit_recent` | `read-only` | Reads recent audit entries. |
-| `wiki_weaver.lint` | `read-only` | Runs vault checks and returns issues. |
-| `wiki_weaver.build_context_pack` | `read-only` / `optional write` | Builds context and optionally writes a context-pack artifact. |
-| `wiki_weaver.finish_task` | `low-risk write` | Writes a task session summary. |
-| `wiki_weaver.distill_session` | `low-risk write` | Writes a session note and review proposals. |
-| `wiki_weaver.write_context_pack` | `low-risk write` | Writes under context pack outputs only. |
-| `wiki_weaver.write_session_note` | `low-risk write` | Writes under session notes only. |
-| `wiki_weaver.capture_source` | `low-risk write` | Writes source metadata/content under source records. |
-| `wiki_weaver.propose_memory` | `low-risk write` | Writes a Review Queue proposal, not durable memory directly. |
-| `wiki_weaver.analyze_source_request` | `low-risk write` | Processes an existing source request into records and proposals. |
-| `wiki_weaver.apply_approved_writeback` | `review-gated apply` | Applies only approved proposals. |
+| `tracekeeper.status` | `read-only` | Scans vault summary counts. |
+| `tracekeeper.start_task` | `read-only` | Creates a deterministic task context summary without writing. |
+| `tracekeeper.recall` | `read-only` | Returns matching vault notes for a query. |
+| `tracekeeper.read_note` | `read-only` | Reads one vault-relative note. |
+| `tracekeeper.list_review_queue` | `read-only` | Reads pending proposals. |
+| `tracekeeper.list_source_requests` | `read-only` | Reads pending source-analysis requests. |
+| `tracekeeper.list_approved_writebacks` | `read-only` | Lists approved proposals eligible for writeback. |
+| `tracekeeper.audit_recent` | `read-only` | Reads recent audit entries. |
+| `tracekeeper.lint` | `read-only` | Runs vault checks and returns issues. |
+| `tracekeeper.build_context_pack` | `read-only` / `optional write` | Builds context and optionally writes a context-pack artifact. |
+| `tracekeeper.finish_task` | `low-risk write` | Writes a task session summary. |
+| `tracekeeper.distill_session` | `low-risk write` | Writes a session note and review proposals. |
+| `tracekeeper.write_context_pack` | `low-risk write` | Writes under context pack outputs only. |
+| `tracekeeper.write_session_note` | `low-risk write` | Writes under session notes only. |
+| `tracekeeper.capture_source` | `low-risk write` | Writes source metadata/content under source records. |
+| `tracekeeper.propose_memory` | `low-risk write` | Writes a Review Queue proposal, not durable memory directly. |
+| `tracekeeper.analyze_source_request` | `low-risk write` | Processes an existing source request into records and proposals. |
+| `tracekeeper.apply_approved_writeback` | `review-gated apply` | Applies only approved proposals. |
 
 ## Forbidden Actions
 
@@ -49,7 +49,7 @@ The MCP server must not expose tools that:
 
 ## Configuration
 
-Wiki Weaver exposes MCP through Streamable HTTP only. The desktop Obsidian plugin starts the local Runtime when the vault is open and stops it when Obsidian or the plugin closes.
+Tracekeeper exposes MCP through Streamable HTTP only. The desktop Obsidian plugin starts the local Runtime when the vault is open and stops it when Obsidian or the plugin closes.
 
 The default local MCP endpoint is:
 

@@ -2,8 +2,8 @@
 
 ## Identity
 
-- Plugin id: `wiki-weaver`
-- Display name: `Wiki Weaver`
+- Plugin id: `tracekeeper`
+- Display name: `Tracekeeper`
 - Chinese in-plugin display: `知识库`
 - Version: `0.1.0`
 - Desktop-only declaration: `isDesktopOnly: true`
@@ -54,7 +54,7 @@ npm run package
 Copy the generated package into:
 
 ```text
-<vault>/.obsidian/plugins/wiki-weaver/
+<vault>/.obsidian/plugins/tracekeeper/
 ```
 
 Required files:
@@ -68,8 +68,8 @@ styles.css
 Validate in Obsidian:
 
 ```bash
-obsidian plugin id=wiki-weaver
-obsidian plugin:reload id=wiki-weaver
+obsidian plugin id=tracekeeper
+obsidian plugin:reload id=tracekeeper
 obsidian dev:errors
 ```
 

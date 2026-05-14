@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-Wiki Weaver is currently maintained on the `main` branch.
+Tracekeeper is currently maintained on the `main` branch.
 
 ## Reporting A Vulnerability
 

@@ -4,13 +4,13 @@ This page keeps implementation, verification, and release details out of the top
 
 ## Names
 
-- Product: `Wiki Weaver`
-- Repository: `obsidian-wiki-weaver`
-- Obsidian plugin id: `wiki-weaver`
-- Obsidian plugin display name: `Wiki Weaver`
+- Product: `Tracekeeper`
+- Repository: `obsidian-tracekeeper`
+- Obsidian plugin id: `tracekeeper`
+- Obsidian plugin display name: `Tracekeeper`
 - Chinese in-plugin display: `知识库`
-- MCP server id/config key: `wiki-weaver`
-- MCP tool prefix: `wiki_weaver.*`
+- MCP server id/config key: `tracekeeper`
+- MCP tool prefix: `tracekeeper.*`
 - Initial version: `0.1.0`
 
 ## Verify
@@ -32,7 +32,7 @@ npm run package
 ## Repository Layout
 
 ```text
-obsidian-wiki-weaver/
+obsidian-tracekeeper/
 ├─ apps/
 │  ├─ obsidian-plugin/
 │  └─ mcp-server/
@@ -54,11 +54,11 @@ Before submitting to the community directory:
 
 ```json
 {
-	"id": "wiki-weaver",
-	"name": "Wiki Weaver",
+	"id": "tracekeeper",
+	"name": "Tracekeeper",
 	"author": "sparkwild",
 	"description": "Build and review an AI-assisted wiki from your vault.",
-	"repo": "sparkwild/obsidian-wiki-weaver"
+	"repo": "sparkwild/obsidian-tracekeeper"
 }
 ```
 
