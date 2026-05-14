@@ -121,6 +121,14 @@
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
+.tracekeeper-connection-check__header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
 .tracekeeper-connection-detail-grid {
 	margin-bottom: 0;
 }
@@ -171,28 +179,6 @@
 .tracekeeper-config-row__actions {
 	justify-content: flex-end;
 	min-width: fit-content;
-}
-
-.tracekeeper-detail__value-row {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	min-width: 0;
-}
-
-.tracekeeper-detail__value-row strong {
-	min-width: 0;
-}
-
-.tracekeeper-copy-icon-button {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 26px;
-	height: 26px;
-	min-width: 26px;
-	padding: 4px;
-	border-radius: 6px;
 }
 
 .tracekeeper-card__header {
