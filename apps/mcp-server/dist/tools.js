@@ -686,14 +686,33 @@ function buildRecentSessions(notes) {
     }));
 }
 function buildUserPreferences(scan) {
+    const isPreferenceScalar = (value) => {
+        if (typeof value === 'string') {
+            return value.trim() !== '';
+        }
+        return typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint';
+    };
+    const isPreferenceKey = (key) => key.includes('pref') || key.includes('preference') || key.includes('goal') || key.includes('style');
+    const formatPreferenceValue = (value) => {
+        if (typeof value === 'string') {
+            return value;
+        }
+        if (typeof value === 'number') {
+            return `${value}`;
+        }
+        if (typeof value === 'boolean') {
+            return value ? 'true' : 'false';
+        }
+        return value.toString();
+    };
     const preferenceNote = scan.notes.find((note) => note.relativePath === '01_ai_core/longterm_context.md' || note.relativePath === '01_ai_core/active_context.md');
     if (!preferenceNote) {
         return { source: null, keys: [] };
     }
     const keys = Object.entries(preferenceNote.frontmatter)
-        .filter(([key, value]) => value !== undefined && value !== null && String(value).trim() !== '')
-        .filter(([key]) => key.includes('pref') || key.includes('preference') || key.includes('goal') || key.includes('style'))
-        .map(([key, value]) => `${key}: ${String(value)}`);
+        .filter((entry) => isPreferenceScalar(entry[1]))
+        .filter(([key]) => isPreferenceKey(key))
+        .map(([key, value]) => `${key}: ${formatPreferenceValue(value)}`);
     return {
         source: preferenceNote.relativePath,
         keys,
@@ -1070,7 +1089,25 @@ function summarizeForAudit(args, limit = MAX_ARGS_SUMMARY_LENGTH) {
             }
             return nested;
         }
-        return String(value);
+        if (value === null || value === undefined) {
+            return value;
+        }
+        if (typeof value === 'bigint') {
+            return value.toString();
+        }
+        if (typeof value === 'symbol') {
+            return value.toString();
+        }
+        if (typeof value === 'function') {
+            return '[function]';
+        }
+        try {
+            const json = JSON.stringify(value);
+            return json ?? '[unserializable]';
+        }
+        catch {
+            return '[unserializable]';
+        }
     }
     for (const [key, value] of Object.entries(args)) {
         summary[key] = summarize(value, key, 0);
@@ -2072,7 +2109,6 @@ function buildSourceRunToken(request) {
 function resolveSourceInput(request, vaultRoot, context) {
     const source = request.source.trim();
     const sourceKind = request.sourceKind.trim().toLowerCase();
-    const warnings = [];
     if (!source) {
         return {
             sourceText: `No source identifier found in request ${request.path}.`,

@@ -1029,6 +1029,31 @@ function buildRecentSessions(notes: ScannedNote[]) {
 }
 
 function buildUserPreferences(scan: ScanResult) {
+	type PreferenceScalar = string | number | boolean | bigint;
+
+	const isPreferenceScalar = (value: unknown): value is PreferenceScalar => {
+		if (typeof value === 'string') {
+			return value.trim() !== '';
+		}
+		return typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint';
+	};
+
+	const isPreferenceKey = (key: string): boolean =>
+		key.includes('pref') || key.includes('preference') || key.includes('goal') || key.includes('style');
+
+	const formatPreferenceValue = (value: PreferenceScalar): string => {
+		if (typeof value === 'string') {
+			return value;
+		}
+		if (typeof value === 'number') {
+			return `${value}`;
+		}
+		if (typeof value === 'boolean') {
+			return value ? 'true' : 'false';
+		}
+		return value.toString();
+	};
+
 	const preferenceNote =
 		scan.notes.find((note) => note.relativePath === '01_ai_core/longterm_context.md' || note.relativePath === '01_ai_core/active_context.md');
 
@@ -1037,9 +1062,9 @@ function buildUserPreferences(scan: ScanResult) {
 	}
 
 	const keys = Object.entries(preferenceNote.frontmatter)
-		.filter(([key, value]) => value !== undefined && value !== null && String(value).trim() !== '')
-		.filter(([key]) => key.includes('pref') || key.includes('preference') || key.includes('goal') || key.includes('style'))
-		.map(([key, value]) => `${key}: ${String(value)}`);
+		.filter((entry): entry is [string, PreferenceScalar] => isPreferenceScalar(entry[1]))
+		.filter(([key]) => isPreferenceKey(key))
+		.map(([key, value]) => `${key}: ${formatPreferenceValue(value)}`);
 
 	return {
 		source: preferenceNote.relativePath,
@@ -1488,7 +1513,24 @@ function summarizeForAudit(args: Record<string, unknown>, limit = MAX_ARGS_SUMMA
 			return nested;
 		}
 
-		return String(value);
+		if (value === null || value === undefined) {
+			return value;
+		}
+		if (typeof value === 'bigint') {
+			return value.toString();
+		}
+		if (typeof value === 'symbol') {
+			return value.toString();
+		}
+		if (typeof value === 'function') {
+			return '[function]';
+		}
+		try {
+			const json = JSON.stringify(value);
+			return json ?? '[unserializable]';
+		} catch {
+			return '[unserializable]';
+		}
 	}
 
 	for (const [key, value] of Object.entries(args)) {
@@ -2537,7 +2579,6 @@ function resolveSourceInput(
 ): { sourceText: string; mode: 'external_reference' | 'local_copy' | 'extracted_snapshot'; resolvedSourcePath?: string; warnings: string[] } {
 	const source = request.source.trim();
 	const sourceKind = request.sourceKind.trim().toLowerCase();
-	const warnings: string[] = [];
 
 	if (!source) {
 		return {
