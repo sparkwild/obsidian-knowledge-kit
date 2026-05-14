@@ -974,7 +974,7 @@ function summarizeForAudit(args, limit = MAX_ARGS_SUMMARY_LENGTH) {
         if (typeof value === 'number' || typeof value === 'boolean') {
             return value;
         }
-        if (typeof value === 'object') {
+        if ((0, protocol_1.isRecord)(value)) {
             const nested = {};
             for (const [nestedKey, nestedValue] of Object.entries(value)) {
                 nested[nestedKey] = summarize(nestedValue, nestedKey, depth + 1);

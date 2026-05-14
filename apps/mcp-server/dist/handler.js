@@ -4,7 +4,7 @@ exports.McpJsonRpcHandler = exports.STREAMABLE_HTTP_TRANSPORT = exports.MCP_SERV
 const protocol_1 = require("./protocol");
 const tools_1 = require("./tools");
 exports.MCP_PROTOCOL_VERSION = '2025-06-18';
-exports.MCP_SERVER_VERSION = '0.1.0';
+exports.MCP_SERVER_VERSION = '0.1.1';
 exports.STREAMABLE_HTTP_TRANSPORT = 'streamable-http';
 const RESOURCES = [
     {
@@ -54,17 +54,16 @@ class McpJsonRpcHandler {
         if (!(0, protocol_1.isRecord)(rawMessage)) {
             return this.errorResponse(null, -32600, 'Invalid request.');
         }
-        const request = rawMessage;
-        const requestId = request.id ?? null;
-        const isNotification = request.id === undefined;
-        const method = request.method;
+        const requestId = this.readRequestId(rawMessage.id);
+        const isNotification = rawMessage.id === undefined;
+        const method = rawMessage.method;
         if (typeof method !== 'string' || method.trim() === '') {
-            return isNotification ? null : this.errorResponse(requestId, -32600, 'Invalid request: missing method.');
+            return isNotification ? null : this.errorResponse(requestId ?? null, -32600, 'Invalid request: missing method.');
         }
-        const params = request.params ?? {};
+        const params = rawMessage.params ?? {};
         if (!(0, protocol_1.isRecord)(params)) {
             if (!isNotification) {
-                return this.errorResponse(requestId, -32602, 'Invalid params.');
+                return this.errorResponse(requestId ?? null, -32602, 'Invalid params.');
             }
             return null;
         }
@@ -73,20 +72,23 @@ class McpJsonRpcHandler {
             if (isNotification || method.startsWith('notifications/')) {
                 return null;
             }
-            return { jsonrpc: '2.0', id: requestId, result };
+            return { jsonrpc: '2.0', id: requestId ?? null, result };
         }
         catch (error) {
             if (isNotification || method.startsWith('notifications/')) {
                 return null;
             }
             if (error instanceof protocol_1.RpcError) {
-                return this.errorResponse(requestId, error.code, error.message, error.data);
+                return this.errorResponse(requestId ?? null, error.code, error.message, error.data);
             }
             if (error instanceof Error) {
-                return this.errorResponse(requestId, -32603, error.message);
+                return this.errorResponse(requestId ?? null, -32603, error.message);
             }
-            return this.errorResponse(requestId, -32603, 'Internal error.');
+            return this.errorResponse(requestId ?? null, -32603, 'Internal error.');
         }
+    }
+    readRequestId(id) {
+        return typeof id === 'string' || typeof id === 'number' || id === null ? id : undefined;
     }
     dispatch(method, params, state) {
         switch (method) {

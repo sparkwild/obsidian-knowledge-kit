@@ -1,9 +1,9 @@
 import {
-	JsonRpcErrorObject,
-	JsonRpcRequest,
-	JsonRpcResponse,
 	RpcError,
 	isRecord,
+	type JsonRpcErrorObject,
+	type JsonRpcId,
+	type JsonRpcResponse,
 } from './protocol';
 import {
 	callTool,
@@ -14,7 +14,7 @@ import {
 } from './tools';
 
 export const MCP_PROTOCOL_VERSION = '2025-06-18';
-export const MCP_SERVER_VERSION = '0.1.0';
+export const MCP_SERVER_VERSION = '0.1.1';
 export const STREAMABLE_HTTP_TRANSPORT = 'streamable-http';
 
 interface ResourcesResource {
@@ -95,19 +95,18 @@ export class McpJsonRpcHandler {
 			return this.errorResponse(null, -32600, 'Invalid request.');
 		}
 
-		const request = rawMessage as unknown as JsonRpcRequest;
-		const requestId = request.id ?? null;
-		const isNotification = request.id === undefined;
-		const method = request.method;
+		const requestId = this.readRequestId(rawMessage.id);
+		const isNotification = rawMessage.id === undefined;
+		const method = rawMessage.method;
 
 		if (typeof method !== 'string' || method.trim() === '') {
-			return isNotification ? null : this.errorResponse(requestId, -32600, 'Invalid request: missing method.');
+			return isNotification ? null : this.errorResponse(requestId ?? null, -32600, 'Invalid request: missing method.');
 		}
 
-		const params = request.params ?? {};
+		const params = rawMessage.params ?? {};
 		if (!isRecord(params)) {
 			if (!isNotification) {
-				return this.errorResponse(requestId, -32602, 'Invalid params.');
+				return this.errorResponse(requestId ?? null, -32602, 'Invalid params.');
 			}
 			return null;
 		}
@@ -117,19 +116,23 @@ export class McpJsonRpcHandler {
 			if (isNotification || method.startsWith('notifications/')) {
 				return null;
 			}
-			return { jsonrpc: '2.0', id: requestId, result };
+			return { jsonrpc: '2.0', id: requestId ?? null, result };
 		} catch (error) {
 			if (isNotification || method.startsWith('notifications/')) {
 				return null;
 			}
 			if (error instanceof RpcError) {
-				return this.errorResponse(requestId, error.code, error.message, error.data);
+				return this.errorResponse(requestId ?? null, error.code, error.message, error.data);
 			}
 			if (error instanceof Error) {
-				return this.errorResponse(requestId, -32603, error.message);
+				return this.errorResponse(requestId ?? null, -32603, error.message);
 			}
-			return this.errorResponse(requestId, -32603, 'Internal error.');
+			return this.errorResponse(requestId ?? null, -32603, 'Internal error.');
 		}
+	}
+
+	private readRequestId(id: unknown): JsonRpcId | undefined {
+		return typeof id === 'string' || typeof id === 'number' || id === null ? id : undefined;
 	}
 
 	private dispatch(method: string, params: Record<string, unknown>, state: McpConnectionState): unknown {
@@ -212,8 +215,8 @@ export class McpJsonRpcHandler {
 	}
 
 	private extractAgentIdFromInitialize(params: Record<string, unknown>, fallbackSessionId: string): string {
-		const clientInfo = isRecord(params.clientInfo) ? (params.clientInfo as Record<string, unknown>) : {};
-		const meta = isRecord(params.meta) ? (params.meta as Record<string, unknown>) : {};
+		const clientInfo = isRecord(params.clientInfo) ? params.clientInfo : {};
+		const meta = isRecord(params.meta) ? params.meta : {};
 		const candidates = [
 			params.agent_id,
 			params.agentId,
@@ -243,7 +246,7 @@ export class McpJsonRpcHandler {
 	}
 
 	private extractClientNameFromInitialize(params: Record<string, unknown>): string | null {
-		const clientInfo = isRecord(params.clientInfo) ? (params.clientInfo as Record<string, unknown>) : {};
+		const clientInfo = isRecord(params.clientInfo) ? params.clientInfo : {};
 		const names = [
 			params.name,
 			params.client_name,

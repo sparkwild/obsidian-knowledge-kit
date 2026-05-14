@@ -15,6 +15,37 @@ function writeJson(path, value, indent = '\t') {
 	fs.writeFileSync(path, `${JSON.stringify(value, null, indent)}\n`);
 }
 
+function replaceInFile(path, pattern, replacement) {
+	const content = fs.readFileSync(path, 'utf8');
+	if (!pattern.test(content)) {
+		throw new Error(`Version replacement did not match ${path}.`);
+	}
+	const updated = content.replace(pattern, replacement);
+	if (updated !== content) {
+		fs.writeFileSync(path, updated);
+	}
+}
+
+function syncLockfileVersions(lock, version) {
+	lock.version = version;
+	const packageVersions = {
+		'': version,
+		'apps/mcp-server': version,
+		'apps/obsidian-plugin': version,
+		'packages/core': version,
+		'../../packages/core': version,
+	};
+	for (const [packagePath, packageVersion] of Object.entries(packageVersions)) {
+		if (lock.packages?.[packagePath]) {
+			lock.packages[packagePath].version = packageVersion;
+		}
+	}
+}
+
+const rootPackage = readJson('package.json');
+rootPackage.version = targetVersion;
+writeJson('package.json', rootPackage);
+
 const manifest = readJson('manifest.json');
 manifest.version = targetVersion;
 writeJson('manifest.json', manifest);
@@ -43,12 +74,25 @@ for (const lockPath of [
 		continue;
 	}
 	const lock = readJson(lockPath);
-	lock.version = targetVersion;
-	if (lock.packages?.['']) {
-		lock.packages[''].version = targetVersion;
-	}
-	writeJson(lockPath, lock, '  ');
+	syncLockfileVersions(lock, targetVersion);
+	writeJson(lockPath, lock, lockPath === 'package-lock.json' ? '\t' : '  ');
 }
+
+replaceInFile(
+	'apps/mcp-server/src/handler.ts',
+	/export const MCP_SERVER_VERSION = '[^']+';/,
+	`export const MCP_SERVER_VERSION = '${targetVersion}';`
+);
+replaceInFile(
+	'apps/obsidian-plugin/src/main.ts',
+	/version: '[^']+',/,
+	`version: '${targetVersion}',`
+);
+replaceInFile(
+	'apps/mcp-server/scripts/smoke.mjs',
+	/version: '[^']+',/,
+	`version: '${targetVersion}',`
+);
 
 const versions = readJson('versions.json');
 versions[targetVersion] = manifest.minAppVersion;

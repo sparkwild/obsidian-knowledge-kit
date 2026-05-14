@@ -1,8 +1,7 @@
-import http, { IncomingMessage, ServerResponse } from 'node:http';
+import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from 'node:http';
 import crypto from 'node:crypto';
 import { URL } from 'node:url';
-import { AddressInfo } from 'node:net';
-import { JsonRpcResponse } from './protocol';
+import type { JsonRpcResponse } from './protocol';
 import {
 	McpConnectionState,
 	McpJsonRpcHandler,
@@ -52,7 +51,7 @@ export class StreamableHttpMcpRuntime {
 	private allowMissingTokenForDev: boolean;
 	private runtimeVersion: string;
 	private handler: McpJsonRpcHandler;
-	private server: http.Server | null = null;
+	private server: HttpServer | null = null;
 	private sessions = new Map<string, RuntimeSession>();
 	private state: RuntimeState = 'stopped';
 	private startedAt = '';
@@ -82,7 +81,7 @@ export class StreamableHttpMcpRuntime {
 		}
 		this.state = 'starting';
 		this.lastError = '';
-		this.server = http.createServer((request, response) => {
+		this.server = createServer((request, response) => {
 			void this.handleRequest(request, response);
 		});
 
@@ -95,7 +94,7 @@ export class StreamableHttpMcpRuntime {
 				reject(error);
 				return;
 			}
-			server.once('error', (error: NodeJS.ErrnoException) => {
+			server.once('error', (error: Error & { code?: string }) => {
 				this.state = error.code === 'EADDRINUSE' ? 'port_conflict' : 'failed';
 				this.lastError = error.message;
 				this.server = null;
@@ -104,7 +103,7 @@ export class StreamableHttpMcpRuntime {
 			server.listen(this.port, this.host, () => {
 				const address = server.address();
 				if (address && typeof address === 'object') {
-					this.port = (address as AddressInfo).port;
+					this.port = address.port;
 				}
 				this.state = 'running';
 				this.startedAt = new Date().toISOString();

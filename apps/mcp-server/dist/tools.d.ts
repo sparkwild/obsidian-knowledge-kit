@@ -1,4 +1,4 @@
-import { McpToolDefinition, McpStructuredToolResult, McpPrompt } from './protocol';
+import { type McpPrompt, type McpStructuredToolResult, type McpToolDefinition } from './protocol';
 interface ToolContext {
     defaultVaultRoot?: string;
     vaultConfigDir?: string;
