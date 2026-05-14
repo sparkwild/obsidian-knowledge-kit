@@ -4,6 +4,7 @@ export interface StreamableHttpRuntimeOptions {
     port?: number;
     path?: string;
     token?: string;
+    allowMissingTokenForDev?: boolean;
     defaultVaultRoot?: string;
     runtimeVersion?: string;
 }
@@ -22,6 +23,7 @@ export declare class StreamableHttpMcpRuntime {
     private port;
     private path;
     private token;
+    private allowMissingTokenForDev;
     private runtimeVersion;
     private handler;
     private server;
@@ -44,6 +46,7 @@ export declare class StreamableHttpMcpRuntime {
     private readMethod;
     private readBody;
     private isAllowedOrigin;
+    private allowedCorsOrigin;
     private hasValidToken;
     private firstHeaderValue;
     private writeJson;

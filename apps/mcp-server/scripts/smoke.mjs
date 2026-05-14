@@ -148,6 +148,7 @@ class McpTestClient {
 			}),
 		});
 		assert.equal(response.status, status);
+		return response;
 	}
 
 	async assertEventStream() {
@@ -203,6 +204,19 @@ async function main() {
 		if (!fs.existsSync(path.join(process.cwd(), 'dist', 'server.js'))) {
 			throw new Error('dist/server.js not found. Run npm run build first.');
 		}
+		assert.throws(
+			() => new StreamableHttpMcpRuntime({ host: '127.0.0.1', port: 0, defaultVaultRoot: vaultRoot }),
+			/MCP Runtime token is required/
+		);
+		const devRuntime = new StreamableHttpMcpRuntime({
+			host: '127.0.0.1',
+			port: 0,
+			defaultVaultRoot: vaultRoot,
+			allowMissingTokenForDev: true,
+		});
+		const devStatus = await devRuntime.start();
+		assert.equal(devStatus.state, 'running');
+		await devRuntime.stop();
 
 		fs.mkdirSync(vaultRoot, { recursive: true });
 		writeNote(vaultRoot, '00_control/system.md', '# System\n');
@@ -262,7 +276,10 @@ async function main() {
 		});
 		assert.equal(initialize.capabilities.tools.listChanged, false);
 		await client.expectHttpStatus({ token: 'wrong-token', status: 401 });
-		await client.expectHttpStatus({ origin: 'https://example.com', status: 403 });
+		const forbiddenOrigin = await client.expectHttpStatus({ origin: 'https://example.com', status: 403 });
+		assert.equal(forbiddenOrigin.headers.get('access-control-allow-origin'), null);
+		const allowedOrigin = await client.expectHttpStatus({ origin: 'http://localhost:3210', status: 200 });
+		assert.equal(allowedOrigin.headers.get('access-control-allow-origin'), 'http://localhost:3210');
 		await client.expectHttpStatus({ sessionId: '', status: 400 });
 		await client.assertEventStream();
 		const initAudit = readAuditLog(vaultRoot);

@@ -62,6 +62,8 @@ Security constraints:
 - no network calls
 - no vault-outside reads
 - no `.obsidian` reads
+- required local Runtime token by default
+- no wildcard CORS; browser-style origins are limited to Obsidian and loopback
 - all writes append events to `00_control/audit_log.md` (file is created if absent)
 
 ## Run
@@ -79,6 +81,8 @@ node dist/server.js --vault-root <vault> --port 58437 --token <token>
 
 Then send Streamable HTTP JSON-RPC requests to `http://127.0.0.1:58437/mcp?token=<token>`.
 
+The standalone command refuses to start without `--token`. For isolated local development checks only, pass `--allow-missing-token-for-dev` explicitly.
+
 ## Package scripts
 
 ```bash
@@ -91,6 +95,8 @@ npm run smoke
 `npm run test`/`npm run smoke` executes `./scripts/smoke.mjs` against a temporary, non-network vault fixture and validates:
 
 - token, origin, and session enforcement
+- required-token startup enforcement
+- non-wildcard CORS origin reflection for allowed loopback origins
 - initialize/tools/list/resources/list/prompts/list
 - read_note and status paths
 - controlled write tools
