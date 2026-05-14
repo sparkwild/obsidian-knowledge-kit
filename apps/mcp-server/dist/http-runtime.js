@@ -21,7 +21,11 @@ class StreamableHttpMcpRuntime {
         this.host = options.host || DEFAULT_HOST;
         this.port = options.port ?? 58437;
         this.path = options.path || DEFAULT_PATH;
-        this.token = options.token || '';
+        this.token = (options.token || '').trim();
+        this.allowMissingTokenForDev = options.allowMissingTokenForDev === true;
+        if (!this.token && !this.allowMissingTokenForDev) {
+            throw new Error('MCP Runtime token is required. Pass a generated token or explicitly enable allowMissingTokenForDev for local development only.');
+        }
         this.runtimeVersion = options.runtimeVersion || handler_1.MCP_SERVER_VERSION;
         this.handler = new handler_1.McpJsonRpcHandler({
             defaultVaultRoot: options.defaultVaultRoot,
@@ -97,19 +101,19 @@ class StreamableHttpMcpRuntime {
     async handleRequest(request, response) {
         const url = this.parseRequestUrl(request);
         if (!url || url.pathname !== this.path) {
-            this.writePlain(response, 404, 'Not found.');
+            this.writePlain(response, 404, 'Not found.', request);
             return;
         }
         if (!this.isAllowedOrigin(request)) {
-            this.writeJson(response, 403, this.errorResponse(null, -32003, 'Forbidden origin.'));
+            this.writeJson(response, 403, this.errorResponse(null, -32003, 'Forbidden origin.'), request);
             return;
         }
         if (!this.hasValidToken(request, url)) {
-            this.writeJson(response, 401, this.errorResponse(null, -32001, 'Invalid MCP runtime token.'));
+            this.writeJson(response, 401, this.errorResponse(null, -32001, 'Invalid MCP runtime token.'), request);
             return;
         }
         if (request.method === 'OPTIONS') {
-            this.writeCors(response, 204);
+            this.writeCors(response, 204, request);
             response.end();
             return;
         }
@@ -125,7 +129,7 @@ class StreamableHttpMcpRuntime {
             this.handleDelete(request, response);
             return;
         }
-        this.writeJson(response, 405, this.errorResponse(null, -32005, 'Method not allowed.'));
+        this.writeJson(response, 405, this.errorResponse(null, -32005, 'Method not allowed.'), request);
     }
     async handlePost(request, response) {
         const body = await this.readBody(request);
@@ -135,11 +139,11 @@ class StreamableHttpMcpRuntime {
         }
         catch (error) {
             const messageText = error instanceof Error ? error.message : 'Invalid JSON.';
-            this.writeJson(response, 400, this.errorResponse(null, -32700, messageText));
+            this.writeJson(response, 400, this.errorResponse(null, -32700, messageText), request);
             return;
         }
         if (Array.isArray(message)) {
-            this.writeJson(response, 400, this.errorResponse(null, -32600, 'Batch requests are not supported by this Runtime.'));
+            this.writeJson(response, 400, this.errorResponse(null, -32600, 'Batch requests are not supported by this Runtime.'), request);
             return;
         }
         const method = this.readMethod(message);
@@ -156,11 +160,11 @@ class StreamableHttpMcpRuntime {
             response.setHeader('Mcp-Session-Id', session.sessionId);
         }
         if (!result) {
-            this.writeCors(response, 202);
+            this.writeCors(response, 202, request);
             response.end();
             return;
         }
-        this.writeJson(response, 200, result);
+        this.writeJson(response, 200, result, request);
     }
     handleGet(request, response) {
         const session = this.requireSession(request, response);
@@ -168,7 +172,7 @@ class StreamableHttpMcpRuntime {
             return;
         }
         session.lastSeenAt = Date.now();
-        this.writeCors(response, 200);
+        this.writeCors(response, 200, request);
         response.setHeader('Content-Type', 'text/event-stream');
         response.setHeader('Cache-Control', 'no-cache, no-transform');
         response.setHeader('Connection', 'keep-alive');
@@ -185,7 +189,7 @@ class StreamableHttpMcpRuntime {
         }
         this.closeSession(session);
         this.sessions.delete(session.sessionId);
-        this.writeCors(response, 204);
+        this.writeCors(response, 204, request);
         response.end();
     }
     createSession() {
@@ -205,12 +209,12 @@ class StreamableHttpMcpRuntime {
     requireSession(request, response) {
         const sessionId = this.firstHeaderValue(request.headers['mcp-session-id']);
         if (!sessionId) {
-            this.writeJson(response, 400, this.errorResponse(null, -32000, 'Missing Mcp-Session-Id header.'));
+            this.writeJson(response, 400, this.errorResponse(null, -32000, 'Missing Mcp-Session-Id header.'), request);
             return null;
         }
         const session = this.sessions.get(sessionId);
         if (!session) {
-            this.writeJson(response, 404, this.errorResponse(null, -32004, 'Unknown MCP session.'));
+            this.writeJson(response, 404, this.errorResponse(null, -32004, 'Unknown MCP session.'), request);
             return null;
         }
         return session;
@@ -248,23 +252,27 @@ class StreamableHttpMcpRuntime {
     }
     isAllowedOrigin(request) {
         const origin = this.firstHeaderValue(request.headers.origin);
+        return !origin || this.allowedCorsOrigin(request) !== null;
+    }
+    allowedCorsOrigin(request) {
+        const origin = this.firstHeaderValue(request.headers.origin);
         if (!origin) {
-            return true;
+            return null;
         }
         if (origin === 'app://obsidian.md') {
-            return true;
+            return origin;
         }
         try {
             const parsed = new node_url_1.URL(origin);
-            return LOOPBACK_HOSTS.has(parsed.hostname);
+            return LOOPBACK_HOSTS.has(parsed.hostname) ? origin : null;
         }
         catch {
-            return false;
+            return null;
         }
     }
     hasValidToken(request, url) {
         if (!this.token) {
-            return true;
+            return this.allowMissingTokenForDev;
         }
         const queryToken = url.searchParams.get('token');
         if (queryToken === this.token) {
@@ -279,19 +287,23 @@ class StreamableHttpMcpRuntime {
         }
         return value || '';
     }
-    writeJson(response, status, payload) {
-        this.writeCors(response, status);
+    writeJson(response, status, payload, request) {
+        this.writeCors(response, status, request);
         response.setHeader('Content-Type', 'application/json');
         response.end(JSON.stringify(payload));
     }
-    writePlain(response, status, text) {
-        this.writeCors(response, status);
+    writePlain(response, status, text, request) {
+        this.writeCors(response, status, request);
         response.setHeader('Content-Type', 'text/plain; charset=utf-8');
         response.end(text);
     }
-    writeCors(response, status) {
+    writeCors(response, status, request) {
         response.statusCode = status;
-        response.setHeader('Access-Control-Allow-Origin', '*');
+        const origin = request ? this.allowedCorsOrigin(request) : null;
+        if (origin) {
+            response.setHeader('Access-Control-Allow-Origin', origin);
+            response.setHeader('Vary', 'Origin');
+        }
         response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, Mcp-Session-Id');
         response.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
         response.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');

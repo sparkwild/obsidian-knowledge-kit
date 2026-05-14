@@ -15,3 +15,10 @@ All notable changes to Tracekeeper will be documented in this file.
 
 - Product name, plugin display name, MCP config key, and repository name are aligned as Tracekeeper / `tracekeeper` / `obsidian-tracekeeper`.
 - User-facing connection settings no longer assume a fixed vault path, repository path, local port, or developer machine path.
+- README, manifest description, and community submission notes are prepared for public community plugin review.
+
+### Security
+
+- MCP Runtime now requires a generated local token by default.
+- Standalone missing-token startup is limited to an explicit development flag.
+- HTTP Runtime CORS no longer uses wildcard origins and is limited to Obsidian or loopback origins.
