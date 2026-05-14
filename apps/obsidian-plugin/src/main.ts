@@ -1375,7 +1375,7 @@ export default class TracekeeperPlugin extends Plugin {
 		const rawValue = match[1].trim();
 		if (rawValue.startsWith('"')) {
 			try {
-				const parsed = JSON.parse(rawValue);
+				const parsed: unknown = JSON.parse(rawValue);
 				return typeof parsed === 'string' ? parsed : null;
 			} catch {
 				return rawValue.replace(/^"|"$/g, '');
@@ -1526,7 +1526,7 @@ export default class TracekeeperPlugin extends Plugin {
 
 	private parseJsonPayload(text: string): Record<string, unknown> | null {
 		try {
-			const parsed = text ? JSON.parse(text) : null;
+			const parsed: unknown = text ? JSON.parse(text) : null;
 			return parsed && this.isRecord(parsed) ? parsed : null;
 		} catch {
 			return null;
@@ -1542,7 +1542,7 @@ export default class TracekeeperPlugin extends Plugin {
 			capabilities: {},
 			clientInfo: {
 				name: 'tracekeeper-plugin-ui',
-				version: '0.1.3',
+				version: '0.1.4',
 			},
 		}, false);
 		if (!this.isRecord(result)) {
@@ -1776,15 +1776,16 @@ export default class TracekeeperPlugin extends Plugin {
 
 	private parseMcpJsonConfig(content: string): { mcpServers: Record<string, unknown>; [key: string]: unknown } {
 		const trimmed = content.trim();
-		const parsed = trimmed ? JSON.parse(trimmed) : {};
-		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+		const parsed: unknown = trimmed ? JSON.parse(trimmed) : {};
+		if (!this.isRecord(parsed)) {
 			throw new Error('Client config must be a JSON object.');
 		}
-		const result = parsed as { mcpServers?: unknown; [key: string]: unknown };
-		if (!result.mcpServers || typeof result.mcpServers !== 'object' || Array.isArray(result.mcpServers)) {
-			result.mcpServers = {};
-		}
-		return result as { mcpServers: Record<string, unknown>; [key: string]: unknown };
+
+		const serverMap = this.isRecord(parsed.mcpServers) ? parsed.mcpServers : {};
+		return {
+			...parsed,
+			mcpServers: serverMap,
+		};
 	}
 
 	private removeCodexTomlTracekeeperBlock(content: string): string {

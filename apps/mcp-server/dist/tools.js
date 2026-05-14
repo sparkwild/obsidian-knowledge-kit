@@ -41,7 +41,7 @@ exports.callTool = callTool;
 const fs = __importStar(require("node:fs"));
 const path = __importStar(require("node:path"));
 const crypto = __importStar(require("node:crypto"));
-const core_1 = require("@tracekeeper/core");
+const index_1 = require("../../../packages/core/dist/index");
 const protocol_1 = require("./protocol");
 const safety_1 = require("./safety");
 const REVIEW_QUEUE_PREFIX = '01_inbox/review_queue';
@@ -154,10 +154,10 @@ function pathSafetyOptions(context) {
     };
 }
 function scanVaultForContext(vaultRoot, context) {
-    return (0, core_1.scanVault)(vaultRoot, pathSafetyOptions(context));
+    return (0, index_1.scanVault)(vaultRoot, pathSafetyOptions(context));
 }
 function buildContextPackForContext(vaultRoot, query, context, options = {}) {
-    return (0, core_1.buildContextPack)(vaultRoot, query, {
+    return (0, index_1.buildContextPack)(vaultRoot, query, {
         ...options,
         ...pathSafetyOptions(context),
     });
@@ -369,7 +369,7 @@ function assertSourceRequestPath(relativePath) {
 function readSourceRequest(vaultRoot, requestPath, context) {
     const data = safeReadNote(vaultRoot, requestPath, context);
     assertSourceRequestPath(data.path);
-    const parsed = (0, core_1.parseMarkdown)(data.text);
+    const parsed = (0, index_1.parseMarkdown)(data.text);
     const frontmatter = parsed.frontmatter.fields;
     const sourceKind = readFrontmatterString(frontmatter, ['source_kind', 'sourceKind', 'source-kind']);
     const status = readFrontmatterString(frontmatter, ['status']) || 'pending';
@@ -421,7 +421,7 @@ function readMemoryProposal(vaultRoot, proposalPath, context) {
     const relative = (0, safety_1.relativeFromAbsolute)(vaultRoot, absolutePath);
     assertReviewQueuePath(relative);
     const text = fs.readFileSync(absolutePath, 'utf8');
-    const parsed = (0, core_1.parseMarkdown)(text);
+    const parsed = (0, index_1.parseMarkdown)(text);
     const frontmatter = parsed.frontmatter.fields;
     if (!isMemoryProposalFrontmatter(frontmatter)) {
         throw new safety_1.ToolInputError(`Review Queue note is not a memory proposal: ${relative}`);
@@ -867,13 +867,13 @@ function updateAgentTaskRecord(vaultRoot, taskId, fields, context, references = 
         absolute = (0, safety_1.resolveSafeNotePath)(vaultRoot, buildTaskNotePath(taskId), pathSafetyOptions(context));
     }
     catch (error) {
-        if (error instanceof safety_1.ToolInputError || error instanceof core_1.VaultPathError) {
+        if (error instanceof safety_1.ToolInputError || error instanceof index_1.VaultPathError) {
             return null;
         }
         throw error;
     }
     const current = fs.readFileSync(absolute, 'utf8');
-    const frontmatter = (0, core_1.parseMarkdown)(current).frontmatter.fields;
+    const frontmatter = (0, index_1.parseMarkdown)(current).frontmatter.fields;
     const nextFields = { ...fields };
     for (const [key, values] of Object.entries(references)) {
         const merged = mergeFrontmatterList(frontmatter, key, values);
@@ -1876,7 +1876,7 @@ function callTool(name, rawParams, context = {}) {
         status = isToolResultFailure(toolResult) ? 'failed' : 'success';
     }
     catch (error) {
-        if (error instanceof safety_1.ToolInputError || error instanceof core_1.VaultPathError) {
+        if (error instanceof safety_1.ToolInputError || error instanceof index_1.VaultPathError) {
             toolResult = toolError(error.message);
         }
         else if (error instanceof Error) {
@@ -1981,7 +1981,7 @@ function handleRecall(rawArgs, context) {
     const query = coerceNonEmptyString(rawArgs.query, true, 'query');
     const maxItems = coercePositiveInt(rawArgs.max_items, 6, 1, 20);
     const scan = scanVaultForContext(vaultRoot, context);
-    const matches = (0, core_1.recallNotes)(scan.notes, query, { limit: maxItems });
+    const matches = (0, index_1.recallNotes)(scan.notes, query, { limit: maxItems });
     return {
         ok: true,
         query,
@@ -2001,7 +2001,7 @@ function handleReadNote(rawArgs, context) {
     const vaultRoot = vaultRootFromArgs(rawArgs, context);
     const notePath = coerceNonEmptyString(rawArgs.path, true, 'path');
     const data = safeReadNote(vaultRoot, notePath, context);
-    const parsed = (0, core_1.parseMarkdown)(data.text);
+    const parsed = (0, index_1.parseMarkdown)(data.text);
     return {
         ok: true,
         read_only: true,
@@ -2101,7 +2101,7 @@ function resolveSourceInput(request, vaultRoot, context) {
             };
         }
         catch (error) {
-            if (error instanceof safety_1.ToolInputError || error instanceof core_1.VaultPathError) {
+            if (error instanceof safety_1.ToolInputError || error instanceof index_1.VaultPathError) {
                 return {
                     sourceText: request.content || source,
                     mode: 'extracted_snapshot',
@@ -2194,7 +2194,7 @@ function handleAnalyzeSourceRequest(rawArgs, context) {
             throw new safety_1.ToolInputError(`Request status is ${request.status}; use force_reprocess=true to process anyway.`);
         }
         const { sourceText, mode, resolvedSourcePath, warnings } = resolveSourceInput(request, vaultRoot, context);
-        const analysis = (0, core_1.analyzeSourceText)({
+        const analysis = (0, index_1.analyzeSourceText)({
             source: request.source,
             sourceKind: request.sourceKind || 'unknown',
             analysisMode: request.analysisMode || 'default',
@@ -2477,7 +2477,7 @@ function handleAuditRecent(rawArgs, context) {
         text = fs.readFileSync(auditPath, 'utf8');
     }
     catch (error) {
-        if (!(error instanceof safety_1.ToolInputError || error instanceof core_1.VaultPathError)) {
+        if (!(error instanceof safety_1.ToolInputError || error instanceof index_1.VaultPathError)) {
             throw error;
         }
     }
@@ -2747,7 +2747,7 @@ function handleLint(rawArgs, context) {
     const vaultRoot = vaultRootFromArgs(rawArgs, context);
     const maxItems = coercePositiveInt(rawArgs.max_items, 40, 1, 2000);
     const scan = scanVaultForContext(vaultRoot, context);
-    const { issues } = (0, core_1.lintNotes)(vaultRoot, scan.notes);
+    const { issues } = (0, index_1.lintNotes)(vaultRoot, scan.notes);
     const limitedIssues = issues.slice(0, maxItems);
     return {
         ok: true,

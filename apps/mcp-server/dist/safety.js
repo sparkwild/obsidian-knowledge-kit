@@ -42,7 +42,7 @@ exports.resolveSafeWritableNotePath = resolveSafeWritableNotePath;
 exports.relativeFromAbsolute = relativeFromAbsolute;
 const fs = __importStar(require("node:fs"));
 const path = __importStar(require("node:path"));
-const core_1 = require("@tracekeeper/core");
+const index_1 = require("../../../packages/core/dist/index");
 const TEXT_LIKE_EXTENSIONS = new Set(['.md', '.markdown', '.txt', '.text']);
 const MARKDOWN_EXTENSIONS = new Set(['.md']);
 class ToolInputError extends Error {
@@ -68,13 +68,13 @@ function relativePosixFromVaultRoot(vaultRoot, absolutePath) {
         rawRelative.startsWith(`..${path.sep}`) ||
         rawRelative.startsWith('../') ||
         path.isAbsolute(rawRelative)) {
-        throw new core_1.VaultPathError('Path is outside vault root.');
+        throw new index_1.VaultPathError('Path is outside vault root.');
     }
     return toPosix(rawRelative);
 }
 function toSafeVaultRoot(vaultRoot) {
     const safeVaultRoot = toSafeText(vaultRoot, 'vaultRoot');
-    return (0, core_1.resolveVaultRoot)(safeVaultRoot);
+    return (0, index_1.resolveVaultRoot)(safeVaultRoot);
 }
 function normalizeConfigDir(configDir) {
     const normalizedInput = toPosix(configDir || '');
@@ -93,7 +93,7 @@ function isVaultConfigPath(relativePath, options = {}) {
 }
 function assertNotVaultConfigPath(relativePath, action, options = {}) {
     if (isVaultConfigPath(relativePath.replace(/\\/g, '/'), options)) {
-        throw new core_1.VaultPathError(`${action} Obsidian configuration paths are not allowed.`);
+        throw new index_1.VaultPathError(`${action} Obsidian configuration paths are not allowed.`);
     }
 }
 function normalizeNotePath(rawPath, options = {}) {
@@ -115,7 +115,7 @@ function normalizeNotePath(rawPath, options = {}) {
         if (segment === '') {
             continue;
         }
-        if (!(0, core_1.isSafeDirectoryName)(segment, { allowHidden: true })) {
+        if (!(0, index_1.isSafeDirectoryName)(segment, { allowHidden: true })) {
             throw new ToolInputError(`Path contains unsafe segment: ${segment}`);
         }
     }
@@ -131,7 +131,7 @@ function hasMarkdownExtension(candidate) {
 }
 function resolveCandidatePath(vaultRoot, candidate) {
     const absoluteCandidate = path.resolve(vaultRoot, candidate);
-    return (0, core_1.ensureInsideVaultRoot)(vaultRoot, absoluteCandidate);
+    return (0, index_1.ensureInsideVaultRoot)(vaultRoot, absoluteCandidate);
 }
 function assertNoSymlinkSegments(vaultRoot, absolutePath) {
     const relative = relativePosixFromVaultRoot(vaultRoot, absolutePath);
@@ -144,7 +144,7 @@ function assertNoSymlinkSegments(vaultRoot, absolutePath) {
         }
         const stat = fs.lstatSync(cursor);
         if (stat.isSymbolicLink()) {
-            throw new core_1.VaultPathError('Symlink paths are not allowed for note reads.');
+            throw new index_1.VaultPathError('Symlink paths are not allowed for note reads.');
         }
     }
 }
@@ -169,16 +169,16 @@ function resolveSafeNotePath(vaultRoot, rawPath, options = {}) {
         }
         return absolute;
     }
-    throw new core_1.VaultPathError('Note not found or not a markdown/text-like file inside vault.');
+    throw new index_1.VaultPathError('Note not found or not a markdown/text-like file inside vault.');
 }
 function resolveSafeWritableNotePath(vaultRoot, rawPath, allowedDirectory, options = {}) {
     const candidate = normalizeNotePath(rawPath, options);
     const withMarkdown = hasMarkdownExtension(candidate) ? candidate : `${candidate}.md`;
     const absolute = path.resolve(vaultRoot, withMarkdown);
-    const resolved = (0, core_1.ensureInsideVaultRoot)(vaultRoot, absolute);
+    const resolved = (0, index_1.ensureInsideVaultRoot)(vaultRoot, absolute);
     const relative = relativePosixFromVaultRoot(vaultRoot, resolved);
     if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
-        throw new core_1.VaultPathError('Path is outside vault root.');
+        throw new index_1.VaultPathError('Path is outside vault root.');
     }
     const normalizedAllowed = path.posix.normalize(allowedDirectory.replace(/\\/g, '/')).replace(/\/+$/g, '');
     if (!normalizedAllowed || normalizedAllowed.includes('..')) {
