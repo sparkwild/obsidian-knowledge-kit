@@ -19,7 +19,7 @@ After Tracekeeper is listed in the Obsidian Community Plugins directory:
 Before community listing, install from the latest GitHub release:
 
 1. Download `main.js`, `manifest.json`, and `styles.css` from the release whose tag matches the version in `manifest.json`.
-2. Create `<vault>/.obsidian/plugins/tracekeeper/`.
+2. Create `plugins/tracekeeper/` inside the vault's Obsidian configuration folder.
 3. Copy the three files into that folder.
 4. Restart Obsidian or reload community plugins, then enable **Tracekeeper**.
 
@@ -56,7 +56,7 @@ The connection is local-first:
 - no default network upload
 - no shell command execution
 - no vault-outside file access from MCP tools
-- no `.obsidian` reads through MCP tools
+- no Obsidian configuration directory reads through MCP tools
 
 ## Review Queue
 
@@ -91,17 +91,6 @@ MCP writes are intentionally narrow:
 - delete, rename, bulk rewrite, and system command execution are not available MCP actions
 
 User-confirmed client configuration is the only expected write outside the active vault. Tracekeeper previews the target configuration and creates a backup before changing supported AI tool config files.
-
-## Release And Submission
-
-Community submission and release steps are maintained in [docs/COMMUNITY_PLUGIN_SUBMISSION.md](./docs/COMMUNITY_PLUGIN_SUBMISSION.md). The short version:
-
-1. Make the repository public before submitting.
-2. Keep `manifest.json`, `versions.json`, and release assets aligned.
-3. Run `npm run verify`.
-4. Create a GitHub release whose tag matches `manifest.json` version.
-5. Upload `main.js`, `manifest.json`, and `styles.css` as release assets.
-6. Submit the public repository URL through the Obsidian community plugin directory.
 
 ## License
 

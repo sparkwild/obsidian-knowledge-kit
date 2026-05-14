@@ -1,9 +1,8 @@
 import path from 'node:path';
 
-const OBSIDIAN_DIR = '.obsidian';
-
 export interface VaultSafetyOptions {
 	allowHidden?: boolean;
+	protectedDirectoryName?: string;
 }
 
 export class VaultPathError extends Error {
@@ -13,8 +12,8 @@ export class VaultPathError extends Error {
 	}
 }
 
-export function isObsidianMetadataFolderName(name: string): boolean {
-	return name === OBSIDIAN_DIR;
+export function isObsidianMetadataFolderName(name: string, protectedDirectoryName?: string): boolean {
+	return Boolean(protectedDirectoryName && name === protectedDirectoryName);
 }
 
 export function resolveVaultRoot(vaultRoot: string): string {
@@ -45,7 +44,7 @@ export function isSafeDirectoryName(name: string, options: VaultSafetyOptions = 
 	if (options.allowHidden === false && name.startsWith('.')) {
 		return false;
 	}
-	if (isObsidianMetadataFolderName(name)) {
+	if (isObsidianMetadataFolderName(name, options.protectedDirectoryName)) {
 		return false;
 	}
 	return true;

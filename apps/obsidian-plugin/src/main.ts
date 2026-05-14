@@ -608,6 +608,7 @@ export default class TracekeeperPlugin extends Plugin {
 			path: DEFAULT_MCP_PATH,
 			token: this.settings.runtimeToken,
 			defaultVaultRoot: vaultRoot,
+			vaultConfigDir: this.app.vault.configDir,
 		});
 		this.mcpRuntime = runtime;
 		try {
@@ -4186,7 +4187,10 @@ class TracekeeperSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-		containerEl.createEl('h2', { text: pluginDisplayName() });
+
+		new Setting(containerEl)
+			.setName(pluginDisplayName())
+			.setHeading();
 
 		new Setting(containerEl)
 			.setName(ui('显示欢迎信息', 'Show welcome message'))

@@ -10,7 +10,6 @@ exports.isInsideVaultRoot = isInsideVaultRoot;
 exports.ensureInsideVaultRoot = ensureInsideVaultRoot;
 exports.isSafeDirectoryName = isSafeDirectoryName;
 const node_path_1 = __importDefault(require("node:path"));
-const OBSIDIAN_DIR = '.obsidian';
 class VaultPathError extends Error {
     constructor(message) {
         super(message);
@@ -18,8 +17,8 @@ class VaultPathError extends Error {
     }
 }
 exports.VaultPathError = VaultPathError;
-function isObsidianMetadataFolderName(name) {
-    return name === OBSIDIAN_DIR;
+function isObsidianMetadataFolderName(name, protectedDirectoryName) {
+    return Boolean(protectedDirectoryName && name === protectedDirectoryName);
 }
 function resolveVaultRoot(vaultRoot) {
     return node_path_1.default.resolve(vaultRoot);
@@ -44,7 +43,7 @@ function isSafeDirectoryName(name, options = {}) {
     if (options.allowHidden === false && name.startsWith('.')) {
         return false;
     }
-    if (isObsidianMetadataFolderName(name)) {
+    if (isObsidianMetadataFolderName(name, options.protectedDirectoryName)) {
         return false;
     }
     return true;

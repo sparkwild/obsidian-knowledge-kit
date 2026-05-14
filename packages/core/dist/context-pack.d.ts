@@ -28,5 +28,6 @@ export interface ContextPack {
 export interface ContextPackOptions {
     limit?: number;
     staleAfterDays?: number;
+    vaultConfigDir?: string;
 }
 export declare function buildContextPack(vaultRoot: string, query: string, options?: ContextPackOptions): ContextPack;

@@ -34,6 +34,10 @@ export interface ScanResult {
 	errors: ScanError[];
 }
 
+export interface ScanVaultOptions {
+	vaultConfigDir?: string;
+}
+
 const NOTES_EXTENSIONS = new Set(['.md', '.markdown']);
 
 function getAliases(frontmatter: Record<string, unknown>): string[] {
@@ -60,8 +64,17 @@ function getAliases(frontmatter: Record<string, unknown>): string[] {
 	return [...new Set(aliases)];
 }
 
-function shouldSkipDirectory(entryName: string): boolean {
-	return !isSafeDirectoryName(entryName);
+function normalizeProtectedDirectoryName(configDir?: string): string {
+	const normalized = (configDir || '').replace(/\\/g, '/').trim().replace(/\/+$/g, '');
+	if (!normalized || normalized.includes('/')) {
+		return '';
+	}
+	return normalized;
+}
+
+function shouldSkipDirectory(entryName: string, options: ScanVaultOptions): boolean {
+	const protectedDirectoryName = normalizeProtectedDirectoryName(options.vaultConfigDir);
+	return !isSafeDirectoryName(entryName, { protectedDirectoryName });
 }
 
 function isSkippableEntry(entry: fs.Dirent): boolean {
@@ -71,10 +84,16 @@ function isSkippableEntry(entry: fs.Dirent): boolean {
 	return false;
 }
 
-function scanDirectory(vaultRoot: string, directory: string, notes: ScannedNote[], errors: ScanError[]): void {
+function scanDirectory(
+	vaultRoot: string,
+	directory: string,
+	notes: ScannedNote[],
+	errors: ScanError[],
+	options: ScanVaultOptions
+): void {
 	const entries = fs.readdirSync(directory, { withFileTypes: true });
 	for (const entry of entries) {
-		if (shouldSkipDirectory(entry.name)) {
+		if (shouldSkipDirectory(entry.name, options)) {
 			continue;
 		}
 		if (isSkippableEntry(entry)) {
@@ -85,7 +104,7 @@ function scanDirectory(vaultRoot: string, directory: string, notes: ScannedNote[
 		const safePath = ensureInsideVaultRoot(vaultRoot, resolved);
 
 		if (entry.isDirectory()) {
-			scanDirectory(vaultRoot, safePath, notes, errors);
+			scanDirectory(vaultRoot, safePath, notes, errors, options);
 			continue;
 		}
 
@@ -132,12 +151,12 @@ function scanDirectory(vaultRoot: string, directory: string, notes: ScannedNote[
 	}
 }
 
-export function scanVault(vaultRoot: string): ScanResult {
+export function scanVault(vaultRoot: string, options: ScanVaultOptions = {}): ScanResult {
 	const resolvedRoot = resolveVaultRoot(vaultRoot);
 	const notes: ScannedNote[] = [];
 	const errors: ScanError[] = [];
 
-	scanDirectory(resolvedRoot, resolvedRoot, notes, errors);
+	scanDirectory(resolvedRoot, resolvedRoot, notes, errors, options);
 
 	return {
 		vaultRoot: resolvedRoot,

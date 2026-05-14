@@ -2,9 +2,12 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { ensureInsideVaultRoot, resolveVaultRoot, isSafeDirectoryName, VaultPathError } from '@tracekeeper/core';
 
-const FORBIDDEN_SEGMENTS = new Set(['.obsidian']);
 const TEXT_LIKE_EXTENSIONS = new Set(['.md', '.markdown', '.txt', '.text']);
 const MARKDOWN_EXTENSIONS = new Set(['.md']);
+
+export interface VaultPathSafetyOptions {
+	vaultConfigDir?: string;
+}
 
 export class ToolInputError extends Error {
 	constructor(message: string) {
@@ -21,7 +24,30 @@ export function toSafeVaultRoot(vaultRoot?: unknown): string {
 	return resolveVaultRoot(vaultRoot);
 }
 
-export function normalizeNotePath(rawPath: string): string {
+function normalizeConfigDir(configDir?: string): string {
+	const normalizedInput = (configDir || '').replace(/\\/g, '/').trim();
+	if (!normalizedInput || path.posix.isAbsolute(normalizedInput)) {
+		return '';
+	}
+	const normalized = path.posix.normalize(normalizedInput).replace(/\/+$/g, '');
+	if (!normalized || normalized === '.' || normalized === '..' || normalized.startsWith('../') || normalized.includes('/../')) {
+		return '';
+	}
+	return normalized;
+}
+
+function isVaultConfigPath(relativePath: string, options: VaultPathSafetyOptions = {}): boolean {
+	const configDir = normalizeConfigDir(options.vaultConfigDir);
+	return Boolean(configDir && (relativePath === configDir || relativePath.startsWith(`${configDir}/`)));
+}
+
+function assertNotVaultConfigPath(relativePath: string, action: 'Reading' | 'Writing', options: VaultPathSafetyOptions = {}): void {
+	if (isVaultConfigPath(relativePath.replace(/\\/g, '/'), options)) {
+		throw new VaultPathError(`${action} Obsidian configuration paths are not allowed.`);
+	}
+}
+
+export function normalizeNotePath(rawPath: string, options: VaultPathSafetyOptions = {}): string {
 	if (typeof rawPath !== 'string' || rawPath.trim() === '') {
 		throw new ToolInputError('path is required and must be a non-empty string.');
 	}
@@ -38,6 +64,7 @@ export function normalizeNotePath(rawPath: string): string {
 	if (normalized === '' || normalized.startsWith('..') || normalized.includes('/../')) {
 		throw new ToolInputError('Path traversal is not allowed.');
 	}
+	assertNotVaultConfigPath(normalized, 'Reading', options);
 
 	const segments = normalized.split('/');
 	for (const segment of segments) {
@@ -46,9 +73,6 @@ export function normalizeNotePath(rawPath: string): string {
 		}
 		if (!isSafeDirectoryName(segment, { allowHidden: true })) {
 			throw new ToolInputError(`Path contains unsafe segment: ${segment}`);
-		}
-		if (FORBIDDEN_SEGMENTS.has(segment)) {
-			throw new ToolInputError('Reading .obsidian paths is not allowed.');
 		}
 	}
 
@@ -87,8 +111,8 @@ export function assertNoSymlinkSegments(vaultRoot: string, absolutePath: string)
 	}
 }
 
-export function resolveSafeNotePath(vaultRoot: string, rawPath: string): string {
-	const candidate = normalizeNotePath(rawPath);
+export function resolveSafeNotePath(vaultRoot: string, rawPath: string, options: VaultPathSafetyOptions = {}): string {
+	const candidate = normalizeNotePath(rawPath, options);
 
 	const candidatePaths = hasTextLikeExtension(candidate)
 		? [candidate]
@@ -96,10 +120,7 @@ export function resolveSafeNotePath(vaultRoot: string, rawPath: string): string 
 
 	for (const candidatePath of candidatePaths) {
 		const absolute = resolveCandidatePath(vaultRoot, candidatePath);
-		const relParts = path.relative(vaultRoot, absolute).split(path.sep);
-		if (relParts.some((segment) => FORBIDDEN_SEGMENTS.has(segment))) {
-			throw new VaultPathError('Reading .obsidian paths is not allowed.');
-		}
+		assertNotVaultConfigPath(relativeFromAbsolute(vaultRoot, absolute), 'Reading', options);
 
 		if (!hasTextLikeExtension(absolute)) {
 			continue;
@@ -129,9 +150,10 @@ export interface WritablePathResolution {
 export function resolveSafeWritableNotePath(
 	vaultRoot: string,
 	rawPath: string,
-	allowedDirectory: string
+	allowedDirectory: string,
+	options: VaultPathSafetyOptions = {}
 ): WritablePathResolution {
-	const candidate = normalizeNotePath(rawPath);
+	const candidate = normalizeNotePath(rawPath, options);
 	const withMarkdown = hasMarkdownExtension(candidate) ? candidate : `${candidate}.md`;
 	const absolute = path.resolve(vaultRoot, withMarkdown);
 	const resolved = ensureInsideVaultRoot(vaultRoot, absolute);
@@ -153,11 +175,8 @@ export function resolveSafeWritableNotePath(
 	if (!hasMarkdownExtension(relative)) {
 		throw new ToolInputError('Only markdown (.md) files can be written.');
 	}
+	assertNotVaultConfigPath(relative, 'Writing', options);
 
-	const relParts = path.relative(vaultRoot, resolved).split(path.sep);
-	if (relParts.some((segment) => FORBIDDEN_SEGMENTS.has(segment))) {
-		throw new VaultPathError('Writing .obsidian paths is not allowed.');
-	}
 	assertNoSymlinkSegments(vaultRoot, resolved);
 
 	if (fs.existsSync(resolved)) {

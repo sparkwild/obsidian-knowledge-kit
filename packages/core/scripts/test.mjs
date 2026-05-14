@@ -27,9 +27,10 @@ function run() {
 
 	try {
 		const vaultRoot = createFixture(tempRoot);
+		const configDir = 'vault-config';
 		writeFile('00_control/system.md', '# System\n', vaultRoot);
 		writeFile('05_knowledge/notes/entry.md', '# Entry\n', vaultRoot);
-		writeFile('.obsidian/config.json', '{}', vaultRoot);
+		writeFile(`${configDir}/config.json`, '{}', vaultRoot);
 
 		writeFile('03_sources/source_seed.md', '# Source Seed\n\nProof text used for scan tests.', vaultRoot);
 		const outsideFile = path.join(tempRoot, 'outside.md');
@@ -37,7 +38,7 @@ function run() {
 
 		const results = { skipped: [] };
 
-		assert.equal(safety.isSafeDirectoryName('.obsidian'), false);
+		assert.equal(safety.isSafeDirectoryName(configDir, { protectedDirectoryName: configDir }), false);
 		assert.equal(safety.isSafeDirectoryName('.hidden', { allowHidden: false }), false);
 		assert.equal(safety.isSafeDirectoryName('.hidden', { allowHidden: true }), true);
 
@@ -47,9 +48,9 @@ function run() {
 		assert.throws(() => safety.ensureInsideVaultRoot(vaultRoot, outsideFile), /outside vault root/);
 		assert.throws(() => safety.ensureInsideVaultRoot(vaultRoot, path.join(vaultRoot, '../outside.md')), /outside vault root/);
 
-		const scanBeforeSymlink = scanModule.scanVault(vaultRoot);
+		const scanBeforeSymlink = scanModule.scanVault(vaultRoot, { vaultConfigDir: configDir });
 		assert.ok(scanBeforeSymlink.notes.some((note) => note.relativePath === '00_control/system.md'));
-		assert.ok(!scanBeforeSymlink.notes.some((note) => note.relativePath.startsWith('.obsidian/')), 'Expected .obsidian to be skipped');
+		assert.ok(!scanBeforeSymlink.notes.some((note) => note.relativePath.startsWith(`${configDir}/`)), 'Expected vault config directory to be skipped');
 
 		const linkedTarget = path.join(vaultRoot, '03_sources', 'target.md');
 		const linkedSource = path.join(vaultRoot, '03_sources', 'symlink_source.md');
@@ -65,7 +66,7 @@ function run() {
 		}
 
 		if (symlinkSupported) {
-			const scanWithSymlink = scanModule.scanVault(vaultRoot);
+			const scanWithSymlink = scanModule.scanVault(vaultRoot, { vaultConfigDir: configDir });
 			assert.equal(scanWithSymlink.notes.some((note) => note.relativePath === '03_sources/symlink_source.md'), false);
 		} else {
 			console.log('SKIP: platform does not support creating symlinks in this environment');

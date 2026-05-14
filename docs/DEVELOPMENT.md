@@ -51,17 +51,27 @@ Before submitting to the community directory, follow [Community Plugin Submissio
 - Make the repository public.
 - Create a GitHub release whose tag exactly matches `manifest.json` version.
 - Upload `main.js`, `manifest.json`, and `styles.css` as individual release assets.
-- Use this community entry:
 
-```json
-{
-	"id": "tracekeeper",
-	"name": "Tracekeeper",
-	"author": "sparkwild",
-	"description": "Review AI-proposed wiki and memory updates before they reach your vault.",
-	"repo": "sparkwild/obsidian-tracekeeper"
-}
-```
+## Next Work
+
+1. Improve Agent Connections status states and client detection fixtures.
+2. Add fixture tests for client config merge and removal.
+3. Split large Obsidian plugin UI modules out of `main.ts`.
+4. Add local runtime packaging for `tracekeeper-mcp`.
+5. Add integration smoke checks for installed local plugin reload.
+
+## Release Readiness
+
+Before public distribution:
+
+- no hardcoded developer paths
+- local Runtime defaults are documented and user-overridable
+- no stale historical migration docs
+- clear privacy/security docs
+- repeatable package verification
+- tested install and reload flow
+- GitHub release assets include `main.js`, `manifest.json`, and `styles.css`
+- community metadata passes `npm run community:check`
 
 ## Acknowledgement Policy
 

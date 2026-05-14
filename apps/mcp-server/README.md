@@ -38,7 +38,7 @@ Permission policy:
 - default posture: read-only vault-local access
 - controlled write tools are limited to low-risk working records
 - protected memory writeback is review-gated and only runs through approved Review Queue proposals
-- full matrix: [../../docs/MCP.md](../../docs/MCP.md)
+- full matrix: [../../docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md)
 
 Current write allowlist:
 
@@ -61,7 +61,7 @@ Security constraints:
 - no shell calls
 - no network calls
 - no vault-outside reads
-- no `.obsidian` reads
+- no Obsidian configuration directory reads
 - required local Runtime token by default
 - no wildcard CORS; browser-style origins are limited to Obsidian and loopback
 - all writes append events to `00_control/audit_log.md` (file is created if absent)
@@ -76,7 +76,7 @@ npm install --cache /private/tmp/tracekeeper-npm-cache
 npm run typecheck
 npm run build
 npm run test
-node dist/server.js --vault-root <vault> --port 58437 --token <token>
+node dist/server.js --vault-root <vault> --vault-config-dir <config-dir> --port 58437 --token <token>
 ```
 
 Then send Streamable HTTP JSON-RPC requests to `http://127.0.0.1:58437/mcp?token=<token>`.

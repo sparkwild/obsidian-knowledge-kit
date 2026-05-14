@@ -29,6 +29,7 @@ class StreamableHttpMcpRuntime {
         this.runtimeVersion = options.runtimeVersion || handler_1.MCP_SERVER_VERSION;
         this.handler = new handler_1.McpJsonRpcHandler({
             defaultVaultRoot: options.defaultVaultRoot,
+            vaultConfigDir: options.vaultConfigDir,
             runtimeVersion: this.runtimeVersion,
             transport: handler_1.STREAMABLE_HTTP_TRANSPORT,
         });
