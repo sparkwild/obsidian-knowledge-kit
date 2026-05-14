@@ -5,6 +5,7 @@ interface ServerArgs {
 	host?: string;
 	port?: number;
 	token?: string;
+	allowMissingTokenForDev?: boolean;
 }
 
 function parseArgs(argv: string[]): ServerArgs {
@@ -33,6 +34,10 @@ function parseArgs(argv: string[]): ServerArgs {
 		if (value === '--token' && next) {
 			result.token = next;
 			index += 1;
+			continue;
+		}
+		if (value === '--allow-missing-token-for-dev') {
+			result.allowMissingTokenForDev = true;
 		}
 	}
 	return result;

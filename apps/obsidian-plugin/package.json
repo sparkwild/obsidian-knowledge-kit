@@ -1,7 +1,7 @@
 {
   "name": "tracekeeper-plugin",
   "version": "0.1.0",
-  "description": "Build and review an AI-assisted wiki from your vault.",
+  "description": "Review AI-proposed wiki and memory updates before they reach your vault.",
   "private": true,
   "main": "main.js",
   "scripts": {

@@ -27,6 +27,10 @@ function parseArgs(argv) {
         if (value === '--token' && next) {
             result.token = next;
             index += 1;
+            continue;
+        }
+        if (value === '--allow-missing-token-for-dev') {
+            result.allowMissingTokenForDev = true;
         }
     }
     return result;
