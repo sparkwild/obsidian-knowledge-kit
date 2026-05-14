@@ -8,6 +8,7 @@ This directory keeps the current Tracekeeper product documentation. Historical e
 - [Obsidian plugin](./PLUGIN.md)
 - [MCP and permissions](./MCP.md)
 - [Client auto-configuration](./CLIENT_AUTO_CONFIGURATION.md)
+- [Community plugin submission](./COMMUNITY_PLUGIN_SUBMISSION.md)
 - [Development and release notes](./DEVELOPMENT.md)
 - [Roadmap](./ROADMAP.md)
 

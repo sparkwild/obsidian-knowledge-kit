@@ -45,9 +45,10 @@ obsidian-tracekeeper/
 
 ## Community Release
 
-Before submitting to the community directory:
+Before submitting to the community directory, follow [Community Plugin Submission](./COMMUNITY_PLUGIN_SUBMISSION.md). Short checklist:
 
 - Run `npm run verify`.
+- Make the repository public.
 - Create a GitHub release whose tag exactly matches `manifest.json` version.
 - Upload `main.js`, `manifest.json`, and `styles.css` as individual release assets.
 - Use this community entry:
@@ -57,7 +58,7 @@ Before submitting to the community directory:
 	"id": "tracekeeper",
 	"name": "Tracekeeper",
 	"author": "sparkwild",
-	"description": "Build and review an AI-assisted wiki from your vault.",
+	"description": "Review AI-proposed wiki and memory updates before they reach your vault.",
 	"repo": "sparkwild/obsidian-tracekeeper"
 }
 ```

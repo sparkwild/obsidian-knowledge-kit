@@ -17,6 +17,7 @@ export interface StreamableHttpRuntimeOptions {
 	port?: number;
 	path?: string;
 	token?: string;
+	allowMissingTokenForDev?: boolean;
 	defaultVaultRoot?: string;
 	runtimeVersion?: string;
 }
@@ -47,6 +48,7 @@ export class StreamableHttpMcpRuntime {
 	private port: number;
 	private path: string;
 	private token: string;
+	private allowMissingTokenForDev: boolean;
 	private runtimeVersion: string;
 	private handler: McpJsonRpcHandler;
 	private server: http.Server | null = null;
@@ -59,7 +61,11 @@ export class StreamableHttpMcpRuntime {
 		this.host = options.host || DEFAULT_HOST;
 		this.port = options.port ?? 58437;
 		this.path = options.path || DEFAULT_PATH;
-		this.token = options.token || '';
+		this.token = (options.token || '').trim();
+		this.allowMissingTokenForDev = options.allowMissingTokenForDev === true;
+		if (!this.token && !this.allowMissingTokenForDev) {
+			throw new Error('MCP Runtime token is required. Pass a generated token or explicitly enable allowMissingTokenForDev for local development only.');
+		}
 		this.runtimeVersion = options.runtimeVersion || MCP_SERVER_VERSION;
 		this.handler = new McpJsonRpcHandler({
 			defaultVaultRoot: options.defaultVaultRoot,
@@ -141,22 +147,22 @@ export class StreamableHttpMcpRuntime {
 	private async handleRequest(request: IncomingMessage, response: ServerResponse): Promise<void> {
 		const url = this.parseRequestUrl(request);
 		if (!url || url.pathname !== this.path) {
-			this.writePlain(response, 404, 'Not found.');
+			this.writePlain(response, 404, 'Not found.', request);
 			return;
 		}
 
 		if (!this.isAllowedOrigin(request)) {
-			this.writeJson(response, 403, this.errorResponse(null, -32003, 'Forbidden origin.'));
+			this.writeJson(response, 403, this.errorResponse(null, -32003, 'Forbidden origin.'), request);
 			return;
 		}
 
 		if (!this.hasValidToken(request, url)) {
-			this.writeJson(response, 401, this.errorResponse(null, -32001, 'Invalid MCP runtime token.'));
+			this.writeJson(response, 401, this.errorResponse(null, -32001, 'Invalid MCP runtime token.'), request);
 			return;
 		}
 
 		if (request.method === 'OPTIONS') {
-			this.writeCors(response, 204);
+			this.writeCors(response, 204, request);
 			response.end();
 			return;
 		}
@@ -173,7 +179,7 @@ export class StreamableHttpMcpRuntime {
 			return;
 		}
 
-		this.writeJson(response, 405, this.errorResponse(null, -32005, 'Method not allowed.'));
+		this.writeJson(response, 405, this.errorResponse(null, -32005, 'Method not allowed.'), request);
 	}
 
 	private async handlePost(request: IncomingMessage, response: ServerResponse): Promise<void> {
@@ -183,12 +189,12 @@ export class StreamableHttpMcpRuntime {
 			message = JSON.parse(body || '{}');
 		} catch (error) {
 			const messageText = error instanceof Error ? error.message : 'Invalid JSON.';
-			this.writeJson(response, 400, this.errorResponse(null, -32700, messageText));
+			this.writeJson(response, 400, this.errorResponse(null, -32700, messageText), request);
 			return;
 		}
 
 		if (Array.isArray(message)) {
-			this.writeJson(response, 400, this.errorResponse(null, -32600, 'Batch requests are not supported by this Runtime.'));
+			this.writeJson(response, 400, this.errorResponse(null, -32600, 'Batch requests are not supported by this Runtime.'), request);
 			return;
 		}
 
@@ -207,11 +213,11 @@ export class StreamableHttpMcpRuntime {
 			response.setHeader('Mcp-Session-Id', session.sessionId);
 		}
 		if (!result) {
-			this.writeCors(response, 202);
+			this.writeCors(response, 202, request);
 			response.end();
 			return;
 		}
-		this.writeJson(response, 200, result);
+		this.writeJson(response, 200, result, request);
 	}
 
 	private handleGet(request: IncomingMessage, response: ServerResponse): void {
@@ -220,7 +226,7 @@ export class StreamableHttpMcpRuntime {
 			return;
 		}
 		session.lastSeenAt = Date.now();
-		this.writeCors(response, 200);
+		this.writeCors(response, 200, request);
 		response.setHeader('Content-Type', 'text/event-stream');
 		response.setHeader('Cache-Control', 'no-cache, no-transform');
 		response.setHeader('Connection', 'keep-alive');
@@ -238,7 +244,7 @@ export class StreamableHttpMcpRuntime {
 		}
 		this.closeSession(session);
 		this.sessions.delete(session.sessionId);
-		this.writeCors(response, 204);
+		this.writeCors(response, 204, request);
 		response.end();
 	}
 
@@ -260,12 +266,12 @@ export class StreamableHttpMcpRuntime {
 	private requireSession(request: IncomingMessage, response: ServerResponse): RuntimeSession | null {
 		const sessionId = this.firstHeaderValue(request.headers['mcp-session-id']);
 		if (!sessionId) {
-			this.writeJson(response, 400, this.errorResponse(null, -32000, 'Missing Mcp-Session-Id header.'));
+			this.writeJson(response, 400, this.errorResponse(null, -32000, 'Missing Mcp-Session-Id header.'), request);
 			return null;
 		}
 		const session = this.sessions.get(sessionId);
 		if (!session) {
-			this.writeJson(response, 404, this.errorResponse(null, -32004, 'Unknown MCP session.'));
+			this.writeJson(response, 404, this.errorResponse(null, -32004, 'Unknown MCP session.'), request);
 			return null;
 		}
 		return session;
@@ -307,23 +313,28 @@ export class StreamableHttpMcpRuntime {
 
 	private isAllowedOrigin(request: IncomingMessage): boolean {
 		const origin = this.firstHeaderValue(request.headers.origin);
+		return !origin || this.allowedCorsOrigin(request) !== null;
+	}
+
+	private allowedCorsOrigin(request: IncomingMessage): string | null {
+		const origin = this.firstHeaderValue(request.headers.origin);
 		if (!origin) {
-			return true;
+			return null;
 		}
 		if (origin === 'app://obsidian.md') {
-			return true;
+			return origin;
 		}
 		try {
 			const parsed = new URL(origin);
-			return LOOPBACK_HOSTS.has(parsed.hostname);
+			return LOOPBACK_HOSTS.has(parsed.hostname) ? origin : null;
 		} catch {
-			return false;
+			return null;
 		}
 	}
 
 	private hasValidToken(request: IncomingMessage, url: URL): boolean {
 		if (!this.token) {
-			return true;
+			return this.allowMissingTokenForDev;
 		}
 		const queryToken = url.searchParams.get('token');
 		if (queryToken === this.token) {
@@ -340,21 +351,25 @@ export class StreamableHttpMcpRuntime {
 		return value || '';
 	}
 
-	private writeJson(response: ServerResponse, status: number, payload: JsonRpcResponse): void {
-		this.writeCors(response, status);
+	private writeJson(response: ServerResponse, status: number, payload: JsonRpcResponse, request?: IncomingMessage): void {
+		this.writeCors(response, status, request);
 		response.setHeader('Content-Type', 'application/json');
 		response.end(JSON.stringify(payload));
 	}
 
-	private writePlain(response: ServerResponse, status: number, text: string): void {
-		this.writeCors(response, status);
+	private writePlain(response: ServerResponse, status: number, text: string, request?: IncomingMessage): void {
+		this.writeCors(response, status, request);
 		response.setHeader('Content-Type', 'text/plain; charset=utf-8');
 		response.end(text);
 	}
 
-	private writeCors(response: ServerResponse, status: number): void {
+	private writeCors(response: ServerResponse, status: number, request?: IncomingMessage): void {
 		response.statusCode = status;
-		response.setHeader('Access-Control-Allow-Origin', '*');
+		const origin = request ? this.allowedCorsOrigin(request) : null;
+		if (origin) {
+			response.setHeader('Access-Control-Allow-Origin', origin);
+			response.setHeader('Vary', 'Origin');
+		}
 		response.setHeader('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, Mcp-Session-Id');
 		response.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
 		response.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
