@@ -46,6 +46,7 @@ type SensitiveTextScan = { ok: true } | { ok: false; reason: string };
 
 interface ToolContext {
 	defaultVaultRoot?: string;
+	vaultConfigDir?: string;
 }
 
 export interface ToolInvocationContext extends ToolContext {
@@ -337,6 +338,28 @@ function vaultRootFromArgs(args: ToolArgs, context: ToolContext): string {
 	return toSafeVaultRoot(context.defaultVaultRoot);
 }
 
+function pathSafetyOptions(context: ToolContext): { vaultConfigDir?: string } {
+	return {
+		vaultConfigDir: context.vaultConfigDir,
+	};
+}
+
+function scanVaultForContext(vaultRoot: string, context: ToolContext) {
+	return scanVault(vaultRoot, pathSafetyOptions(context));
+}
+
+function buildContextPackForContext(
+	vaultRoot: string,
+	query: string,
+	context: ToolContext,
+	options: Parameters<typeof buildContextPack>[2] = {}
+) {
+	return buildContextPack(vaultRoot, query, {
+		...options,
+		...pathSafetyOptions(context),
+	});
+}
+
 function coerceNonEmptyString(value: unknown, required = false, field = 'value'): string {
 	if (typeof value !== 'string' || value.trim() === '') {
 		if (required) {
@@ -540,18 +563,20 @@ function isUrlSource(source: string): boolean {
 	return /^https?:\/\//i.test(source.trim());
 }
 
-function safeReadNote(vaultRoot: string, notePath: string): { path: string; text: string } {
-	const normalized = normalizeNotePath(notePath);
-	const absolute = resolveSafeNotePath(vaultRoot, normalized);
+function safeReadNote(vaultRoot: string, notePath: string, context: ToolContext): { path: string; text: string } {
+	const options = pathSafetyOptions(context);
+	const normalized = normalizeNotePath(notePath, options);
+	const absolute = resolveSafeNotePath(vaultRoot, normalized, options);
 	return {
 		path: relativeFromAbsolute(vaultRoot, absolute),
 		text: fs.readFileSync(absolute, 'utf8'),
 	};
 }
 
-function safeReadTextFile(vaultRoot: string, notePath: string): string {
-	const normalized = normalizeNotePath(notePath);
-	const absolute = resolveSafeNotePath(vaultRoot, normalized);
+function safeReadTextFile(vaultRoot: string, notePath: string, context: ToolContext): string {
+	const options = pathSafetyOptions(context);
+	const normalized = normalizeNotePath(notePath, options);
+	const absolute = resolveSafeNotePath(vaultRoot, normalized, options);
 	assertNoSymlinkSegments(vaultRoot, absolute);
 	return fs.readFileSync(absolute, 'utf8');
 }
@@ -562,8 +587,8 @@ function assertSourceRequestPath(relativePath: string): void {
 	}
 }
 
-function readSourceRequest(vaultRoot: string, requestPath: string): SourceRequestRecord {
-	const data = safeReadNote(vaultRoot, requestPath);
+function readSourceRequest(vaultRoot: string, requestPath: string, context: ToolContext): SourceRequestRecord {
+	const data = safeReadNote(vaultRoot, requestPath, context);
 	assertSourceRequestPath(data.path);
 	const parsed = parseMarkdown(data.text);
 	const frontmatter = parsed.frontmatter.fields;
@@ -620,9 +645,10 @@ function isMemoryProposalFrontmatter(frontmatter: Record<string, unknown>): bool
 	return type.includes('memory-proposal') || type.includes('memory_proposal');
 }
 
-function readMemoryProposal(vaultRoot: string, proposalPath: string): MemoryProposalDocument {
-	const normalized = normalizeNotePath(proposalPath);
-	const absolutePath = resolveSafeNotePath(vaultRoot, normalized);
+function readMemoryProposal(vaultRoot: string, proposalPath: string, context: ToolContext): MemoryProposalDocument {
+	const options = pathSafetyOptions(context);
+	const normalized = normalizeNotePath(proposalPath, options);
+	const absolutePath = resolveSafeNotePath(vaultRoot, normalized, options);
 	const relative = relativeFromAbsolute(vaultRoot, absolutePath);
 	assertReviewQueuePath(relative);
 
@@ -650,13 +676,13 @@ function readMemoryProposal(vaultRoot: string, proposalPath: string): MemoryProp
 	};
 }
 
-function findMemoryProposalPathById(vaultRoot: string, proposalId: string): string {
+function findMemoryProposalPathById(vaultRoot: string, proposalId: string, context: ToolContext): string {
 	const normalizedId = stripYamlQuotes(proposalId);
 	if (!normalizedId) {
 		throw new ToolInputError('proposal_id is required.');
 	}
 
-	const scan = scanVault(vaultRoot);
+	const scan = scanVaultForContext(vaultRoot, context);
 	const match = scan.notes.find((note) => {
 		if (!note.relativePath.startsWith(`${REVIEW_QUEUE_PREFIX}/`)) {
 			return false;
@@ -675,18 +701,19 @@ function findMemoryProposalPathById(vaultRoot: string, proposalId: string): stri
 
 function resolveMemoryProposalFromArgs(
 	vaultRoot: string,
-	rawArgs: ApplyApprovedWritebackArgs
+	rawArgs: ApplyApprovedWritebackArgs,
+	context: ToolContext
 ): MemoryProposalDocument {
 	const explicitPath = coerceOptionalString(rawArgs.proposal_path) || coerceOptionalString(rawArgs.path);
 	if (explicitPath) {
-		return readMemoryProposal(vaultRoot, explicitPath);
+		return readMemoryProposal(vaultRoot, explicitPath, context);
 	}
 
 	const proposalId = coerceOptionalString(rawArgs.proposal_id);
 	if (!proposalId) {
 		throw new ToolInputError('proposal_id or proposal_path is required.');
 	}
-	return readMemoryProposal(vaultRoot, findMemoryProposalPathById(vaultRoot, proposalId));
+	return readMemoryProposal(vaultRoot, findMemoryProposalPathById(vaultRoot, proposalId, context), context);
 }
 
 function extractMarkdownSection(body: string, allowedHeadings: string[]): string {
@@ -858,17 +885,18 @@ function extractSelectionText(sourceBody: string): string {
 	return contentLines.join('\n').trim();
 }
 
-function resolveRequestStatusPath(vaultRoot: string, requestPath: string): string {
-	const normalized = normalizeNotePath(requestPath);
-	const absolute = resolveSafeNotePath(vaultRoot, normalized);
+function resolveRequestStatusPath(vaultRoot: string, requestPath: string, context: ToolContext): string {
+	const options = pathSafetyOptions(context);
+	const normalized = normalizeNotePath(requestPath, options);
+	const absolute = resolveSafeNotePath(vaultRoot, normalized, options);
 	const relative = relativeFromAbsolute(vaultRoot, absolute);
 	assertSourceRequestPath(relative);
 	assertNoSymlinkSegments(vaultRoot, absolute);
 	return absolute;
 }
 
-function updateRequestStatus(vaultRoot: string, requestPath: string, nextStatus: string): { path: string } {
-	const absolutePath = resolveRequestStatusPath(vaultRoot, requestPath);
+function updateRequestStatus(vaultRoot: string, requestPath: string, nextStatus: string, context: ToolContext): { path: string } {
+	const absolutePath = resolveRequestStatusPath(vaultRoot, requestPath, context);
 	let text = fs.readFileSync(absolutePath, 'utf8');
 	const fmMatch = text.match(/^---\n[\s\S]*?\n---\n?/);
 	if (!fmMatch) {
@@ -1025,10 +1053,10 @@ function coerceCaptureMode(value: unknown): CaptureSourceMode {
 	}
 }
 
-function buildSafeFilename(rawFilename: unknown, fallbackPrefix: string): string {
+function buildSafeFilename(rawFilename: unknown, fallbackPrefix: string, context: ToolContext): string {
 	const candidate = coerceOptionalString(rawFilename);
 	if (candidate) {
-		return normalizeNotePath(candidate);
+		return normalizeNotePath(candidate, pathSafetyOptions(context));
 	}
 	const now = new Date().toISOString().replace(/[:.]/g, '-');
 	const token = crypto.randomUUID().slice(0, 8);
@@ -1043,12 +1071,14 @@ function buildAndWriteNote(
 	frontmatter: Record<string, unknown>,
 	body: string,
 	taskId: string | null,
+	context: ToolContext,
 	metadata: Record<string, unknown> = {}
 ): { path: string; audit_path: string; status: string; warnings: string[] } {
-	const safeLeaf = normalizeNotePath(filename);
+	const options = pathSafetyOptions(context);
+	const safeLeaf = normalizeNotePath(filename, options);
 	const normalized = safeLeaf.endsWith('.md') ? safeLeaf : `${safeLeaf}.md`;
 	const targetPath = `${allowedDir}/${normalized}`;
-	const resolved = resolveSafeWritableNotePath(vaultRoot, targetPath, allowedDir);
+	const resolved = resolveSafeWritableNotePath(vaultRoot, targetPath, allowedDir, options);
 	fs.mkdirSync(path.dirname(resolved.absolutePath), { recursive: true });
 	if (fs.existsSync(resolved.absolutePath)) {
 		throw new ToolInputError(`Target already exists: ${resolved.relativePath}`);
@@ -1116,6 +1146,7 @@ function updateAgentTaskRecord(
 	vaultRoot: string,
 	taskId: string | null,
 	fields: Record<string, string>,
+	context: ToolContext,
 	references: Record<string, string[]> = {},
 	appendBody = ''
 ): string | null {
@@ -1125,7 +1156,7 @@ function updateAgentTaskRecord(
 
 	let absolute = '';
 	try {
-		absolute = resolveSafeNotePath(vaultRoot, buildTaskNotePath(taskId));
+		absolute = resolveSafeNotePath(vaultRoot, buildTaskNotePath(taskId), pathSafetyOptions(context));
 	} catch (error) {
 		if (error instanceof ToolInputError || error instanceof VaultPathError) {
 			return null;
@@ -1198,6 +1229,7 @@ function createAgentTaskRecord(
 		},
 		body,
 		input.taskId,
+		input.context,
 		{
 			target_type: 'agent_task',
 			task_stage: 'start',
@@ -2225,7 +2257,7 @@ function toolResultWithError<T>(value: T): McpStructuredToolResult {
 
 function handleStatus(rawArgs: StatusArgs, context: ToolContext) {
 	const vaultRoot = vaultRootFromArgs(rawArgs, context);
-	const scan = scanVault(vaultRoot);
+	const scan = scanVaultForContext(vaultRoot, context);
 
 	return {
 		ok: true,
@@ -2250,8 +2282,8 @@ function handleStartTask(rawArgs: StartTaskArgs, context: ToolInvocationContext)
 		throw new ToolInputError('goal must have at least 3 characters.');
 	}
 
-	const scan = scanVault(vaultRoot);
-	const contextPack = buildContextPack(vaultRoot, goal, { limit: 8 });
+	const scan = scanVaultForContext(vaultRoot, context);
+	const contextPack = buildContextPackForContext(vaultRoot, goal, context, { limit: 8 });
 	const taskId = `obs_task_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
 	const relatedProjects = scan.notes
 		.filter((note) => note.relativePath.startsWith('05_projects/'))
@@ -2294,7 +2326,7 @@ function handleRecall(rawArgs: RecallArgs, context: ToolContext) {
 	const vaultRoot = vaultRootFromArgs(rawArgs, context);
 	const query = coerceNonEmptyString(rawArgs.query, true, 'query');
 	const maxItems = coercePositiveInt(rawArgs.max_items, 6, 1, 20);
-	const scan = scanVault(vaultRoot);
+	const scan = scanVaultForContext(vaultRoot, context);
 	const matches = recallNotes(scan.notes, query, { limit: maxItems });
 
 	return {
@@ -2316,7 +2348,7 @@ function handleRecall(rawArgs: RecallArgs, context: ToolContext) {
 function handleReadNote(rawArgs: ReadNoteArgs, context: ToolContext) {
 	const vaultRoot = vaultRootFromArgs(rawArgs, context);
 	const notePath = coerceNonEmptyString(rawArgs.path, true, 'path');
-	const data = safeReadNote(vaultRoot, notePath);
+	const data = safeReadNote(vaultRoot, notePath, context);
 	const parsed = parseMarkdown(data.text);
 
 	return {
@@ -2336,7 +2368,7 @@ function handleListSourceRequests(rawArgs: ListSourceRequestsArgs, context: Tool
 	const maxItems = coercePositiveInt(rawArgs.max_items, MAX_LIST_QUEUE_ITEMS, 1, MAX_LIST_QUEUE_ITEMS);
 	const statusFilter = coerceOptionalString(rawArgs.status) || 'pending';
 	const sourceKindFilter = coerceOptionalString(rawArgs.source_kind).toLowerCase();
-	const scan = scanVault(vaultRoot);
+	const scan = scanVaultForContext(vaultRoot, context);
 	const normalizedStatus = statusFilter.toLowerCase().trim();
 
 	const requests = scan.notes
@@ -2390,7 +2422,11 @@ function buildSourceRunToken(request: SourceRequestRecord): string {
 	return `${safeRequest}-${new Date().toISOString().replace(/[:.]/g, '-')}`;
 }
 
-function resolveSourceInput(request: SourceRequestRecord, vaultRoot: string): { sourceText: string; mode: 'external_reference' | 'local_copy' | 'extracted_snapshot'; resolvedSourcePath?: string; warnings: string[] } {
+function resolveSourceInput(
+	request: SourceRequestRecord,
+	vaultRoot: string,
+	context: ToolContext
+): { sourceText: string; mode: 'external_reference' | 'local_copy' | 'extracted_snapshot'; resolvedSourcePath?: string; warnings: string[] } {
 	const source = request.source.trim();
 	const sourceKind = request.sourceKind.trim().toLowerCase();
 	const warnings: string[] = [];
@@ -2417,7 +2453,7 @@ function resolveSourceInput(request: SourceRequestRecord, vaultRoot: string): { 
 	const parsedPath = parseOptionalIntendedSourcePath(source, sourceKind);
 	if (parsedPath.requestedPath) {
 		try {
-			const fileText = safeReadTextFile(vaultRoot, parsedPath.requestedPath);
+			const fileText = safeReadTextFile(vaultRoot, parsedPath.requestedPath, context);
 			return {
 				sourceText: fileText,
 				mode: 'local_copy',
@@ -2527,7 +2563,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 	const now = new Date().toISOString();
 
 	try {
-		const request = readSourceRequest(vaultRoot, requestPathAlias);
+		const request = readSourceRequest(vaultRoot, requestPathAlias, context);
 		const taskId = coerceOptionalString(rawArgs.task_id) || request.taskId || null;
 		if (!request.type.toLowerCase().includes('agent-request')) {
 			throw new ToolInputError('Request note is not an agent-request note.');
@@ -2536,7 +2572,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 			throw new ToolInputError(`Request status is ${request.status}; use force_reprocess=true to process anyway.`);
 		}
 
-		const { sourceText, mode, resolvedSourcePath, warnings } = resolveSourceInput(request, vaultRoot);
+		const { sourceText, mode, resolvedSourcePath, warnings } = resolveSourceInput(request, vaultRoot, context);
 		const analysis = analyzeSourceText({
 			source: request.source,
 			sourceKind: request.sourceKind || 'unknown',
@@ -2555,7 +2591,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 		]);
 
 		const runToken = buildSourceRunToken(request);
-		const sourceFilename = buildSafeFilename(`${runToken}-source`, 'source');
+		const sourceFilename = buildSafeFilename(`${runToken}-source`, 'source', context);
 		const sourceNote = buildAndWriteNote(
 			vaultRoot,
 			'tracekeeper.analyze_source_request',
@@ -2575,10 +2611,11 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 			},
 			buildSourceNoteContent(request, mode, sourceText, analysis, resolvedSourcePath),
 			taskId,
+			context,
 			{ target_type: 'source', mode, request_path: request.path }
 		);
 
-		const reportFilename = buildSafeFilename(`${runToken}-report`, 'source-report');
+		const reportFilename = buildSafeFilename(`${runToken}-report`, 'source-report', context);
 		const report = buildAndWriteNote(
 			vaultRoot,
 			'tracekeeper.analyze_source_request',
@@ -2598,6 +2635,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 			},
 			buildReportContent(request, mode, sourceText, analysis, sourceNote.path, warnings),
 			taskId,
+			context,
 			{ target_type: 'source_analysis_report', request_path: request.path }
 		);
 
@@ -2606,7 +2644,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 				vaultRoot,
 				'tracekeeper.analyze_source_request',
 				MEMORY_PROPOSAL_DIR,
-				buildSafeFilename(`proposal-${runToken}-${entry.proposalKind}`, entry.proposalKind),
+				buildSafeFilename(`proposal-${runToken}-${entry.proposalKind}`, entry.proposalKind, context),
 				{
 					tool: 'tracekeeper.analyze_source_request',
 					type: 'memory_proposal',
@@ -2622,6 +2660,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 				},
 				`## Source analysis proposal\n\n- evidence: ${entry.evidence}\n\n${entry.content}\n`,
 				taskId,
+				context,
 				{
 					target_type: 'memory_proposal',
 					proposal_kind: entry.proposalKind,
@@ -2634,7 +2673,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 		let auditPathForReturn = sourceNote.audit_path;
 
 		if (updateStatus) {
-			updateRequestStatus(vaultRoot, request.path, 'completed');
+			updateRequestStatus(vaultRoot, request.path, 'completed', context);
 			auditPathForReturn = appendAuditEvent(vaultRoot, {
 				tool: 'tracekeeper.analyze_source_request',
 				targetPath: request.path,
@@ -2648,7 +2687,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 				},
 			}).path;
 		}
-		updateAgentTaskRecord(vaultRoot, taskId, {}, {
+		updateAgentTaskRecord(vaultRoot, taskId, {}, context, {
 			source_captures: [sourceNote.path, report.path],
 			proposals: proposalPaths,
 		});
@@ -2677,7 +2716,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 	} catch (error) {
 		if (updateStatus) {
 			try {
-				updateRequestStatus(vaultRoot, requestPathAlias, 'failed');
+				updateRequestStatus(vaultRoot, requestPathAlias, 'failed', context);
 				appendAuditEvent(vaultRoot, {
 					tool: 'tracekeeper.analyze_source_request',
 					targetPath: requestPathAlias,
@@ -2699,7 +2738,7 @@ function handleAnalyzeSourceRequest(rawArgs: AnalyzeSourceRequestArgs, context: 
 function handleReviewQueue(rawArgs: ListReviewQueueArgs, context: ToolContext) {
 	const vaultRoot = vaultRootFromArgs(rawArgs, context);
 	const maxItems = coercePositiveInt(rawArgs.max_items, MAX_LIST_QUEUE_ITEMS, 1, MAX_LIST_QUEUE_ITEMS);
-	const scan = scanVault(vaultRoot);
+	const scan = scanVaultForContext(vaultRoot, context);
 	const pending = scan.notes
 		.filter((note) => note.relativePath.startsWith(REVIEW_QUEUE_PREFIX))
 		.filter(isPendingProposal)
@@ -2728,7 +2767,7 @@ function handleListApprovedWritebacks(rawArgs: ListApprovedWritebacksArgs, conte
 	const rawLimit = rawArgs.max_items ?? rawArgs.limit;
 	const maxItems = coercePositiveInt(rawLimit, MAX_APPROVED_WRITEBACKS, 1, MAX_APPROVED_WRITEBACKS);
 	const scope = coerceOptionalString(rawArgs.scope);
-	const scan = scanVault(vaultRoot);
+	const scan = scanVaultForContext(vaultRoot, context);
 	const candidates: ReturnType<typeof buildWritebackPlan>[] = [];
 
 	for (const note of scan.notes) {
@@ -2745,7 +2784,7 @@ function handleListApprovedWritebacks(rawArgs: ListApprovedWritebacksArgs, conte
 				continue;
 			}
 		}
-		const proposal = readMemoryProposal(vaultRoot, note.relativePath);
+		const proposal = readMemoryProposal(vaultRoot, note.relativePath, context);
 		candidates.push(buildWritebackPlan(proposal));
 	}
 
@@ -2775,7 +2814,7 @@ function handleListApprovedWritebacks(rawArgs: ListApprovedWritebacksArgs, conte
 function handleApplyApprovedWriteback(rawArgs: ApplyApprovedWritebackArgs, context: ToolContext) {
 	const vaultRoot = vaultRootFromArgs(rawArgs, context);
 	const dryRun = coerceBoolean(rawArgs.dry_run, 'dry_run', false);
-	const proposal = resolveMemoryProposalFromArgs(vaultRoot, rawArgs);
+	const proposal = resolveMemoryProposalFromArgs(vaultRoot, rawArgs, context);
 	const taskId = coerceOptionalString(rawArgs.task_id) || proposal.taskId || null;
 	const plan = buildWritebackPlan(proposal);
 	const now = new Date().toISOString();
@@ -2789,7 +2828,7 @@ function handleApplyApprovedWriteback(rawArgs: ApplyApprovedWritebackArgs, conte
 		{ label: 'writeback content', value: plan.writebackContent },
 	]);
 
-	const targetAbsolute = resolveSafeNotePath(vaultRoot, plan.targetNote);
+	const targetAbsolute = resolveSafeNotePath(vaultRoot, plan.targetNote, pathSafetyOptions(context));
 	const targetRelative = relativeFromAbsolute(vaultRoot, targetAbsolute);
 	assertAllowedWritebackTarget(targetRelative);
 
@@ -2839,7 +2878,7 @@ function handleApplyApprovedWriteback(rawArgs: ApplyApprovedWritebackArgs, conte
 			permission_level: 'review-gated apply',
 		},
 	});
-	updateAgentTaskRecord(vaultRoot, taskId, {}, {
+	updateAgentTaskRecord(vaultRoot, taskId, {}, context, {
 		memory_writes: [targetRelative],
 		proposals: [proposal.path],
 	});
@@ -2864,7 +2903,7 @@ function handleAuditRecent(rawArgs: AuditRecentArgs, context: ToolContext) {
 	let text = '';
 
 	try {
-		auditPath = resolveSafeNotePath(vaultRoot, AUDIT_LOG_PATH);
+		auditPath = resolveSafeNotePath(vaultRoot, AUDIT_LOG_PATH, pathSafetyOptions(context));
 		text = fs.readFileSync(auditPath, 'utf8');
 	} catch (error) {
 		if (!(error instanceof ToolInputError || error instanceof VaultPathError)) {
@@ -2889,7 +2928,7 @@ function handleWriteContextPack(rawArgs: WriteContextPackArgs, context: ToolCont
 	const vaultRoot = vaultRootFromArgs(rawArgs, context);
 	const content = coerceNonEmptyString(rawArgs.content, true, 'content');
 	const title = coerceNonEmptyString(rawArgs.title);
-	const filename = buildSafeFilename(rawArgs.filename, 'context_pack');
+	const filename = buildSafeFilename(rawArgs.filename, 'context_pack', context);
 	const taskId = coerceOptionalString(rawArgs.task_id) || null;
 	const now = new Date().toISOString();
 	assertNoSensitiveText([
@@ -2911,11 +2950,12 @@ function handleWriteContextPack(rawArgs: WriteContextPackArgs, context: ToolCont
 		},
 		content,
 		taskId,
+		context,
 		{ target_type: 'context_pack', tool: 'tracekeeper.write_context_pack' }
 	);
 	updateAgentTaskRecord(vaultRoot, taskId, {
 		context_pack: note.path,
-	}, {
+	}, context, {
 		context_packs: [note.path],
 	});
 
@@ -2925,7 +2965,7 @@ function handleWriteContextPack(rawArgs: WriteContextPackArgs, context: ToolCont
 function handleWriteSessionNote(rawArgs: WriteSessionNoteArgs, context: ToolContext) {
 	const vaultRoot = vaultRootFromArgs(rawArgs, context);
 	const content = coerceNonEmptyString(rawArgs.content, true, 'content');
-	const filename = buildSafeFilename(rawArgs.filename, 'session');
+	const filename = buildSafeFilename(rawArgs.filename, 'session', context);
 	const taskId = coerceOptionalString(rawArgs.task_id) || null;
 	const now = new Date().toISOString();
 	assertNoSensitiveText([
@@ -2945,9 +2985,10 @@ function handleWriteSessionNote(rawArgs: WriteSessionNoteArgs, context: ToolCont
 		},
 		content,
 		taskId,
+		context,
 		{ target_type: 'session_note', tool: 'tracekeeper.write_session_note' }
 	);
-	updateAgentTaskRecord(vaultRoot, taskId, {}, {
+	updateAgentTaskRecord(vaultRoot, taskId, {}, context, {
 		memory_writes: [note.path],
 	});
 
@@ -2961,7 +3002,7 @@ function handleCaptureSource(rawArgs: CaptureSourceArgs, context: ToolContext) {
 	const mode = coerceCaptureMode(rawArgs.mode);
 	const captureReason = coerceOptionalString(rawArgs.capture_reason);
 	const relatedProject = coerceOptionalString(rawArgs.related_project);
-	const filename = buildSafeFilename(rawArgs.filename, 'source');
+	const filename = buildSafeFilename(rawArgs.filename, 'source', context);
 	const title = coerceOptionalString(rawArgs.title);
 	const taskId = coerceOptionalString(rawArgs.task_id) || null;
 	const now = new Date().toISOString();
@@ -3017,9 +3058,10 @@ function handleCaptureSource(rawArgs: CaptureSourceArgs, context: ToolContext) {
 		},
 		body,
 		taskId,
+		context,
 		{ target_type: 'source_capture', mode }
 	);
-	updateAgentTaskRecord(vaultRoot, taskId, {}, {
+	updateAgentTaskRecord(vaultRoot, taskId, {}, context, {
 		source_captures: [note.path],
 	});
 
@@ -3045,7 +3087,7 @@ function handleProposeMemory(rawArgs: ProposeMemoryArgs, context: ToolContext) {
 	const targetNote = coerceOptionalString(rawArgs.target_note);
 	const riskLevel = coerceOptionalString(rawArgs.risk_level);
 	const title = coerceOptionalString(rawArgs.title);
-	const filename = buildSafeFilename(rawArgs.filename, 'proposal');
+	const filename = buildSafeFilename(rawArgs.filename, 'proposal', context);
 	const taskId = coerceOptionalString(rawArgs.task_id) || null;
 	const now = new Date().toISOString();
 	assertNoSensitiveText([
@@ -3084,13 +3126,14 @@ function handleProposeMemory(rawArgs: ProposeMemoryArgs, context: ToolContext) {
 		},
 		body,
 		taskId,
+		context,
 		{
 			target_type: 'memory_proposal',
 			proposal_kind: proposalKind,
 			risk_level: riskLevel || null,
 		}
 	);
-	updateAgentTaskRecord(vaultRoot, taskId, {}, {
+	updateAgentTaskRecord(vaultRoot, taskId, {}, context, {
 		proposals: [note.path],
 	});
 
@@ -3106,7 +3149,7 @@ function handleBuildContextPack(rawArgs: BuildContextPackArgs, context: ToolCont
 	const shouldWrite = coerceBoolean(rawArgs.write, 'write', false);
 	const title = coerceOptionalString(rawArgs.title);
 
-	const contextPack = buildContextPack(vaultRoot, query, {
+	const contextPack = buildContextPackForContext(vaultRoot, query, context, {
 		limit: candidateLimit,
 		staleAfterDays,
 	});
@@ -3123,7 +3166,7 @@ function handleBuildContextPack(rawArgs: BuildContextPackArgs, context: ToolCont
 	}
 
 	const now = new Date().toISOString();
-	const filename = buildSafeFilename(rawArgs.filename, 'context_pack');
+	const filename = buildSafeFilename(rawArgs.filename, 'context_pack', context);
 	const contextMarkdown = [
 		'# Context Pack',
 		`- query: ${contextPack.query}`,
@@ -3180,6 +3223,7 @@ function handleBuildContextPack(rawArgs: BuildContextPackArgs, context: ToolCont
 		},
 		contextMarkdown,
 		taskId || null,
+		context,
 		{
 			target_type: 'context_pack',
 			output_format: 'markdown',
@@ -3187,7 +3231,7 @@ function handleBuildContextPack(rawArgs: BuildContextPackArgs, context: ToolCont
 	);
 	updateAgentTaskRecord(vaultRoot, taskId || null, {
 		context_pack: note.path,
-	}, {
+	}, context, {
 		context_packs: [note.path],
 	});
 
@@ -3208,7 +3252,7 @@ function handleBuildContextPack(rawArgs: BuildContextPackArgs, context: ToolCont
 function handleLint(rawArgs: LintArgs, context: ToolContext) {
 	const vaultRoot = vaultRootFromArgs(rawArgs, context);
 	const maxItems = coercePositiveInt(rawArgs.max_items, 40, 1, 2000);
-	const scan = scanVault(vaultRoot);
+	const scan = scanVaultForContext(vaultRoot, context);
 	const { issues } = lintNotes(vaultRoot, scan.notes);
 	const limitedIssues = issues.slice(0, maxItems);
 
@@ -3274,7 +3318,8 @@ function createDistillProposal(
 	taskId: string,
 	proposalKind: string,
 	kindLabel: string,
-	contentItems: string[]
+	contentItems: string[],
+	context: ToolContext
 ): { path: string } {
 	const body = [
 		`## Distilled ${kindLabel}`,
@@ -3288,7 +3333,7 @@ function createDistillProposal(
 		vaultRoot,
 		'tracekeeper.distill_session',
 		MEMORY_PROPOSAL_DIR,
-		buildSafeFilename(filenameToken, proposalKind),
+		buildSafeFilename(filenameToken, proposalKind, context),
 		{
 			tool: 'tracekeeper.distill_session',
 			type: 'memory_proposal',
@@ -3301,6 +3346,7 @@ function createDistillProposal(
 		},
 		body,
 		taskId,
+		context,
 		{
 			target_type: 'memory_proposal',
 			proposal_kind: proposalKind,
@@ -3317,7 +3363,7 @@ function handleFinishTask(rawArgs: FinishTaskArgs, context: ToolContext) {
 	const nextActions = coerceStringOrStringArray(rawArgs.next_actions, 'next_actions');
 	const client = coerceOptionalString(rawArgs.client);
 	const projectHint = coerceOptionalString(rawArgs.project_hint);
-	const filename = buildSafeFilename(rawArgs.filename, 'session');
+	const filename = buildSafeFilename(rawArgs.filename, 'session', context);
 	const now = new Date().toISOString();
 
 	const body = buildSessionNoteBody(summary, outcomes, nextActions);
@@ -3345,6 +3391,7 @@ function handleFinishTask(rawArgs: FinishTaskArgs, context: ToolContext) {
 		},
 		body,
 		taskId,
+		context,
 		{
 			target_type: 'session_note',
 			task_stage: 'finish',
@@ -3361,6 +3408,7 @@ function handleFinishTask(rawArgs: FinishTaskArgs, context: ToolContext) {
 			outcomes: outcomes.join(', '),
 			next_actions: nextActions.join(', '),
 		},
+		context,
 		{
 			memory_writes: [note.path],
 		},
@@ -3397,7 +3445,7 @@ function handleDistillSession(rawArgs: DistillSessionArgs, context: ToolContext)
 	const possiblePreferences = coerceStringOrStringArray(rawArgs.possible_preferences, 'possible_preferences');
 	const outcomes = coerceStringOrStringArray(rawArgs.outcomes, 'outcomes');
 	const projectHint = coerceOptionalString(rawArgs.project_hint);
-	const filename = buildSafeFilename(rawArgs.filename, 'session');
+	const filename = buildSafeFilename(rawArgs.filename, 'session', context);
 	const now = new Date().toISOString();
 
 	assertNoSensitiveText([
@@ -3425,6 +3473,7 @@ function handleDistillSession(rawArgs: DistillSessionArgs, context: ToolContext)
 		},
 		body,
 		taskId,
+		context,
 		{
 			target_type: 'session_note',
 			task_stage: 'distill',
@@ -3438,7 +3487,8 @@ function handleDistillSession(rawArgs: DistillSessionArgs, context: ToolContext)
 			taskId,
 			'distill_decisions',
 			'Decisions',
-			decisions
+			decisions,
+			context
 		);
 		proposals.push(proposal.path);
 	}
@@ -3448,13 +3498,14 @@ function handleDistillSession(rawArgs: DistillSessionArgs, context: ToolContext)
 			taskId,
 			'distill_preferences',
 			'Possible Preferences',
-			possiblePreferences
+			possiblePreferences,
+			context
 		);
 		proposals.push(proposal.path);
 	}
 	updateAgentTaskRecord(vaultRoot, taskId, {
 		session_note: note.path,
-	}, {
+	}, context, {
 		memory_writes: [note.path],
 		proposals,
 	});

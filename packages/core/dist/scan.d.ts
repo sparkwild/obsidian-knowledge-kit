@@ -27,4 +27,7 @@ export interface ScanResult {
     notes: ScannedNote[];
     errors: ScanError[];
 }
-export declare function scanVault(vaultRoot: string): ScanResult;
+export interface ScanVaultOptions {
+    vaultConfigDir?: string;
+}
+export declare function scanVault(vaultRoot: string, options?: ScanVaultOptions): ScanResult;

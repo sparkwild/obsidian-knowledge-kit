@@ -53,7 +53,7 @@ function isStaleNote(note, staleAfterDays) {
     return modified < cutoff;
 }
 function buildContextPack(vaultRoot, query, options = {}) {
-    const scan = (0, scan_1.scanVault)(vaultRoot);
+    const scan = (0, scan_1.scanVault)(vaultRoot, { vaultConfigDir: options.vaultConfigDir });
     const recall = (0, recall_1.recallNotes)(scan.notes, query, { limit: options.limit });
     const topNotes = recall.map((item) => item.note);
     const staleAfterDays = options.staleAfterDays ?? 180;

@@ -38,9 +38,13 @@ function main() {
 	const allowedManifestKeys = [...requiredManifestKeys, 'authorUrl', 'fundingUrl', 'helpUrl'];
 	for (const key of requiredManifestKeys) {
 		assert(Object.hasOwn(manifest, key), `Root manifest is missing ${key}.`);
+		assert(Object.hasOwn(pluginManifest, key), `Plugin manifest is missing ${key}.`);
 	}
 	for (const key of Object.keys(manifest)) {
 		assert(allowedManifestKeys.includes(key), `Root manifest has invalid key ${key}.`);
+	}
+	for (const key of Object.keys(pluginManifest)) {
+		assert(allowedManifestKeys.includes(key), `Plugin manifest has invalid key ${key}.`);
 	}
 
 	assert(/^[a-z0-9-_]+$/.test(communityEntry.id), 'Plugin id must use lowercase letters, numbers, dashes, or underscores only.');

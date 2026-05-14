@@ -1,6 +1,7 @@
 import { McpToolDefinition, McpStructuredToolResult, McpPrompt } from './protocol';
 interface ToolContext {
     defaultVaultRoot?: string;
+    vaultConfigDir?: string;
 }
 export interface ToolInvocationContext extends ToolContext {
     agentId?: string;

@@ -45,6 +45,6 @@ npm run package
 
 - Agent clients are the only operation entry for URL/file submission, source analysis, context packs, lint, distill, and proposal generation.
 - Obsidian plugin commands must remain governance, review, status, and connection oriented.
-- MCP tools must stay vault-scoped and follow `docs/MCP.md`.
+- MCP tools must stay vault-scoped and follow `docs/ARCHITECTURE.md`.
 - Do not write to a real Obsidian vault unless a task explicitly asks for it.
 - Do not hardcode developer machine paths, vault paths, repository checkouts, or local ports.

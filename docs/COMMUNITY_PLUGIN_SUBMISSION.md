@@ -42,6 +42,7 @@ Official references:
 - [ ] `npm run community:check` passes.
 - [ ] `npm run verify` passes.
 - [ ] GitHub release assets are rebuilt from the same commit being submitted.
+- [ ] Release `main.js` is a production/minified build without a dangling source map reference.
 
 ## Release Creation Steps
 
@@ -104,5 +105,5 @@ Obsidian reads the default branch `manifest.json` at submission time and install
 - The Runtime requires a generated local token by default.
 - Missing-token Runtime startup is allowed only with the explicit development flag.
 - CORS is limited to Obsidian and loopback origins; wildcard CORS is not used.
-- MCP tools reject vault-outside paths and `.obsidian` access.
+- MCP tools reject vault-outside paths and the active Obsidian configuration directory.
 - Durable memory changes remain review-gated through the Review Queue.
