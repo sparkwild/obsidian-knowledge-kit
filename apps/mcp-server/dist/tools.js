@@ -155,6 +155,9 @@ function pathSafetyOptions(context) {
         vaultConfigDir: context.vaultConfigDir,
     };
 }
+function graphProfileFromArgs(value, context) {
+    return (0, index_1.normalizeGraphProfile)(value ?? context.graphProfile);
+}
 function scanVaultForContext(vaultRoot, context) {
     return (0, index_1.scanVault)(vaultRoot, pathSafetyOptions(context));
 }
@@ -1284,6 +1287,9 @@ function buildFixPlanSummary(issues) {
     if (issueKinds.includes('claim_missing_source')) {
         summary.push('Add source:: references under [!claim] blocks that currently have no source refs.');
     }
+    if (issueKinds.some((kind) => kind.startsWith('graph_'))) {
+        summary.push('Review graph profile findings by adding explicit entry, hub, or wikilink structure; Tracekeeper does not auto-fix graph structure.');
+    }
     if (summary.length === 1) {
         summary.push('No fix plan generated because no lint issues were found.');
     }
@@ -1320,6 +1326,11 @@ function toolDefinitions() {
                     max_items: {
                         type: 'integer',
                         description: 'Maximum number of array entries to return.',
+                    },
+                    graph_profile: {
+                        type: 'string',
+                        enum: ['off', 'advisory', 'strict'],
+                        description: 'Graph checking mode. Defaults to the server graphProfile setting.',
                     },
                 },
                 additionalProperties: false,
@@ -1635,6 +1646,11 @@ function toolDefinitions() {
                     max_items: {
                         type: 'integer',
                         description: 'Maximum number of issues to return.',
+                    },
+                    graph_profile: {
+                        type: 'string',
+                        enum: ['off', 'advisory', 'strict'],
+                        description: 'Graph checking mode. Defaults to the server graphProfile setting.',
                     },
                 },
                 additionalProperties: false,
@@ -1997,13 +2013,28 @@ function handleStatus(rawArgs, context) {
 function handleGraphHealth(rawArgs, context) {
     const vaultRoot = vaultRootFromArgs(rawArgs, context);
     const maxItems = coercePositiveInt(rawArgs.max_items, 20, 1, 2000);
+    const profile = graphProfileFromArgs(rawArgs.graph_profile, context);
+    if (profile === 'off') {
+        return {
+            ok: true,
+            read_only: true,
+            disabled: true,
+            profile,
+            profile_issues: [],
+            vault_root: vaultRoot,
+        };
+    }
     const scan = scanVaultForContext(vaultRoot, context);
     const graphHealth = (0, index_1.analyzeGraphHealth)(scan.notes, {
         maxItems,
     });
+    const profileEvaluation = (0, index_1.evaluateGraphProfile)(graphHealth, profile);
     return {
         ok: true,
         read_only: true,
+        disabled: profileEvaluation.disabled,
+        profile: profileEvaluation.profile,
+        profile_issues: profileEvaluation.profile_issues,
         vault_root: vaultRoot,
         scanned_at: scan.scannedAt,
         ...graphHealth,
@@ -2824,12 +2855,23 @@ function handleBuildContextPack(rawArgs, context) {
 function handleLint(rawArgs, context) {
     const vaultRoot = vaultRootFromArgs(rawArgs, context);
     const maxItems = coercePositiveInt(rawArgs.max_items, 40, 1, 2000);
+    const profile = graphProfileFromArgs(rawArgs.graph_profile, context);
     const scan = scanVaultForContext(vaultRoot, context);
-    const { issues } = (0, index_1.lintNotes)(vaultRoot, scan.notes);
+    const graphHealth = profile === 'off' ? undefined : (0, index_1.analyzeGraphHealth)(scan.notes, { maxItems });
+    const profileEvaluation = graphHealth
+        ? (0, index_1.evaluateGraphProfile)(graphHealth, profile)
+        : { profile, disabled: true, profile_issues: [] };
+    const { issues } = (0, index_1.lintNotes)(vaultRoot, scan.notes, {
+        graphHealth,
+        graphProfile: profile,
+    });
     const limitedIssues = issues.slice(0, maxItems);
     return {
         ok: true,
         read_only: true,
+        profile: profileEvaluation.profile,
+        graph_profile_disabled: profileEvaluation.disabled,
+        profile_issues: profileEvaluation.profile_issues,
         vault_root: vaultRoot,
         scanned_at: scan.scannedAt,
         issue_count: issues.length,

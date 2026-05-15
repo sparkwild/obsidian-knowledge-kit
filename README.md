@@ -77,7 +77,13 @@ Approved writeback is a separate action. Tracekeeper only applies an approved pr
 
 Tracekeeper can report Obsidian wikilink graph health through the read-only `tracekeeper.graph_health` tool. It measures isolated notes, one-way leaf nodes, connected components, hub candidates, unresolved wikilinks, and missing recommended graph entry files.
 
-Graph health is advisory. It does not block normal lint, create notes, or rewrite links by itself. Use the report to decide whether to add a vault-level graph index, topic hubs, or explicit `Graph links` sections through the Review Queue workflow.
+The graph health profile is configured in the Tracekeeper settings:
+
+- `off`: graph structure is available for manual inspection only and is not added to lint.
+- `advisory`: graph findings are reported as warnings and suggestions.
+- `strict`: missing graph entry notes, missing recommended hubs, isolated notes, and unresolved graph links become lint errors.
+
+Graph health never creates notes or rewrites links by itself. Use the report, or the Obsidian Graph Health view, to create a Review Queue proposal before adding a vault-level graph index, topic hubs, or explicit `Graph links` sections.
 
 ## Design Principles
 

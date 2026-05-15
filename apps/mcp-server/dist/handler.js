@@ -47,6 +47,7 @@ class McpJsonRpcHandler {
     constructor(options = {}) {
         this.defaultVaultRoot = options.defaultVaultRoot;
         this.vaultConfigDir = options.vaultConfigDir;
+        this.graphProfile = options.graphProfile;
         this.runtimeVersion = options.runtimeVersion || exports.MCP_SERVER_VERSION;
         this.transport = options.transport || exports.STREAMABLE_HTTP_TRANSPORT;
     }
@@ -136,6 +137,7 @@ class McpJsonRpcHandler {
         const toolInvocationContext = {
             defaultVaultRoot: this.defaultVaultRoot,
             vaultConfigDir: this.vaultConfigDir,
+            graphProfile: this.graphProfile,
             agentId: state.agentId,
             sessionId: state.sessionId,
             clientName: state.clientName,

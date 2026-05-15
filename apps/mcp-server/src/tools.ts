@@ -7,6 +7,9 @@ import {
 	type ContextPack,
 	type ParsedMarkdown,
 	analyzeGraphHealth,
+	evaluateGraphProfile,
+	type GraphProfile,
+	normalizeGraphProfile,
 	type SourceAnalysisResult,
 	type SourceProposalDraft,
 	buildContextPack,
@@ -53,6 +56,7 @@ type SensitiveTextScan = { ok: true } | { ok: false; reason: string };
 interface ToolContext {
 	defaultVaultRoot?: string;
 	vaultConfigDir?: string;
+	graphProfile?: unknown;
 }
 
 export interface ToolInvocationContext extends ToolContext {
@@ -179,6 +183,7 @@ type StatusArgs = ToolArgs;
 
 interface GraphHealthArgs extends ToolArgs {
 	max_items?: unknown;
+	graph_profile?: unknown;
 }
 
 interface StartTaskArgs extends ToolArgs {
@@ -199,6 +204,7 @@ interface BuildContextPackArgs extends ToolArgs {
 
 interface LintArgs extends ToolArgs {
 	max_items?: unknown;
+	graph_profile?: unknown;
 }
 
 interface FinishTaskArgs extends ToolArgs {
@@ -415,6 +421,10 @@ function pathSafetyOptions(context: ToolContext): { vaultConfigDir?: string } {
 	return {
 		vaultConfigDir: context.vaultConfigDir,
 	};
+}
+
+function graphProfileFromArgs(value: unknown, context: ToolContext): GraphProfile {
+	return normalizeGraphProfile(value ?? context.graphProfile);
 }
 
 function scanVaultForContext(vaultRoot: string, context: ToolContext): ScanResult {
@@ -1730,6 +1740,9 @@ function buildFixPlanSummary(issues: Array<{ kind: string; severity: string }>):
 	if (issueKinds.includes('claim_missing_source')) {
 		summary.push('Add source:: references under [!claim] blocks that currently have no source refs.');
 	}
+	if (issueKinds.some((kind) => kind.startsWith('graph_'))) {
+		summary.push('Review graph profile findings by adding explicit entry, hub, or wikilink structure; Tracekeeper does not auto-fix graph structure.');
+	}
 
 	if (summary.length === 1) {
 		summary.push('No fix plan generated because no lint issues were found.');
@@ -1769,6 +1782,11 @@ export function toolDefinitions(): McpToolDefinition[] {
 					max_items: {
 						type: 'integer',
 						description: 'Maximum number of array entries to return.',
+					},
+					graph_profile: {
+						type: 'string',
+						enum: ['off', 'advisory', 'strict'],
+						description: 'Graph checking mode. Defaults to the server graphProfile setting.',
 					},
 				},
 				additionalProperties: false,
@@ -2087,6 +2105,11 @@ export function toolDefinitions(): McpToolDefinition[] {
 					max_items: {
 						type: 'integer',
 						description: 'Maximum number of issues to return.',
+					},
+					graph_profile: {
+						type: 'string',
+						enum: ['off', 'advisory', 'strict'],
+						description: 'Graph checking mode. Defaults to the server graphProfile setting.',
 					},
 				},
 				additionalProperties: false,
@@ -2458,14 +2481,30 @@ function handleStatus(rawArgs: StatusArgs, context: ToolContext) {
 function handleGraphHealth(rawArgs: GraphHealthArgs, context: ToolContext) {
 	const vaultRoot = vaultRootFromArgs(rawArgs, context);
 	const maxItems = coercePositiveInt(rawArgs.max_items, 20, 1, 2000);
+	const profile = graphProfileFromArgs(rawArgs.graph_profile, context);
+	if (profile === 'off') {
+		return {
+			ok: true,
+			read_only: true,
+			disabled: true,
+			profile,
+			profile_issues: [],
+			vault_root: vaultRoot,
+		};
+	}
+
 	const scan = scanVaultForContext(vaultRoot, context);
 	const graphHealth = analyzeGraphHealth(scan.notes, {
 		maxItems,
 	});
+	const profileEvaluation = evaluateGraphProfile(graphHealth, profile);
 
 	return {
 		ok: true,
 		read_only: true,
+		disabled: profileEvaluation.disabled,
+		profile: profileEvaluation.profile,
+		profile_issues: profileEvaluation.profile_issues,
 		vault_root: vaultRoot,
 		scanned_at: scan.scannedAt,
 		...graphHealth,
@@ -3451,13 +3490,24 @@ function handleBuildContextPack(rawArgs: BuildContextPackArgs, context: ToolCont
 function handleLint(rawArgs: LintArgs, context: ToolContext) {
 	const vaultRoot = vaultRootFromArgs(rawArgs, context);
 	const maxItems = coercePositiveInt(rawArgs.max_items, 40, 1, 2000);
+	const profile = graphProfileFromArgs(rawArgs.graph_profile, context);
 	const scan = scanVaultForContext(vaultRoot, context);
-	const { issues } = lintNotes(vaultRoot, scan.notes);
+	const graphHealth = profile === 'off' ? undefined : analyzeGraphHealth(scan.notes, { maxItems });
+	const profileEvaluation = graphHealth
+		? evaluateGraphProfile(graphHealth, profile)
+		: { profile, disabled: true, profile_issues: [] };
+	const { issues } = lintNotes(vaultRoot, scan.notes, {
+		graphHealth,
+		graphProfile: profile,
+	});
 	const limitedIssues = issues.slice(0, maxItems);
 
 	return {
 		ok: true,
 		read_only: true,
+		profile: profileEvaluation.profile,
+		graph_profile_disabled: profileEvaluation.disabled,
+		profile_issues: profileEvaluation.profile_issues,
 		vault_root: vaultRoot,
 		scanned_at: scan.scannedAt,
 		issue_count: issues.length,

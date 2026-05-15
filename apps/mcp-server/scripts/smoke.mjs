@@ -339,8 +339,13 @@ async function main() {
 			arguments: {},
 		}));
 		assert.equal(graphHealth.ok, true);
+		assert.equal(graphHealth.profile, 'advisory');
+		assert.equal(graphHealth.disabled, false);
+		assert.equal(Array.isArray(graphHealth.profile_issues), true);
+		assert.ok(graphHealth.profile_issues.some((issue) => issue.severity === 'warning'));
 		assert.equal(typeof graphHealth.note_count, 'number');
 		assert.equal(typeof graphHealth.wikilink_edge_count, 'number');
+		assert.equal(Array.isArray(graphHealth.unresolved_edges), true);
 		assert.equal(typeof graphHealth.resolved_edge_count, 'number');
 		assert.equal(typeof graphHealth.unresolved_edge_count, 'number');
 		assert.equal(graphHealth.resolved_edge_count > 0, true);
@@ -360,6 +365,28 @@ async function main() {
 			assert.equal(typeof graphHealth.hub_candidates[0].outbound, 'number');
 		}
 		assert.equal(Array.isArray(graphHealth.recommendations), true);
+
+		const disabledGraphHealth = buildStructured(await client.call('tools/call', {
+			name: 'tracekeeper.graph_health',
+			arguments: {
+				graph_profile: 'off',
+			},
+		}));
+		assert.equal(disabledGraphHealth.ok, true);
+		assert.equal(disabledGraphHealth.profile, 'off');
+		assert.equal(disabledGraphHealth.disabled, true);
+		assert.deepEqual(disabledGraphHealth.profile_issues, []);
+
+		const strictGraphHealth = buildStructured(await client.call('tools/call', {
+			name: 'tracekeeper.graph_health',
+			arguments: {
+				graph_profile: 'strict',
+				max_items: 5,
+			},
+		}));
+		assert.equal(strictGraphHealth.ok, true);
+		assert.equal(strictGraphHealth.profile, 'strict');
+		assert.ok(strictGraphHealth.profile_issues.some((issue) => issue.severity === 'error'));
 
 		const limitedGraphHealth = buildStructured(await client.call('tools/call', {
 			name: 'tracekeeper.graph_health',
@@ -491,10 +518,37 @@ async function main() {
 			},
 		}));
 		assert.equal(lintResult.ok, true);
+		assert.equal(lintResult.profile, 'advisory');
+		assert.equal(lintResult.graph_profile_disabled, false);
+		assert.equal(Array.isArray(lintResult.profile_issues), true);
 		assert.equal(typeof lintResult.issue_count, 'number');
 		assert.ok(Array.isArray(lintResult.issues));
 		assert.ok(lintResult.issues.length > 0);
+		assert.ok(lintResult.issues.some((issue) => issue.kind.startsWith('graph_') && issue.severity === 'warning'));
 		assert.ok(Array.isArray(lintResult.fix_plan_summary));
+
+		const offLintResult = buildStructured(await client.call('tools/call', {
+			name: 'tracekeeper.lint',
+			arguments: {
+				graph_profile: 'off',
+				max_items: 100,
+			},
+		}));
+		assert.equal(offLintResult.ok, true);
+		assert.equal(offLintResult.profile, 'off');
+		assert.equal(offLintResult.graph_profile_disabled, true);
+		assert.equal(offLintResult.issues.some((issue) => issue.kind.startsWith('graph_')), false);
+
+		const strictLintResult = buildStructured(await client.call('tools/call', {
+			name: 'tracekeeper.lint',
+			arguments: {
+				graph_profile: 'strict',
+				max_items: 100,
+			},
+		}));
+		assert.equal(strictLintResult.ok, true);
+		assert.equal(strictLintResult.profile, 'strict');
+		assert.ok(strictLintResult.issues.some((issue) => issue.kind.startsWith('graph_') && issue.severity === 'error'));
 
 		const finishTask = buildStructured(await client.call('tools/call', {
 			name: 'tracekeeper.finish_task',
