@@ -59,6 +59,7 @@ const MEMORY_PROPOSAL_DIR = '01_inbox/review_queue';
 const MAX_SOURCE_EXCERPT_LENGTH = 1000;
 const READ_ONLY_TOOL_NAMES = new Set([
     'tracekeeper.status',
+    'tracekeeper.graph_health',
     'tracekeeper.recall',
     'tracekeeper.read_note',
     'tracekeeper.list_review_queue',
@@ -92,6 +93,7 @@ const SENSITIVE_KEY_PATTERNS = [
 const MAX_ARGS_SUMMARY_LENGTH = 512;
 const TOOL_NAME_SET = new Set([
     'tracekeeper.status',
+    'tracekeeper.graph_health',
     'tracekeeper.start_task',
     'tracekeeper.recall',
     'tracekeeper.read_note',
@@ -1305,6 +1307,28 @@ function toolDefinitions() {
             },
         },
         {
+            name: 'tracekeeper.graph_health',
+            title: 'tracekeeper.graph_health',
+            description: '[read-only] Analyze wikilinks and return graph health metrics.',
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    vaultRoot: {
+                        type: 'string',
+                        description: 'Vault root path. If omitted, uses server configured --vault-root.',
+                    },
+                    max_items: {
+                        type: 'integer',
+                        description: 'Maximum number of array entries to return.',
+                    },
+                },
+                additionalProperties: false,
+            },
+            annotations: {
+                readOnlyHint: true,
+            },
+        },
+        {
             name: 'tracekeeper.start_task',
             title: 'tracekeeper.start_task',
             description: '[low-risk write] Create an active task record and return a context summary.',
@@ -1856,6 +1880,9 @@ function callTool(name, rawParams, context = {}) {
             case 'tracekeeper.status':
                 toolResult = toolResultWithError(handleStatus(args, context));
                 break;
+            case 'tracekeeper.graph_health':
+                toolResult = toolResultWithError(handleGraphHealth(args, context));
+                break;
             case 'tracekeeper.start_task':
                 toolResult = toolResultWithError(handleStartTask(args, context));
                 break;
@@ -1965,6 +1992,21 @@ function handleStatus(rawArgs, context) {
             by_type: buildProjectCounts(scan.notes),
         },
         scan_errors: scan.errors.slice(0, 5),
+    };
+}
+function handleGraphHealth(rawArgs, context) {
+    const vaultRoot = vaultRootFromArgs(rawArgs, context);
+    const maxItems = coercePositiveInt(rawArgs.max_items, 20, 1, 2000);
+    const scan = scanVaultForContext(vaultRoot, context);
+    const graphHealth = (0, index_1.analyzeGraphHealth)(scan.notes, {
+        maxItems,
+    });
+    return {
+        ok: true,
+        read_only: true,
+        vault_root: vaultRoot,
+        scanned_at: scan.scannedAt,
+        ...graphHealth,
     };
 }
 function handleStartTask(rawArgs, context) {
