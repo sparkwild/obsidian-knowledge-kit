@@ -5,9 +5,33 @@ export interface GraphHealthOptions {
 	maxItems?: number;
 }
 
+export type GraphProfile = 'off' | 'advisory' | 'strict';
+
+export interface GraphProfileIssue {
+	severity: 'error' | 'warning';
+	kind:
+		| 'graph_unresolved_wikilink'
+		| 'graph_missing_entry'
+		| 'graph_missing_hub'
+		| 'graph_isolated_node'
+		| 'graph_disconnected'
+		| 'graph_only_inbound'
+		| 'graph_only_outbound';
+	message: string;
+	count: number;
+	paths?: string[];
+}
+
+export interface GraphProfileEvaluation {
+	profile: GraphProfile;
+	disabled: boolean;
+	profile_issues: GraphProfileIssue[];
+}
+
 export interface GraphHealthReport {
 	note_count: number;
 	wikilink_edge_count: number;
+	unresolved_edges: GraphHealthUnresolvedEdge[];
 	resolved_edge_count: number;
 	unresolved_edge_count: number;
 	largest_component_node_count: number;
@@ -34,7 +58,15 @@ export interface GraphHealthHubCandidate {
 	outbound: number;
 }
 
+export interface GraphHealthUnresolvedEdge {
+	path: string;
+	line: number;
+	target: string;
+	context?: string;
+}
+
 const DEFAULT_MAX_ITEMS = 20;
+export const DEFAULT_GRAPH_PROFILE: GraphProfile = 'advisory';
 const DEFAULT_RECOMMENDED_ENTRY = '04_memory/concepts/knowledge_graph_index.md';
 const DEFAULT_RECOMMENDED_HUBS = [
 	'04_memory/concepts/java_backend_hub.md',
@@ -71,6 +103,7 @@ export function analyzeGraphHealth(notes: ScannedNote[], options: GraphHealthOpt
 	let wikilinkEdgeCount = 0;
 	let resolvedEdgeCount = 0;
 	let unresolvedEdgeCount = 0;
+	const unresolvedEdges: GraphHealthUnresolvedEdge[] = [];
 
 	for (const note of notes) {
 		const sourcePath = normalizeRelativePath(note.relativePath);
@@ -83,6 +116,12 @@ export function analyzeGraphHealth(notes: ScannedNote[], options: GraphHealthOpt
 			const target = resolveWikilinkTarget(link.target, sourcePath, index);
 			if (!target) {
 				unresolvedEdgeCount += 1;
+				unresolvedEdges.push({
+					path: note.relativePath,
+					line: link.line,
+					target: link.target,
+					context: link.raw,
+				});
 				continue;
 			}
 
@@ -187,6 +226,7 @@ export function analyzeGraphHealth(notes: ScannedNote[], options: GraphHealthOpt
 	return {
 		note_count: notes.length,
 		wikilink_edge_count: wikilinkEdgeCount,
+		unresolved_edges: unresolvedEdges.slice(0, maxItems),
 		resolved_edge_count: resolvedEdgeCount,
 		unresolved_edge_count: unresolvedEdgeCount,
 		largest_component_node_count: componentResult.largestComponentSize,
@@ -204,6 +244,103 @@ export function analyzeGraphHealth(notes: ScannedNote[], options: GraphHealthOpt
 		missing_recommended_hub_count: sortedMissingRecommendedHubs.length,
 		recommendations: sortedRecommendations.slice(0, maxItems),
 		recommendation_count: sortedRecommendations.length,
+	};
+}
+
+export function normalizeGraphProfile(value: unknown): GraphProfile {
+	if (typeof value !== 'string') {
+		return DEFAULT_GRAPH_PROFILE;
+	}
+	const normalized = value.trim().toLowerCase();
+	if (normalized === 'off' || normalized === 'advisory' || normalized === 'strict') {
+		return normalized;
+	}
+	return DEFAULT_GRAPH_PROFILE;
+}
+
+export function evaluateGraphProfile(
+	report: GraphHealthReport,
+	profileValue: unknown = DEFAULT_GRAPH_PROFILE
+): GraphProfileEvaluation {
+	const profile = normalizeGraphProfile(profileValue);
+	if (profile === 'off') {
+		return {
+			profile,
+			disabled: true,
+			profile_issues: [],
+		};
+	}
+
+	const strictSeverity = profile === 'strict' ? 'error' : 'warning';
+	const issues: GraphProfileIssue[] = [];
+
+	if (report.unresolved_edge_count > 0) {
+		issues.push({
+			severity: strictSeverity,
+			kind: 'graph_unresolved_wikilink',
+			message: `${report.unresolved_edge_count} wikilink(s) could not be resolved by the graph index.`,
+			count: report.unresolved_edge_count,
+			paths: uniquePaths(report.unresolved_edges.map((edge) => edge.path)),
+		});
+	}
+	if (report.missing_recommended_entry) {
+		issues.push({
+			severity: strictSeverity,
+			kind: 'graph_missing_entry',
+			message: `Missing graph entry note: ${report.missing_recommended_entry}`,
+			count: 1,
+			paths: [report.missing_recommended_entry],
+		});
+	}
+	if (report.missing_recommended_hub_count > 0) {
+		issues.push({
+			severity: strictSeverity,
+			kind: 'graph_missing_hub',
+			message: `${report.missing_recommended_hub_count} recommended graph hub note(s) are missing.`,
+			count: report.missing_recommended_hub_count,
+			paths: report.missing_recommended_hubs,
+		});
+	}
+	if (report.isolated_node_count > 0) {
+		issues.push({
+			severity: strictSeverity,
+			kind: 'graph_isolated_node',
+			message: `${report.isolated_node_count} note(s) are isolated from the wikilink graph.`,
+			count: report.isolated_node_count,
+			paths: report.isolated_nodes,
+		});
+	}
+	if (report.component_count > 1) {
+		issues.push({
+			severity: 'warning',
+			kind: 'graph_disconnected',
+			message: `Graph has ${report.component_count} disconnected component(s).`,
+			count: report.component_count,
+		});
+	}
+	if (report.only_inbound_node_count > 0) {
+		issues.push({
+			severity: 'warning',
+			kind: 'graph_only_inbound',
+			message: `${report.only_inbound_node_count} note(s) only have inbound links.`,
+			count: report.only_inbound_node_count,
+			paths: report.only_inbound_nodes,
+		});
+	}
+	if (report.only_outbound_node_count > 0) {
+		issues.push({
+			severity: 'warning',
+			kind: 'graph_only_outbound',
+			message: `${report.only_outbound_node_count} note(s) only have outbound links.`,
+			count: report.only_outbound_node_count,
+			paths: report.only_outbound_nodes,
+		});
+	}
+
+	return {
+		profile,
+		disabled: false,
+		profile_issues: issues,
 	};
 }
 
@@ -422,4 +559,8 @@ function pickSingleValue(values?: string[]): string | null {
 		return null;
 	}
 	return values[0] || null;
+}
+
+function uniquePaths(paths: string[]): string[] {
+	return Array.from(new Set(paths.filter(Boolean))).sort();
 }

@@ -11,12 +11,14 @@ export interface McpConnectionState {
 export interface McpJsonRpcHandlerOptions {
     defaultVaultRoot?: string;
     vaultConfigDir?: string;
+    graphProfile?: unknown;
     runtimeVersion?: string;
     transport?: string;
 }
 export declare class McpJsonRpcHandler {
     private defaultVaultRoot?;
     private vaultConfigDir?;
+    private graphProfile?;
     private runtimeVersion;
     private transport;
     constructor(options?: McpJsonRpcHandlerOptions);

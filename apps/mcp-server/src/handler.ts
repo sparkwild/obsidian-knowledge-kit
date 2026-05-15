@@ -73,6 +73,7 @@ export interface McpConnectionState {
 export interface McpJsonRpcHandlerOptions {
 	defaultVaultRoot?: string;
 	vaultConfigDir?: string;
+	graphProfile?: unknown;
 	runtimeVersion?: string;
 	transport?: string;
 }
@@ -80,12 +81,14 @@ export interface McpJsonRpcHandlerOptions {
 export class McpJsonRpcHandler {
 	private defaultVaultRoot?: string;
 	private vaultConfigDir?: string;
+	private graphProfile?: unknown;
 	private runtimeVersion: string;
 	private transport: string;
 
 	constructor(options: McpJsonRpcHandlerOptions = {}) {
 		this.defaultVaultRoot = options.defaultVaultRoot;
 		this.vaultConfigDir = options.vaultConfigDir;
+		this.graphProfile = options.graphProfile;
 		this.runtimeVersion = options.runtimeVersion || MCP_SERVER_VERSION;
 		this.transport = options.transport || STREAMABLE_HTTP_TRANSPORT;
 	}
@@ -183,6 +186,7 @@ export class McpJsonRpcHandler {
 		const toolInvocationContext: ToolInvocationContext = {
 			defaultVaultRoot: this.defaultVaultRoot,
 			vaultConfigDir: this.vaultConfigDir,
+			graphProfile: this.graphProfile,
 			agentId: state.agentId,
 			sessionId: state.sessionId,
 			clientName: state.clientName,
