@@ -259,9 +259,16 @@ async function main() {
 			'',
 		].join('\n'));
 		writeNote(vaultRoot, '03_sources/local-source.md', '# Source\n\nThis is source content for mcp smoke source-analysis test.');
+		writeNote(vaultRoot, '04_projects/demo/smoke-hub.md', [
+			'# Smoke Graph Hub',
+			'[[project_overview]]',
+			'[[smoke-lint-fixture]]',
+			'',
+		].join('\n'));
 		writeNote(vaultRoot, '04_projects/demo/smoke-lint-fixture.md', [
 			'# Smoke Lint Fixture',
-			'This note references [[smoke_missing_page]] and includes a claim with no source.',
+			'This note references [[smoke_missing_page]] and [[project_overview]] for basename resolution.',
+			'',
 			'',
 			'> [!claim]',
 			'> This is a claim that should require source refs.',
@@ -296,6 +303,7 @@ async function main() {
 		const tools = await client.call('tools/list');
 		ensureToolNames(tools, [
 			'tracekeeper.status',
+			'tracekeeper.graph_health',
 			'tracekeeper.start_task',
 			'tracekeeper.recall',
 			'tracekeeper.read_note',
@@ -326,6 +334,45 @@ async function main() {
 		}));
 		assert.equal(status.ok, true);
 		assert.equal(typeof status.counts.notes === 'number', true);
+		const graphHealth = buildStructured(await client.call('tools/call', {
+			name: 'tracekeeper.graph_health',
+			arguments: {},
+		}));
+		assert.equal(graphHealth.ok, true);
+		assert.equal(typeof graphHealth.note_count, 'number');
+		assert.equal(typeof graphHealth.wikilink_edge_count, 'number');
+		assert.equal(typeof graphHealth.resolved_edge_count, 'number');
+		assert.equal(typeof graphHealth.unresolved_edge_count, 'number');
+		assert.equal(graphHealth.resolved_edge_count > 0, true);
+		assert.equal(
+			graphHealth.wikilink_edge_count,
+			graphHealth.resolved_edge_count + graphHealth.unresolved_edge_count
+		);
+		assert.equal(Array.isArray(graphHealth.isolated_nodes), true);
+		assert.equal(Array.isArray(graphHealth.only_inbound_nodes), true);
+		assert.equal(Array.isArray(graphHealth.only_outbound_nodes), true);
+		assert.equal(Array.isArray(graphHealth.hub_candidates), true);
+		assert.equal(graphHealth.hub_candidates.length > 0, true);
+		if (graphHealth.hub_candidates.length > 0) {
+			assert.equal(typeof graphHealth.hub_candidates[0].path, 'string');
+			assert.equal(typeof graphHealth.hub_candidates[0].degree, 'number');
+			assert.equal(typeof graphHealth.hub_candidates[0].inbound, 'number');
+			assert.equal(typeof graphHealth.hub_candidates[0].outbound, 'number');
+		}
+		assert.equal(Array.isArray(graphHealth.recommendations), true);
+
+		const limitedGraphHealth = buildStructured(await client.call('tools/call', {
+			name: 'tracekeeper.graph_health',
+			arguments: {
+				max_items: 1,
+			},
+		}));
+		assert.equal(limitedGraphHealth.ok, true);
+		assert.equal(limitedGraphHealth.isolated_nodes.length <= 1, true);
+		assert.equal(limitedGraphHealth.hub_candidates.length <= 1, true);
+		assert.equal(limitedGraphHealth.only_inbound_nodes.length <= 1, true);
+		assert.equal(limitedGraphHealth.only_outbound_nodes.length <= 1, true);
+		assert.equal(limitedGraphHealth.recommendations.length <= 1, true);
 
 		const readNote = buildStructured(await client.call('tools/call', {
 			name: 'tracekeeper.read_note',

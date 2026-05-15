@@ -67,6 +67,7 @@ Current MCP tools:
 | Tool | Permission | Notes |
 | --- | --- | --- |
 | `tracekeeper.status` | `read-only` | Scans vault summary counts. |
+| `tracekeeper.graph_health` | `read-only` | Reports wikilink graph metrics and advisory hub recommendations. |
 | `tracekeeper.start_task` | `read-only` | Creates a deterministic task context summary without writing. |
 | `tracekeeper.recall` | `read-only` | Returns matching vault notes for a query. |
 | `tracekeeper.read_note` | `read-only` | Reads one vault-relative note. |
